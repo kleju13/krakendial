@@ -1,0 +1,69 @@
+/* Porcelain dial: white-enamel instrument face for a white build.
+   Graphite ink, one vermilion signal colour, DIN numerals (Bahnschrift ships with Windows). */
+
+.kd {
+  --dial-hi: #f6f4ef;
+  --dial-lo: #e2ded5;
+  --ink: #1a1b1d;
+  --ink-2: #65615a;
+  --ink-3: #a59f94;
+  --track: #d8d3c8;
+  --signal: #df4f27;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  display: block;
+  font-family: Bahnschrift, "DIN Alternate", "D-DIN", Barlow, sans-serif;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.kd text { fill: var(--ink); }
+
+.kd .t-clock { font-size: 27px; fill: var(--ink-2); letter-spacing: 0.08em; }
+.kd .t-lbl { font-size: 15px; font-weight: 600; letter-spacing: 0.24em; fill: var(--ink-2); }
+.kd .t-lbl-s { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; fill: var(--ink-3); }
+.kd .t-hero { font-size: 142px; font-weight: 600; letter-spacing: -0.03em; font-variation-settings: "wdth" 80; }
+.kd .t-big { font-size: 100px; font-weight: 600; letter-spacing: -0.03em; font-variation-settings: "wdth" 80; }
+.kd .t-mid { font-size: 46px; font-weight: 600; letter-spacing: -0.02em; font-variation-settings: "wdth" 84; }
+.kd .t-val { font-size: 36px; font-weight: 600; letter-spacing: -0.01em; font-variation-settings: "wdth" 84; }
+.kd .t-small { font-size: 27px; font-weight: 600; font-variation-settings: "wdth" 86; }
+.kd .t-sub { font-size: 18px; fill: var(--ink-2); }
+.kd .t-fine { font-size: 13.5px; fill: var(--ink-2); letter-spacing: 0.02em; }
+.kd .u { font-weight: 400; fill: var(--ink-2); }
+
+.kd .is-signal, .kd text.is-signal, .kd tspan.is-signal { fill: var(--signal); }
+.kd .is-dim { opacity: 0.36; }
+.kd .dimmable { transition: opacity 0.6s var(--ease); }
+
+.kd .tick { stroke: var(--ink-3); }
+.kd .rule { stroke: var(--track); stroke-width: 1.5; }
+
+.kd .g-track { stroke: var(--track); fill: none; }
+.kd .g-fill { stroke: var(--ink); fill: none; transition: stroke-dasharray 0.9s var(--ease); }
+.kd .g-over { stroke: var(--signal); fill: none; transition: stroke-dasharray 0.9s var(--ease); }
+.kd .gauge.is-dashed .g-track { stroke-dasharray: 1.2 1.2; }
+.kd .notch { transition: transform 0.9s var(--ease); transform-box: view-box; transform-origin: 320px 320px; }
+.kd .notch path { fill: var(--ink); }
+.kd .notch line { stroke: var(--ink); stroke-width: 2; }
+.kd .notch.is-peak path { fill: var(--ink-3); }
+
+/* Freshness pie: fills over one refresh interval, resets on every successful fetch. */
+.kd .pie-ring { fill: none; stroke: var(--ink-3); stroke-width: 1.4; }
+.kd .pie-wedge { fill: var(--ink-2); }
+.kd .pie.is-stale .pie-ring { stroke-dasharray: 2 2.4; }
+.kd .pie.is-error .pie-ring { stroke: var(--signal); }
+.kd .pie.is-error .pie-wedge { fill: var(--signal); }
+.kd .pie-inner { transform-box: fill-box; transform-origin: center; }
+.kd .pie-inner.pulse { animation: kd-pulse 0.9s var(--ease); }
+@keyframes kd-pulse {
+  0% { transform: scale(1.9); opacity: 0.15; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Adaptive scenes cross-fade with a slight zoom, like focusing a lens. */
+.kd .scene {
+  transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
+  transform-box: view-box;
+  transform-origin: 320px 320px;
+}
+.kd .scene.is-off { opacity: 0; transform: scale(0.94); pointer-events: none; }

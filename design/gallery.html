@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<title>Kraken LCD · makiety</title>
+<link rel="stylesheet" href="../web/dial.css">
+<style>
+  .gal { display: grid; grid-template-columns: 1fr 1fr; gap: 28px 22px; padding: 6px 0 4px; font-family: var(--font-sans, system-ui, sans-serif); }
+  .card { display: flex; flex-direction: column; align-items: center; gap: 12px; min-width: 0; }
+  .cap {
+    position: relative; width: 100%; max-width: 330px; aspect-ratio: 1; border-radius: 50%; padding: 13px; box-sizing: border-box;
+    background: radial-gradient(circle at 32% 26%, #ffffff 0%, #eeeeeb 45%, #d6d6d2 100%);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.22), 0 2px 4px rgba(0, 0, 0, 0.12), inset 0 -2px 3px rgba(0, 0, 0, 0.08);
+  }
+  .cap svg { width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,.05); }
+  .cap::after {
+    content: ""; position: absolute; inset: 13px; border-radius: 50%; pointer-events: none;
+    background: linear-gradient(155deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 38%);
+    box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.10);
+  }
+  .cap.live { cursor: pointer; }
+  .meta { text-align: center; max-width: 320px; }
+  .meta b { display: block; font-size: 14px; font-weight: 600; color: var(--foreground, #222); letter-spacing: .01em; }
+  .meta span { display: block; margin-top: 3px; font-size: 12.5px; line-height: 1.45; color: var(--muted-foreground, #777); }
+  .legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 22px; padding-top: 4px; font-size: 12.5px; color: var(--muted-foreground, #777); font-family: var(--font-sans, system-ui, sans-serif); }
+  .legend i { display: inline-flex; align-items: center; gap: 7px; font-style: normal; }
+  .legend svg { width: 16px; height: 16px; }
+  @media (max-width: 560px) { .gal { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="gal">
+  <div class="card">
+    <div class="cap live" title="kliknij: przełącz tryb"><svg id="d-work"></svg></div>
+    <div class="meta"><b>Adaptacyjny · praca</b><span>Pierścień należy do sesji 5h. Kreska z trójkątem to tempo, odcinek ponad nią robi się czerwony. Kliknij tarczę, żeby zobaczyć przejście.</span></div>
+  </div>
+  <div class="card">
+    <div class="cap live" title="kliknij: przełącz tryb"><svg id="d-game"></svg></div>
+    <div class="meta"><b>Adaptacyjny · gra</b><span>Gdy GPU jest długo obciążone, krawędź staje się termometrami CPU i GPU, a limity schodzą na dół. Szary trójkąt to szczyt z ostatnich minut.</span></div>
+  </div>
+  <div class="card">
+    <div class="cap"><svg id="d-fixed"></svg></div>
+    <div class="meta"><b>Stały · wszystko naraz</b><span>Limity u góry, sprzęt na dole. Termometry na krawędzi jak w trybie gry.</span></div>
+  </div>
+  <div class="card">
+    <div class="cap"><svg id="d-fixed-bad"></svg></div>
+    <div class="meta"><b>Stały · gdy coś nie gra</b><span>Nieaktualne dane bledną. Błąd ma czerwone kółko i powód. Po resecie pasek jest kreskowany, dopóki nie przyjdą nowe dane.</span></div>
+  </div>
+  <div class="legend">
+    <i><svg viewBox="-8 -8 16 16"><circle r="6" fill="none" stroke="#a59f94" stroke-width="1.4"/><path d="M0 0L0 -3.8A3.8 3.8 0 0 1 3.8 0Z" fill="#65615a"/></svg>świeże, kółko dopełnia się do następnego odczytu</i>
+    <i><svg viewBox="-8 -8 16 16"><circle r="6" fill="none" stroke="#df4f27" stroke-width="1.4"/><path d="M0 0L0 -3.8A3.8 3.8 0 0 1 0 3.8Z" fill="#df4f27"/></svg>odczyt się nie udał</i>
+    <i><svg viewBox="-8 -8 16 16"><circle r="6" fill="none" stroke="#a59f94" stroke-width="1.4" stroke-dasharray="2 2.4"/></svg>nieaktualne lub po resecie</i>
+  </div>
+</div>
+<script src="../web/dial.js"></script>
+<script>
+  const now = new Date(2026, 9, 13, 21, 47).getTime();
+  const H = 3600e3, M = 60e3, D = 24 * H;
+  const limits = {
+    claude5h: { pct: 64, windowMs: 5 * H, resetsAt: now + 2 * H + 23 * M, burnAt: now + 65 * M, fetchedAt: now - 22e3 },
+    claude7d: { pct: 50, windowMs: 7 * D, resetsAt: new Date(2026, 9, 17, 12, 0).getTime(), burnAt: null, fetchedAt: now - 22e3 },
+    codex7d: { pct: 8, windowMs: 7 * D, resetsAt: now + 6 * D + 9 * H, burnAt: null, fetchedAt: now - 41e3 },
+  };
+  const hwWork = {
+    cpu: { temp: 54, load: 0.18, power: 41, peak: 61 },
+    gpu: { temp: 43, load: 0.06, power: 24, peak: 48 },
+    liquid: 31.2, ram: { used: 21900, total: 32768 },
+  };
+  const hwGame = {
+    cpu: { temp: 71, load: 0.46, power: 104, peak: 76 },
+    gpu: { temp: 81, load: 0.97, power: 291, peak: 83 },
+    liquid: 36.8, ram: { used: 24700, total: 32768 },
+  };
+  const bad = {
+    claude5h: { ...limits.claude5h, fetchedAt: now - 14 * M },
+    claude7d: { ...limits.claude7d, resetsAt: now - 20 * M, fetchedAt: now - 3 * H },
+    codex7d: { ...limits.codex7d, fetchedAt: now - 9 * M, error: "brak sieci" },
+  };
+
+  function mount(id, layout, mode, hw, lim) {
+    const svg = document.getElementById(id);
+    const dial = KrakenDial.create(svg, { layout });
+    if (mode) dial.setMode(mode);
+    let cur = hw;
+    const draw = () => dial.update({ now, hw: cur, limits: lim });
+    draw();
+    if (layout === "adaptive") {
+      svg.parentElement.addEventListener("click", () => {
+        const next = dial.mode === "work" ? "game" : "work";
+        cur = next === "game" ? hwGame : hwWork;
+        draw();
+        dial.setMode(next);
+      });
+    }
+  }
+  mount("d-work", "adaptive", "work", hwWork, limits);
+  mount("d-game", "adaptive", "game", hwGame, limits);
+  mount("d-fixed", "fixed", null, hwWork, limits);
+  mount("d-fixed-bad", "fixed", null, hwGame, bad);
+</script>
+</body>
+</html>
