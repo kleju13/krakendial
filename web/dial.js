@@ -25,7 +25,7 @@
     { id: "terminal", name: "Terminal", desc: "Everything as console output." },
     { id: "htop", name: "htop", desc: "Meters on top, limits as the process list." },
     { id: "btop", name: "btop", desc: "Boxes and braille graphs of the last minutes." },
-    { id: "neofetch", name: "neofetch", desc: "A kraken logo and the system at a glance." },
+    { id: "neofetch", name: "neofetch", desc: "The system in big type, a mascot wandering below." },
     { id: "zegar", name: "Clock", desc: "The time, large; limits and hardware around it." },
     { id: "jedna", name: "One number", desc: "One huge value, the next one every 6 s." },
     { id: "limity", name: "Limits only", desc: "Claude 5h, Claude 7d and Codex." },
@@ -42,6 +42,18 @@
     { id: "grafit", name: "Graphite" },
     { id: "night", name: "Night" },
     { id: "neon", name: "Neon" },
+    { id: "nord", name: "Nord" },
+    { id: "tokyo", name: "Tokyo Night" },
+    { id: "catppuccin", name: "Catppuccin" },
+    { id: "latte", name: "Latte" },
+    { id: "dracula", name: "Dracula" },
+    { id: "solarized", name: "Solarized" },
+    { id: "gruvbox", name: "Gruvbox" },
+    { id: "synthwave", name: "Synthwave" },
+    { id: "phosphor", name: "Phosphor" },
+    { id: "amber", name: "Amber" },
+    { id: "mono", name: "Mono" },
+    { id: "paper", name: "Paper" },
   ];
   const BGS = window.KrakenBg.LIST;
   const LIMITS = [
@@ -688,39 +700,54 @@
       return out;
     });
   }
+  // A graph's range: whole 5° steps around what it holds, never flatter than 15°, so the line
+  // uses the height of its box instead of hugging the bottom.
+  function tempRange(hist) {
+    const v = hist.filter((x) => x != null);
+    if (!v.length) return [30, 60];
+    const lo = Math.floor((Math.min(...v) - 3) / 5) * 5;
+    return [lo, Math.max(lo + 15, Math.ceil((Math.max(...v) + 2) / 5) * 5)];
+  }
 
   // btop: rounded boxes with their titles set into the border, temperature graphs of the last
-  // minute and a half, the clock in the corner.
+  // two minutes, the clock in the corner. Boxes are as wide as the round screen allows at their height.
   function sceneBtop(p) {
-    const S = 17, N = 41, cw = advance(p, S), x0 = C - (N * cw) / 2;
-    const X = (col) => x0 + col * cw;
-    // A box from column c0 to c1; the title gap at the left, an optional label gap at the right.
-    function box(c0, c1, y0, y1, num, title, right = 0) {
-      const xa = X(c0) + cw / 2, xb = X(c1) - cw / 2, r = 8;
-      const ta = X(c0 + 1.5) - 2, tb = X(c0 + 1.5 + num.length + title.length) + 2;
-      const ra = X(c1 - 1.5 - right) - 2, rb = X(c1 - 1.5) + 2;
-      const f = (v) => v.toFixed(1);
-      let d = `M${f(ta)} ${y0}H${f(xa + r)}Q${f(xa)} ${y0} ${f(xa)} ${y0 + r}V${y1 - r}Q${f(xa)} ${y1} ${f(xa + r)} ${y1}`;
-      d += `H${f(xb - r)}Q${f(xb)} ${y1} ${f(xb)} ${y1 - r}V${y0 + r}Q${f(xb)} ${y0} ${f(xb - r)} ${y0}`;
+    const S = 20, cw = advance(p, S);
+    const f = (v) => v.toFixed(1);
+    // A box from x0 to x1: the title gap at the left, an optional label gap of `right` characters at the right.
+    function box(x0, x1, y0, y1, num, title, right = 0) {
+      const r = 10, ta = x0 + cw - 3, tb = x0 + cw * (1 + num.length + title.length) + 3;
+      const ra = x1 - cw * (1 + right) - 3, rb = x1 - cw + 3;
+      let d = `M${f(ta)} ${y0}H${f(x0 + r)}Q${f(x0)} ${y0} ${f(x0)} ${y0 + r}V${y1 - r}Q${f(x0)} ${y1} ${f(x0 + r)} ${y1}`;
+      d += `H${f(x1 - r)}Q${f(x1)} ${y1} ${f(x1)} ${y1 - r}V${y0 + r}Q${f(x1)} ${y0} ${f(x1 - r)} ${y0}`;
       d += right ? `H${f(rb)}M${f(ra)} ${y0}H${f(tb)}` : `H${f(tb)}`;
       el(p, "path", { d, class: "tm-box" });
-      setSpans(term(p, X(c0 + 1.5), y0 + S * 0.3, S), [["tm-p", num], ["tm-t", title]]);
-      return right ? term(p, X(c1 - 1.5 - right), y0 + S * 0.3, S) : null;
+      setSpans(term(p, x0 + cw, y0 + S * 0.32, S), [["tm-p", num], ["tm-t", title]]);
+      return right ? term(p, x1 - cw * (1 + right), y0 + S * 0.32, S) : null;
     }
-    const at = (c, y) => term(p, X(c), y, S);
-    const clockText = box(0, N, 136, 232, "¹", "limits", 8);
-    const LY = [166, 192, 218];
-    const rows = LY.map((y) => at(1.5, y));
-    const pace = LY.map((y) => paceLine(p, X(1.5), y, S, 10, 15));
-    const GY = [278, 297, 316];
-    const panes = [["cpu", 0, 20, "²"], ["gpu", 21, N, "³"]].map(([key, c0, c1, num]) => {
-      box(c0, c1, 252, 356, num, key);
-      return { key, graph: GY.map((y) => at(c0 + 1.5, y)), text: at(c0 + 1.5, 342), hist: [] };
-    });
-    box(0, N, 376, 444, "⁴", "sys");
-    const sys = [404, 430].map((y) => at(1.5, y));
-    const note = term(p, C, 482, 15, "middle");
-    let sampledAt = 0;
+    const span = (cols) => [C - (cols * cw) / 2, C + (cols * cw) / 2];
+
+    const [lx0, lx1] = span(36);
+    const clockText = box(lx0, lx1, 116, 228, "¹", "limits", 8);
+    const LY = [150, 181, 212];
+    const rows = LY.map((y) => term(p, lx0 + cw, y, S));
+    const pace = LY.map((y) => paceLine(p, lx0 + cw, y, S, 10, 10));
+
+    const [gx0, gx1] = span(45);
+    const GY = [270, 293, 316, 339];
+    const panes = [["cpu", gx0, gx0 + 22 * cw, "²"], ["gpu", gx1 - 22 * cw, gx1, "³"]].map(([key, x0, x1, num]) => ({
+      key,
+      range: box(x0, x1, 246, 388, num, key, 6),
+      graph: GY.map((y) => term(p, x0 + cw, y, S)),
+      text: term(p, x0 + cw, 372, S),
+      hist: [],
+    }));
+
+    const [sx0, sx1] = span(40);
+    box(sx0, sx1, 408, 490, "⁴", "sys");
+    const sys = [442, 474].map((y) => term(p, sx0 + cw, y, S));
+    const note = term(p, C, 528, 16, "middle");
+    let sampledAt = -Infinity;
     return [
       (d) => {
         setText(clockText, hhmmss(d.now));
@@ -728,32 +755,35 @@
           const v = d.views[def.key];
           setSpans(rows[i], [
             ["tm-k", `${def.cmd} `],
-            ...cells(v, 15, "■", "■"),
+            ...cells(v, 10, "■", "■"),
             [v.dim ? "tm-d" : v.hot ? "tm-w" : "", ` ${pctText(v)}`],
             [subClass(v), `  ${fit(resetIn(v, d.now), 6).padStart(6)}`],
           ]);
           pace[i](v);
         });
-        const sample = d.now - sampledAt >= 2500;
+        const sample = d.now - sampledAt >= 3000;
         if (sample) sampledAt = d.now;
         for (const pane of panes) {
           const h = d.hw[pane.key];
           if (sample) {
-            pane.hist.push(h.temp == null ? null : (h.temp - 25) / 70);
-            if (pane.hist.length > 34) pane.hist.shift();
+            pane.hist.push(h.temp ?? null);
+            if (pane.hist.length > 40) pane.hist.shift();
           }
-          braille(pane.hist, 17, 3).forEach((s, r) => setSpans(pane.graph[r], [[r ? "tm-f" : "tm-o", s]]));
+          const [lo, hi] = tempRange(pane.hist);
+          setText(pane.range, `${lo}-${hi}°`.padStart(6));
+          const norm = pane.hist.map((t) => (t == null ? null : (t - lo) / (hi - lo)));
+          braille(norm, 20, 4).forEach((s, r) => setSpans(pane.graph[r], [[r ? "tm-f" : "tm-o", s]]));
           setSpans(pane.text, [
-            [isHot(h, pane.key) ? "tm-w" : "tm-t", `${int(h.temp)}°C`.padEnd(6)],
+            [isHot(h, pane.key) ? "tm-w" : "tm-t", `${int(h.temp)}°C`.padEnd(7)],
             ["", `${h.load == null ? "—" : Math.round(h.load * 100)}%`.padStart(4)],
-            ["tm-d", `${int(h.power)} W`.padStart(7)],
+            ["tm-d", `${int(h.power)} W`.padStart(9)],
           ]);
         }
         const r = ram(d.hw);
-        setSpans(sys[0], [["tm-k", "liquid "], ["tm-t", `${dec(d.hw.liquid)}°C`.padEnd(14)], ["tm-k", "power "], ["tm-t", `${int(power(d.hw))} W`]]);
+        setSpans(sys[0], [["tm-k", "liquid "], ["tm-t", `${dec(d.hw.liquid)}°C`.padEnd(13)], ["tm-k", "power "], ["tm-t", `${int(power(d.hw))} W`]]);
         setSpans(sys[1], [
           ["tm-k", "mem "],
-          ...bar(r.used != null && r.total ? r.used / r.total : null, 24, "■", "■"),
+          ...bar(r.used != null && r.total ? r.used / r.total : null, 25, "■", "■"),
           ["", ` ${r.used == null ? "—" : dec(r.used / 1024)}/${r.total == null ? "—" : Math.round(r.total / 1024)}G`],
         ]);
         setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
@@ -761,52 +791,216 @@
     ];
   }
 
-  // neofetch's logo, a kraken in blocks.
-  const KRAKEN = [
-    "    ▄▄████▄▄    ",
-    "  ▄██████████▄  ",
-    " ██████████████ ",
-    " ███  ████  ███ ",
-    " ███▄▄████▄▄███ ",
-    "  ▀██████████▀  ",
-    " ▄█▀▄█▀█▀▀█▀█▄▀█▄",
-    "▄▀ ▄▀ ▄▀  ▀▄ ▀▄ ▀▄",
-    "▀  ▀  ▀    ▀  ▀  ▀",
+  // ---------- mascots ----------
+  // Pixel sprites 16 wide: X body, o highlight, W eye white, K dark. Two frames to walk with;
+  // pupils and eyelids are drawn on top, so the eyes can look around and blink.
+  const PX = 7;
+  const OCTO_HEAD = [
+    ".....XXXXXX.....",
+    "...XooXXXXXXX...",
+    "..XoXXXXXXXXXX..",
+    ".XXXXXXXXXXXXXX.",
+    ".XXXWWXXXXWWXXX.",
+    ".XXXWWXXXXWWXXX.",
+    ".XXXXXXXXXXXXXX.",
+    "..XXXXXXXXXXXX..",
   ];
+  const CRAB_BODY = [
+    "XXXX..X..X..XXXX",
+    ".XX.XXXXXXXX.XX.",
+    "..XXXooooooXXX..",
+    ".XXXXXXXXXXXXXX.",
+    ".XXXXXXXXXXXXXX.",
+    "..XXXXXXXXXXXX..",
+  ];
+  const GHOST_TOP = [
+    ".....XXXXXX.....",
+    "...XXXXXXXXXX...",
+    "..XXXXXXXXXXXX..",
+    ".XXXWWXXXXWWXXX.",
+    ".XXXWWXXXXWWXXX.",
+    ".XXXXXXXXXXXXXX.",
+    ".XXXXXXXXXXXXXX.",
+    ".XXXoXoXXoXoXXX.",
+    ".XXoXoXooXoXoXX.",
+    ".XXXXXXXXXXXXXX.",
+  ];
+  const CAT_TOP = [
+    "...........X...X",
+    "...........XX.XX",
+    "X..........XXXXX",
+    "X..........XWXWX",
+    ".X.........XXKXX",
+    ".X...XXXXXXXXXX.",
+    "..XXXXXXXXXXXXX.",
+    "..XXXXXXXXXXXX..",
+    "..XXoooooooXXX..",
+  ];
+  const ROBOT_TOP = [
+    ".......oo.......",
+    ".......XX.......",
+    "..XXXXXXXXXXXX..",
+    ".oXXWWXXXXWWXXo.",
+    ".oXXWWXXXXWWXXo.",
+    "..XXXXXXXXXXXX..",
+    "..XXXoKKKKoXXX..",
+    "..XXXXXXXXXXXX..",
+    "....XXXXXXXX....",
+    "..XXoXXXXXXoXX..",
+  ];
+  const MASCOTS = [
+    {
+      id: "kraken",
+      name: "Kraken",
+      eyes: [[4, 4, 2, 2], [10, 4, 2, 2]],
+      a: [...OCTO_HEAD, "..XX.XX..XX.XX..", ".XX..XX..XX..XX.", ".X..XX....XX..X.", "....X......X...."],
+      b: [...OCTO_HEAD, "..XX.XX..XX.XX..", "..XX.XX..XX.XX..", ".XX..X....X..XX.", "XX...XX..XX...XX"],
+    },
+    {
+      id: "crab",
+      name: "Crab",
+      eyes: [[5, 1, 2, 2], [9, 1, 2, 2]],
+      a: ["................", ".XX..WW..WW..XX.", "XX.X.WW..WW.X.XX", ...CRAB_BODY, ".X.X.X....X.X.X.", "X..X..X..X..X..X"],
+      b: ["................", ".XX..WW..WW..XX.", "XXXX.WW..WW.XXXX", ...CRAB_BODY, "..X.X.X..X.X.X..", ".X..X..XX..X..X."],
+    },
+    {
+      id: "ghost",
+      name: "Ghost",
+      float: true,
+      eyes: [[4, 3, 2, 2], [10, 3, 2, 2]],
+      a: [...GHOST_TOP, ".XX.XXX..XXX.XX.", ".X...XX..XX...X."],
+      b: [...GHOST_TOP, ".XXX.XX..XX.XXX.", "..X..X....X..X.."],
+    },
+    {
+      id: "cat",
+      name: "Cat",
+      flip: true,
+      eyes: [[12, 3, 1, 1], [14, 3, 1, 1]],
+      a: [...CAT_TOP, "..X.X......X.X..", "..X.X......X.X.."],
+      b: [...CAT_TOP, "...XX......XX...", "..X..X....X..X.."],
+    },
+    {
+      id: "robot",
+      name: "Robot",
+      eyes: [[4, 3, 2, 2], [10, 3, 2, 2]],
+      a: [...ROBOT_TOP, "....XX....XX....", "....XX....XX...."],
+      b: [...ROBOT_TOP, "....XX....XX....", "..........XX...."],
+    },
+  ];
+  const mascotById = (id) => MASCOTS.find((m) => m.id === id) || MASCOTS[0];
 
-  // neofetch: the logo on the left, the system as key: value lines, the theme's colours below.
-  function sceneNeofetch(p) {
-    const S = 16, lh = Math.round(S * 1.17);
-    KRAKEN.forEach((r, i) => {
-      const t = term(p, 78, 232 + i * lh, S);
-      t.classList.add("nf-logo");
-      t.textContent = r;
+  // Draws a mascot into parent; set() moves it, picks the frame, points the eyes, closes them.
+  function sprite(parent, m) {
+    const sq = (x, y, w = 1, h = 1) => `M${x * PX} ${y * PX}h${w * PX}v${h * PX}h${-w * PX}z`;
+    const g = el(parent, "g", { class: "mascot", "shape-rendering": "crispEdges" });
+    const body = el(g, "g");
+    const frames = [m.a, m.b].map((rows) => {
+      const fr = el(body, "g");
+      const paths = {};
+      rows.forEach((row, y) => [...row].forEach((c, x) => c !== "." && (paths[c] = (paths[c] || "") + sq(x, y))));
+      for (const c in paths) el(fr, "path", { d: paths[c], class: `px-${c}` });
+      return fr;
     });
-    const x = 266, Y = Array.from({ length: 15 }, (_, i) => 148 + i * 24);
+    const pupils = el(body, "path", { class: "px-K" });
+    const lids = el(body, "g");
+    el(lids, "path", { class: "px-X", d: m.eyes.map(([x, y, w, h]) => sq(x, y, w, h)).join("") });
+    el(lids, "path", { class: "px-K", d: m.eyes.map(([x, y, w, h]) => sq(x, y + h - 1, w, 1)).join("") });
+    const width = 16 * PX;
+    let key = null;
+    return {
+      width,
+      height: m.a.length * PX,
+      set({ x, y, frame = 0, look = 1, blink = false, flip = false }) {
+        const k = `${x}|${y}|${frame}|${look}|${blink}|${flip}`;
+        if (k === key) return;
+        key = k;
+        setAttr(g, "transform", `translate(${x} ${y})`);
+        setAttr(body, "transform", flip ? `translate(${width} 0) scale(-1 1)` : "");
+        frames.forEach((fr, i) => fr.style.display !== (i === frame ? "" : "none") && (fr.style.display = i === frame ? "" : "none"));
+        // look is in screen terms; a flipped body mirrors it
+        const right = (flip ? -look : look) > 0;
+        setAttr(pupils, "d", m.eyes.map(([ex, ey, w, h]) => sq(w > 1 && right ? ex + w - 1 : ex, ey, 1, h)).join(""));
+        lids.style.display = blink ? "" : "none";
+        pupils.style.display = blink ? "none" : "";
+      },
+    };
+  }
+
+  // Wanders along the ground between minX and maxX: walks a stretch, stands, looks around,
+  // blinks. Moves at 5 steps a second only while walking, so standing still costs CAM nothing.
+  function walker(parent, m, minX, maxX, ground, animate) {
+    const s = sprite(parent, m);
+    const snap = (v) => Math.round(v / PX) * PX;
+    const st = { x: snap((minX + maxX) / 2 - s.width / 2), frame: 0, look: 1, blink: false, dir: 1, target: null };
+    const show = () =>
+      s.set({ x: st.x, y: ground - s.height - (m.float && st.frame ? PX / 2 : 0), frame: st.frame, look: st.look, blink: st.blink, flip: m.flip && st.dir < 0 });
+    show();
+    if (!animate) return;
+    function step() {
+      if (!parent.isConnected) return;
+      let delay;
+      if (st.target != null) {
+        st.x += st.dir * PX;
+        st.frame ^= 1;
+        if (st.dir * (st.target - st.x) <= 0) [st.target, st.frame] = [null, 0];
+        delay = m.float ? 260 : 200;
+      } else if (st.blink) {
+        st.blink = false;
+        delay = 900 + Math.random() * 2400;
+      } else {
+        const r = Math.random();
+        if (r < 0.3) [st.blink, delay] = [true, 150];
+        else if (r < 0.62) [st.look, delay] = [-st.look, 700 + Math.random() * 1800];
+        else {
+          const lo = minX - s.width / 2, hi = maxX - s.width / 2;
+          st.target = snap(clamp(st.x + (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 180), lo, hi));
+          if (Math.abs(st.target - st.x) < PX * 4) st.target = snap(st.x < (lo + hi) / 2 ? hi : lo);
+          st.dir = st.target > st.x ? 1 : -1;
+          st.look = st.dir;
+          delay = 300;
+        }
+      }
+      show();
+      setTimeout(step, delay);
+    }
+    setTimeout(step, 1500);
+  }
+
+  // A mascot standing still, for the picker on the settings page.
+  function mascotIcon(svg, id) {
+    const m = mascotById(id);
+    svg.setAttribute("viewBox", `-6 -6 ${16 * PX + 12} ${m.a.length * PX + 12}`);
+    sprite(svg, m).set({ x: 0, y: 0 });
+  }
+
+  // neofetch: the system as key: value lines, large, the theme's colours below and a mascot
+  // wandering along the bottom under the text.
+  function sceneNeofetch(p, layer, env) {
+    const S = 26, x = 136;
+    const note = term(p, C, 80, 15, "middle");
+    setSpans(term(p, x, 112, S), [["tm-p", "kraken"], ["", "@"], ["tm-p", "lcd"]]);
+    setSpans(term(p, x, 136, S), [["", "-".repeat(10)]]);
+    const Y = [170, 201, 232, 263, 294, 325, 362, 393, 424];
     const L = Y.map((y) => term(p, x, y, S));
-    setSpans(L[0], [["tm-p", "kraken"], ["", "@"], ["tm-p", "lcd"]]);
-    setSpans(L[1], [["", "-".repeat(10)]]);
+    setSpans(term(p, x, 458, 20), [0, 1, 2, 3, 4, 5, 6, 7].map((i) => [`nf-${i}`, "███"]));
+    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[6 + i], S, 16, 10));
+    walker(p, mascotById(env.mascot), 206, 434, 560, env.animate);
     const kv = (k, v, cls = "") => [["tm-p", `${k}: `], [cls, v]];
-    setSpans(L[2], kv("OS", "NZXT CAM"));
-    setSpans(L[3], kv("Host", "Kraken Elite"));
-    setSpans(L[14], [0, 1, 2, 3, 4, 5, 6, 7].map((i) => [`nf-${i}`, "███"]));
-    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[10 + i], S, 16, 10));
-    const note = term(p, C, 532, 15, "middle");
     const names = ["Claude 5h:", "Claude 7d:", "Codex 7d: "];
     return [
       (d) => {
         const hw = d.hw, r = ram(hw);
-        setSpans(L[4], kv("Time", hhmmss(d.now)));
-        for (const [i, key] of [[5, "cpu"], [6, "gpu"]]) {
+        for (const [i, key] of [[0, "cpu"], [1, "gpu"]]) {
           const h = hw[key];
           setSpans(L[i], kv(key.toUpperCase(), `${int(h.temp)}°C · ${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`, isHot(h, key) ? "tm-w" : ""));
         }
-        setSpans(L[7], kv("Liquid", `${dec(hw.liquid)}°C`));
-        setSpans(L[8], kv("Power", `${int(power(hw))} W`));
-        setSpans(L[9], kv("Memory", `${r.used == null ? "—" : Math.round(r.used)}MiB / ${r.total == null ? "—" : Math.round(r.total)}MiB`));
+        setSpans(L[2], kv("Liquid", `${dec(hw.liquid)}°C`));
+        setSpans(L[3], kv("Power", `${int(power(hw))} W`));
+        setSpans(L[4], kv("Memory", `${r.used == null ? "—" : Math.round(r.used)}MiB / ${r.total == null ? "—" : Math.round(r.total)}MiB`));
+        setSpans(L[5], kv("Time", hhmmss(d.now)));
         LIMITS.forEach((def, i) => {
           const v = d.views[def.key];
-          setSpans(L[10 + i], [["tm-p", `${names[i]} `], [v.dim ? "tm-d" : v.hot ? "tm-w" : "", `${pctText(v).trim().padEnd(5)}`], ...cells(v, 10)]);
+          setSpans(L[6 + i], [["tm-p", `${names[i]} `], [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v).trim().padEnd(5)], ...cells(v, 10)]);
           pace[i](v);
         });
         setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
@@ -937,7 +1131,7 @@
     const back = window.KrakenBg.backdrop(canvas, root);
     const animate = cfg.animate !== false;
 
-    let layout = null, theme = null, bgType = null, left = true;
+    let layout = null, theme = null, bgType = null, left = true, mascot = null;
     let scenes = {}, updaters = [];
     // Every scene is its own <svg>, so switching between them is a composited fade, not a repaint.
     const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: "scene" });
@@ -949,7 +1143,7 @@
       updaters = [];
       for (const name of names) {
         scenes[name] = layer();
-        updaters = updaters.concat(SCENES[name](scenes[name], layer));
+        updaters = updaters.concat(SCENES[name](scenes[name], layer, { animate, mascot }));
       }
     }
 
@@ -960,13 +1154,24 @@
       left = next.units !== "used";
       back.fps(next.fps);
       back.look(next.look);
+      const m = mascotById(next.mascot).id;
       const themed = t !== theme;
-      if (themed) root.className = `kd th-${(theme = t)}`;
+      if (themed) {
+        root.className = `kd th-${(theme = t)}`;
+        // pixel art needs to know which way "dark" goes
+        const lo = getComputedStyle(root).getPropertyValue("--bg-lo").trim();
+        const rgb = lo.length >= 7 ? [1, 3, 5].map((i) => parseInt(lo.slice(i, i + 2), 16)) : [0, 0, 0];
+        root.classList.toggle("is-dark", 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2] < 128);
+      }
       if (themed || b !== bgType) back.set((bgType = b), animate);
-      if (l !== layout) {
+      // untouched media gets a halo behind the text instead of a dimmed picture
+      root.classList.toggle("is-raw", next.look === "raw" && /^media:/.test(b));
+      if (l !== layout || (l === "neofetch" && m !== mascot)) {
         layout = l;
+        mascot = m;
         buildLayout();
       }
+      mascot = m;
     }
 
     configure(cfg);
@@ -1012,5 +1217,5 @@
     return back;
   }
 
-  window.KrakenDial = { create, background, LAYOUTS, THEMES, BGS, emptyHw };
+  window.KrakenDial = { create, background, mascotIcon, LAYOUTS, THEMES, BGS, MASCOTS, emptyHw };
 })();

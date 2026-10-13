@@ -34,12 +34,14 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
   - Rodzina terminalowa:
     - **Terminal:** wszystko jako wynik poleceń w konsoli.
     - **htop:** mierniki `CPU[|||   55°C 15%]` u góry, limity jako lista procesów pod odwróconym nagłówkiem. Zaznaczony jest limit, który zużywa się najszybciej względem tempa.
-    - **btop:** zaokrąglone ramki, wykresy temperatur CPU i GPU z ostatnich ~90 s pisane brajlem, zegar w ramce.
-    - **neofetch:** kraken z bloków, sprzęt i limity jako `klucz: wartość`, paleta kolorów motywu.
+    - **btop:** zaokrąglone ramki na całą tarczę, zegar w ramce. Wykresy temperatur CPU i GPU z ostatnich 2 min są pisane brajlem i same dopasowują skalę (zakres w rogu ramki), więc sięgają do jej górnej krawędzi.
+    - **neofetch:** sprzęt i limity dużym tekstem jako `klucz: wartość`, paleta kolorów motywu, a pod spodem chodzi maskotka.
+
+      Maskotkę wybiera się w panelu: Kraken, Crab, Ghost, Cat albo Robot. Co parę sekund mruga, rozgląda się albo przechodzi kawałek, nie wchodząc na tekst. Między ruchami nic się nie zmienia, więc neofetch bez tła kosztuje CAM-a tyle co btop: ok. 20–35% jednego rdzenia.
 - **Limits show:** ile zostało (domyślnie) albo ile zużyte.
 
   Cienka kreska na każdym limicie to miejsce, w którym byłby przy równym tempie przez całe okno. Przy „ile zostało” mówi, ile powinno jeszcze zostać teraz. W układach terminalowych leży nad znakami paska w dokładnym miejscu, a nie zaokrąglona do całej komórki.
-- **Theme:** Ice, Porcelain, Frost, Blue, Ocean, Deep, Indigo, Graphite, Night, Neon.
+- **Theme:** Ice, Porcelain, Frost, Blue, Ocean, Deep, Indigo, Graphite, Night, Neon, a w stylu motywów terminala: Nord, Tokyo Night, Catppuccin, Latte, Dracula, Solarized, Gruvbox, Synthwave, Phosphor, Amber, Mono, Paper.
 - **Background:** rysowane animacje albo brak. Przyspieszają razem z obciążeniem GPU.
   - Liquid, Ripples, Bubbles, Aurora, Flow, Nebula, Stars, Bokeh.
   - Silk, Contours, Vortex, Honeycomb, Grid, Code rain.
@@ -52,7 +54,10 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
 
   Ruchome pliki są przycinane do kwadratu i zmniejszane do 640×640 przez ffmpeg, jeśli jest zainstalowany. Tarcza przyciemnia film tym mocniej, im jest jaśniejszy, a w jasnych motywach zamienia go na biało-niebieski duoton, żeby liczby zostały czytelne.
 
-  Pod listą jest przełącznik **As it is / ASCII**. W trybie ASCII każda klatka jest rysowana znakami ` .:-=+*#%@` w kolorach motywu, z poziomami dopasowanymi do klipu, żeby pasowała do układów terminalowych. Kosztuje ok. 20 punktów procentowych więcej niż zwykły film.
+  Pod listą jest przełącznik wyglądu:
+  - **Theme tint** (domyślnie): przyciemnienie i duoton jak wyżej.
+  - **Original:** film w oryginalnych kolorach, bez przyciemniania. Tekst dostaje cienką obwódkę w kolorze tła, żeby był czytelny na jasnych fragmentach.
+  - **ASCII:** każda klatka jest rysowana znakami ` .:-=+*#%@` w kolorach motywu, z poziomami dopasowanymi do klipu, żeby pasowała do układów terminalowych. Kosztuje ok. 20 punktów procentowych więcej niż zwykły film.
 - **Background frame rate:** 10, 20 albo 30 kl/s.
 
   CAM renderuje stronę bez GPU i każdą zmienioną klatkę przechwytuje i wysyła na wyświetlacz, co kosztuje ok. 2–3% jednego rdzenia na każdą klatkę na sekundę. Przy 10 kl/s cały CAM zużywa ok. 55–65% jednego rdzenia z animowanym tłem albo filmem i ok. 20–25% bez tła.
@@ -66,7 +71,7 @@ Na dole tarczy jest godzina ostatniego pobrania i realny odstęp, a obok kółko
 
 - `http://127.0.0.1:30640/lcd?mock` to sama tarcza ze sztucznymi danymi sprzętu.
 
-  Parametry `layout`, `theme`, `bg`, `units`, `look` i `fps` wymuszają wariant, np. `/lcd?mock&layout=btop&theme=deep&bg=media:runa.mp4&look=ascii`. Identyfikatory układów i teł są stałe (np. `kokpit`, `gwiazdy`), choć nazwy w panelu są po angielsku.
+  Parametry `layout`, `theme`, `bg`, `units`, `look` (`plain`, `raw`, `ascii`), `mascot` i `fps` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost` albo `/lcd?mock&layout=btop&theme=deep&bg=media:runa.mp4&look=ascii`. Identyfikatory układów i teł są stałe (np. `kokpit`, `gwiazdy`), choć nazwy w panelu są po angielsku.
 - `KRAKENLCD_WEB=<repo>\web` przy uruchomieniu exe serwuje pliki z dysku bez przebudowy.
 
   Otwarte strony same się przeładowują po restarcie usługi.

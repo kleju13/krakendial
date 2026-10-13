@@ -91,6 +91,94 @@
   --num-weight: 500;
 }
 
+/* terminal colour schemes, close to their published palettes */
+.th-nord {
+  --bg-hi: #3b4252; --bg-lo: #20242d;
+  --ink: #eceff4; --ink-2: #c0c8d8; --ink-3: #7b88a1;
+  --track: #434c5e; --fill: #88c0d0; --fill-2: #5e81ac; --warn: #bf616a; --tick: rgba(236, 239, 244, 0.14);
+  --glow-a: rgba(136, 192, 208, 0.22); --glow-b: rgba(94, 129, 172, 0.26);
+  --num-weight: 500;
+}
+.th-tokyo {
+  --bg-hi: #24283b; --bg-lo: #111219;
+  --ink: #c0caf5; --ink-2: #a9b1d6; --ink-3: #565f89;
+  --track: #292e42; --fill: #7aa2f7; --fill-2: #7dcfff; --warn: #f7768e; --tick: rgba(192, 202, 245, 0.14);
+  --glow-a: rgba(122, 162, 247, 0.26); --glow-b: rgba(187, 154, 247, 0.2);
+  --num-weight: 500;
+}
+.th-catppuccin {
+  --bg-hi: #2a2b3d; --bg-lo: #11111b;
+  --ink: #cdd6f4; --ink-2: #a6adc8; --ink-3: #6c7086;
+  --track: #313244; --fill: #89b4fa; --fill-2: #b4befe; --warn: #f38ba8; --tick: rgba(205, 214, 244, 0.14);
+  --glow-a: rgba(137, 180, 250, 0.24); --glow-b: rgba(203, 166, 247, 0.2);
+  --num-weight: 500;
+}
+.th-latte {
+  --bg-hi: #eff1f5; --bg-lo: #d6dbe5;
+  --ink: #4c4f69; --ink-2: #6c6f85; --ink-3: #9ca0b0;
+  --track: #ccd0da; --fill: #1e66f5; --fill-2: #7287fd; --warn: #d20f39; --tick: rgba(76, 79, 105, 0.18);
+  --glow-a: rgba(30, 102, 245, 0.14); --glow-b: rgba(136, 57, 239, 0.14);
+  --num-weight: 600;
+}
+.th-dracula {
+  --bg-hi: #343746; --bg-lo: #191a21;
+  --ink: #f8f8f2; --ink-2: #bfc3d9; --ink-3: #6272a4;
+  --track: #44475a; --fill: #bd93f9; --fill-2: #ff79c6; --warn: #ff5555; --tick: rgba(248, 248, 242, 0.14);
+  --glow-a: rgba(189, 147, 249, 0.26); --glow-b: rgba(255, 121, 198, 0.18);
+  --num-weight: 500;
+}
+.th-solarized {
+  --bg-hi: #073642; --bg-lo: #001b22;
+  --ink: #eee8d5; --ink-2: #93a1a1; --ink-3: #586e75;
+  --track: #0b4352; --fill: #268bd2; --fill-2: #2aa198; --warn: #dc322f; --tick: rgba(238, 232, 213, 0.14);
+  --glow-a: rgba(38, 139, 210, 0.26); --glow-b: rgba(42, 161, 152, 0.2);
+  --num-weight: 500;
+}
+.th-gruvbox {
+  --bg-hi: #3c3836; --bg-lo: #1a1c1d;
+  --ink: #ebdbb2; --ink-2: #bdae93; --ink-3: #7c6f64;
+  --track: #504945; --fill: #83a598; --fill-2: #8ec07c; --warn: #fb4934; --tick: rgba(235, 219, 178, 0.14);
+  --glow-a: rgba(131, 165, 152, 0.22); --glow-b: rgba(250, 189, 47, 0.14);
+  --num-weight: 500;
+}
+.th-synthwave {
+  --bg-hi: #34294f; --bg-lo: #110b1d;
+  --ink: #f8f4ff; --ink-2: #c8b6e8; --ink-3: #7a6a9c;
+  --track: #2e2546; --fill: #36f9f6; --fill-2: #ff7edb; --warn: #fe4450; --tick: rgba(255, 126, 219, 0.2);
+  --glow-a: rgba(255, 126, 219, 0.26); --glow-b: rgba(54, 249, 246, 0.2);
+  --num-weight: 500;
+}
+/* old CRT phosphors */
+.th-phosphor {
+  --bg-hi: #0a1f10; --bg-lo: #010603;
+  --ink: #c8ffd4; --ink-2: #6fdc8c; --ink-3: #2f7a45;
+  --track: #0f2a17; --fill: #33ff66; --fill-2: #a6ffbf; --warn: #ff6b5b; --tick: rgba(51, 255, 102, 0.18);
+  --glow-a: rgba(51, 255, 102, 0.2); --glow-b: rgba(166, 255, 191, 0.12);
+  --num-weight: 500;
+}
+.th-amber {
+  --bg-hi: #1f1404; --bg-lo: #070400;
+  --ink: #ffe2b3; --ink-2: #e0a85a; --ink-3: #8a5f22;
+  --track: #2b1c08; --fill: #ffb000; --fill-2: #ffd27a; --warn: #ff5a3c; --tick: rgba(255, 176, 0, 0.18);
+  --glow-a: rgba(255, 176, 0, 0.2); --glow-b: rgba(255, 210, 122, 0.12);
+  --num-weight: 500;
+}
+/* black and white */
+.th-mono {
+  --bg-hi: #161616; --bg-lo: #000000;
+  --ink: #ffffff; --ink-2: #b5b5b5; --ink-3: #6a6a6a;
+  --track: #262626; --fill: #ffffff; --fill-2: #8c8c8c; --warn: #ff5555; --tick: rgba(255, 255, 255, 0.16);
+  --glow-a: rgba(255, 255, 255, 0.12); --glow-b: rgba(255, 255, 255, 0.06);
+  --num-weight: 500;
+}
+.th-paper {
+  --bg-hi: #fbfbfa; --bg-lo: #e4e4e2;
+  --ink: #111111; --ink-2: #555555; --ink-3: #9a9a9a;
+  --track: #dcdcda; --fill: #111111; --fill-2: #8a8a8a; --warn: #d33a3a; --tick: rgba(17, 17, 17, 0.18);
+  --glow-a: rgba(0, 0, 0, 0.08); --glow-b: rgba(0, 0, 0, 0.05);
+  --num-weight: 600;
+}
+
 /* ---------- text ---------- */
 
 .kd text { fill: var(--ink); }
@@ -178,6 +266,14 @@
 .kd .tm-sel { fill: var(--fill); opacity: 0.16; }
 .kd .tm-box { fill: none; stroke: var(--ink-3); stroke-width: 1.5; }
 .kd .nf-logo { fill: var(--fill); }
+/* mascots: pixel art in the theme's colours; eye whites stay white, pupils go to the darkest colour */
+.kd .px-X { fill: var(--fill); }
+.kd .px-o { fill: var(--fill-2); }
+.kd .px-W { fill: #f7faff; }
+.kd .px-K { fill: var(--ink); }
+.kd.is-dark .px-K { fill: var(--bg-lo); }
+/* untouched media behind the dial: a soft halo keeps the text readable without dimming the picture */
+.kd.is-raw .scene text { paint-order: stroke; stroke: var(--bg-lo); stroke-width: 3.5px; stroke-opacity: 0.75; stroke-linejoin: round; }
 .kd .nf-0 { fill: var(--bg-lo); } .kd .nf-1 { fill: var(--warn); } .kd .nf-2 { fill: var(--track); } .kd .nf-3 { fill: var(--ink-3); }
 .kd .nf-4 { fill: var(--fill); } .kd .nf-5 { fill: var(--fill-2); } .kd .nf-6 { fill: var(--ink-2); } .kd .nf-7 { fill: var(--ink); }
 

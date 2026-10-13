@@ -5,7 +5,7 @@
 //   const back = KrakenBg.backdrop(canvas, root);  // root carries the theme's custom properties
 //   back.set("zorza", animate);                    // or "media:<file>" from the media folder
 //   back.play(); back.pause(); back.speed(1.6); back.fps(10);
-//   back.look("ascii");                            // own media redrawn as characters
+//   back.look("ascii");                            // own media: "plain" (tinted), "raw" or "ascii"
 (function () {
   const LIST = [
     { id: "ciecz", name: "Liquid" },
@@ -812,11 +812,7 @@
   // brighter the clip, the stronger the wash. A light theme first turns the picture into a
   // blue-and-white duotone, since washing a dark clip towards white otherwise leaves grey fog.
   function paintMedia(ctx, m, s, p) {
-    const n = m.node;
-    const w = n.videoWidth || n.naturalWidth, h = n.videoHeight || n.naturalHeight;
-    if (!w || !h) return;
-    const k = Math.max(s / w, s / h);
-    ctx.drawImage(n, (s - w * k) / 2, (s - h * k) / 2, w * k, h * k);
+    if (!paintRaw(ctx, m, s)) return;
     const y = brightness(m, performance.now());
     if (!p.dark) {
       ctx.fillStyle = rgba(p.line);
@@ -834,6 +830,16 @@
     g.addColorStop(1, rgba(base, 0.9));
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, s, s);
+  }
+
+  // The picture as it is, cover-fit; false while there is nothing to draw yet.
+  function paintRaw(ctx, m, s) {
+    const n = m.node;
+    const w = n.videoWidth || n.naturalWidth, h = n.videoHeight || n.naturalHeight;
+    if (!w || !h) return false;
+    const k = Math.max(s / w, s / h);
+    ctx.drawImage(n, (s - w * k) / 2, (s - h * k) / 2, w * k, h * k);
+    return true;
   }
 
   // The clip as characters: one probe pixel per cell, its brightness picks a glyph from the ramp.
@@ -881,6 +887,9 @@
   }
   const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
+  // plain: tinted towards the theme; raw: untouched; ascii: as characters
+  const LOOKS = { plain: paintMedia, raw: paintRaw, ascii: paintAscii };
+
   // ---------- the backdrop ----------
 
   function backdrop(canvas, root) {
@@ -895,7 +904,7 @@
       ctx.beginPath();
       ctx.arc(s / 2, s / 2, s / 2, 0, TAU);
       ctx.clip();
-      if (media) (look === "ascii" ? paintAscii : paintMedia)(ctx, media, s, pal);
+      if (media) LOOKS[look](ctx, media, s, pal);
       else painter.paint(ctx, t, s, pal, state);
       ctx.restore();
     }
@@ -952,7 +961,7 @@
         fps = n > 0 ? n : 10;
       },
       look(l) {
-        l = l === "ascii" ? "ascii" : "plain";
+        l = LOOKS[l] ? l : "plain";
         if (l === look) return;
         look = l;
         if (media) draw();

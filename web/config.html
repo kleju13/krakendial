@@ -65,6 +65,9 @@
   .chips { display: flex; gap: 10px; flex-wrap: wrap; }
   .grid + .chips { margin-top: 16px; }
   .chip { all: unset; cursor: pointer; padding: 10px 18px; border-radius: 999px; background: var(--panel); border: 1.5px solid transparent; font-size: 14px; }
+  .chip.pet { display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 12px; }
+  .chip.pet svg { width: 34px; height: 30px; }
+  .pet .px-X { fill: var(--accent); } .pet .px-o { fill: #b4d2ff; } .pet .px-W { fill: #f7faff; } .pet .px-K { fill: var(--page); }
   .chip[aria-pressed="true"] { border-color: var(--accent); background: #112347; }
   .hint { margin-top: 10px; font-size: 13px; color: var(--dim); }
   .hint.bad { color: var(--warn); }
@@ -83,6 +86,8 @@
   </aside>
   <div>
     <section><h2>LAYOUT</h2><div class="grid layouts" id="layouts"></div></section>
+    <section><h2>NEOFETCH MASCOT</h2><div class="chips" id="mascots"></div>
+      <div class="hint">Wanders under the neofetch text, looks around and blinks. It only moves now and then, so standing still costs nothing.</div></section>
     <section><h2>LIMITS SHOW</h2><div class="chips" id="units"></div>
       <div class="hint">The thin line on each limit is where it would be at an even pace through the window: with “left”, how much should still be there now.</div></section>
     <section><h2>THEME</h2><div class="grid themes" id="themes"></div></section>
@@ -90,7 +95,7 @@
       <div class="hint">Hover to see it move. Backgrounds speed up while the graphics card is busy.</div></section>
     <section><h2>OWN BACKGROUNDS</h2><div class="grid media" id="media"></div>
       <div class="chips" id="looks"></div>
-      <div class="hint" id="media-hint">A video, GIF or picture. Moving ones are cropped square and shrunk to 640×640. ASCII redraws them as characters in the theme’s colours, to go with the terminal layouts. Video costs more CPU than a drawn background.</div></section>
+      <div class="hint" id="media-hint">A video, GIF or picture. Moving ones are cropped square and shrunk to 640×640. Theme tint dims and recolours the picture so the numbers stay readable; Original leaves it alone and puts a soft halo behind the text instead; ASCII redraws it as characters in the theme’s colours. Video costs more CPU than a drawn background.</div></section>
     <section><h2>BACKGROUND FRAME RATE</h2><div class="chips" id="fps"></div>
       <div class="hint">CAM captures every changed frame and sends it to the display, which costs CPU. A slow background already looks smooth at 10 fps.</div></section>
     <section><h2>LIMIT REFRESH</h2><div class="chips" id="intervals"></div>
@@ -105,10 +110,10 @@
   const INTERVALS = [[60, "1 min"], [120, "2 min"], [300, "5 min"]];
   const FPS = [[10, "10 fps"], [20, "20 fps"], [30, "30 fps"]];
   const UNITS = [["left", "What’s left"], ["used", "What’s used"]];
-  const LOOKS = [["plain", "As it is"], ["ascii", "ASCII"]];
+  const LOOKS = [["plain", "Theme tint"], ["raw", "Original"], ["ascii", "ASCII"]];
   const MEDIA_HINT = document.getElementById("media-hint").textContent;
   let state = { limits: {}, interval: 60e3, config: {}, hw: null };
-  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, fps: 10, units: "left", look: "plain", ...(state.config || {}) });
+  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, fps: 10, units: "left", look: "plain", mascot: "kraken", ...(state.config || {}) });
 
   const preview = K.create(document.getElementById("preview"), cfg());
 
@@ -139,6 +144,11 @@
   const unitOpts = UNITS.map(([u, label]) => ({
     u, b: option(document.getElementById("units"), "chip", label, () => save({ units: u })),
   }));
+  const mascotOpts = K.MASCOTS.map((m) => {
+    const b = option(document.getElementById("mascots"), "chip pet", `<svg></svg>${m.name}`, () => save({ mascot: m.id, layout: "neofetch" }));
+    K.mascotIcon(b.querySelector("svg"), m.id);
+    return { id: m.id, b };
+  });
   const lookOpts = LOOKS.map(([l, label]) => ({
     l, b: option(document.getElementById("looks"), "chip", label, () => save({ look: l })),
   }));
@@ -250,7 +260,7 @@
   function render() {
     const c = cfg();
     const now = Date.now();
-    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}`;
+    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}`;
     const minis = key !== minisKey || now - minisAt > 5e3;
     if (minis) {
       minisKey = key;
@@ -264,13 +274,13 @@
     for (const o of layoutOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.layout));
       if (!minis) continue;
-      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak", units: c.units });
+      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak", units: c.units, mascot: c.mascot });
       o.dial.update(data);
     }
     for (const o of themeOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.theme));
       if (!minis) continue;
-      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak", units: c.units });
+      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak", units: c.units, mascot: c.mascot });
       o.dial.update(data);
     }
     for (const o of bgOpts.concat(mediaOpts)) {
@@ -284,6 +294,7 @@
     }
     for (const o of unitOpts) o.b.setAttribute("aria-pressed", String(o.u === c.units));
     for (const o of lookOpts) o.b.setAttribute("aria-pressed", String(o.l === c.look));
+    for (const o of mascotOpts) o.b.setAttribute("aria-pressed", String(o.id === c.mascot));
     for (const o of fpsOpts) o.b.setAttribute("aria-pressed", String(o.n === c.fps));
     for (const o of intervalOpts) o.b.setAttribute("aria-pressed", String(o.s === c.interval));
 

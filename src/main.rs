@@ -17,13 +17,18 @@ const LAYOUTS: [&str; 13] = [
     "rotacja", "adaptacyjny", "kokpit", "chronograf", "slupki", "terminal", "htop", "btop", "neofetch", "zegar", "jedna",
     "limity", "sprzet",
 ];
-const THEMES: [&str; 10] = ["ice", "porcelana", "mroz", "blue", "deep", "ocean", "indygo", "grafit", "night", "neon"];
+const THEMES: [&str; 22] = [
+    "ice", "porcelana", "mroz", "blue", "deep", "ocean", "indygo", "grafit", "night", "neon", "nord", "tokyo",
+    "catppuccin", "latte", "dracula", "solarized", "gruvbox", "synthwave", "phosphor", "amber", "mono", "paper",
+];
 const BGS: [&str; 19] = [
     "ciecz", "fale", "babelki", "zorza", "obieg", "gwiazdy", "bokeh", "mglawica", "linie", "topografia", "siatka",
     "kod", "plaster", "wir", "donut", "fire", "life", "pipes", "brak",
 ];
-/// How the user's own media is drawn: as it is, or as characters to match the terminal layouts.
-const LOOKS: [&str; 2] = ["plain", "ascii"];
+/// How the user's own media is drawn: tinted towards the theme, untouched, or as characters.
+const LOOKS: [&str; 3] = ["plain", "raw", "ascii"];
+/// Who walks along the bottom of the neofetch layout.
+const MASCOTS: [&str; 5] = ["kraken", "crab", "ghost", "cat", "robot"];
 /// Whether limits read as what is left or what is used.
 const UNITS: [&str; 2] = ["left", "used"];
 const INTERVALS: [i64; 3] = [60, 120, 300];
@@ -62,6 +67,9 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     }
     if let Some(l) = patch["look"].as_str().filter(|l| LOOKS.contains(l)) {
         cfg["look"] = json!(l);
+    }
+    if let Some(m) = patch["mascot"].as_str().filter(|m| MASCOTS.contains(m)) {
+        cfg["mascot"] = json!(m);
     }
     if let Some(i) = patch["interval"].as_i64().filter(|i| INTERVALS.contains(i)) {
         cfg["interval"] = json!(i);
@@ -225,7 +233,7 @@ fn main() {
     };
     let state_path = data_dir().join("state.json");
     let mut config =
-        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60, "fps": 10, "units": "left", "look": "plain" });
+        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60, "fps": 10, "units": "left", "look": "plain", "mascot": "kraken" });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
     }
