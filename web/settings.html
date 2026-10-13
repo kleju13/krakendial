@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kraken LCD · styl</title>
+<link rel="stylesheet" href="dial.css">
+<style>
+  :root { --paper: #ebe8e1; --ink: #1a1b1d; --ink-2: #65615a; --ink-3: #a59f94; --signal: #df4f27; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--paper); color: var(--ink);
+    font-family: Bahnschrift, "DIN Alternate", system-ui, sans-serif;
+  }
+  main { max-width: 1180px; margin: 0 auto; padding: 48px 32px 64px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  h1 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0.24em; color: var(--ink-2); }
+  #status { font-size: 14px; color: var(--ink-2); }
+  #status.bad { color: var(--signal); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 40px 28px; margin-top: 44px; }
+  .opt { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .cap {
+    position: relative; width: 100%; max-width: 260px; aspect-ratio: 1; border-radius: 50%; padding: 10px; box-sizing: border-box;
+    background: radial-gradient(circle at 32% 26%, #fff 0%, #f1f0ec 45%, #d9d8d3 100%);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16), 0 2px 4px rgba(0, 0, 0, 0.10);
+    outline: 2px solid transparent; outline-offset: 7px;
+    transition: transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1), outline-color 0.3s;
+  }
+  .cap svg { width: 100%; height: 100%; border-radius: 50%; }
+  .opt:hover .cap { transform: translateY(-3px); }
+  .opt[aria-pressed="true"] .cap { outline-color: var(--ink); }
+  .opt:focus-visible .cap { outline-color: var(--ink-3); }
+  .meta { text-align: center; max-width: 250px; }
+  .meta b { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.2em; }
+  .meta span { display: block; margin-top: 6px; font-size: 14px; line-height: 1.45; color: var(--ink-2); }
+  .opt[aria-pressed="true"] .meta b::after { content: " · TERAZ"; color: var(--signal); }
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1.5px solid #d8d3c8; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--ink-2); }
+  code { font-family: inherit; font-size: 15px; color: var(--ink); background: #f6f4ef; padding: 6px 10px; border-radius: 6px; }
+  footer button { all: unset; cursor: pointer; font-size: 13px; letter-spacing: 0.12em; color: var(--ink); border-bottom: 1.5px solid var(--ink-3); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>KRAKEN LCD · STYL</h1>
+    <div id="status">łączę…</div>
+  </header>
+  <div class="grid" id="grid"></div>
+  <footer>
+    Adres dla NZXT CAM (Web Integration):
+    <code id="url"></code>
+    <button id="copy">KOPIUJ</button>
+  </footer>
+</main>
+<script src="dial.js"></script>
+<script>
+(() => {
+  const OPTIONS = [
+    { id: "adaptive", name: "ADAPTACYJNY", desc: "Limity na pierwszym planie, a gdy grasz, na pierwszy plan wychodzą temperatury." },
+    { id: "fixed", name: "STAŁY", desc: "Wszystko naraz, bez przełączania." },
+    { id: "work", name: "ZAWSZE PRACA", desc: "Zawsze duża sesja 5h na pierścieniu." },
+    { id: "game", name: "ZAWSZE GRA", desc: "Zawsze termometry CPU i GPU na krawędzi." },
+  ];
+  const grid = document.getElementById("grid");
+  const status = document.getElementById("status");
+  const url = `${location.origin}/`;
+  document.getElementById("url").textContent = url;
+  document.getElementById("copy").onclick = (e) => {
+    navigator.clipboard.writeText(url).then(() => (e.target.textContent = "SKOPIOWANO"));
+  };
+
+  let state = null;
+  const empty = { cpu: {}, gpu: {}, liquid: null, ram: {} };
+  const dials = OPTIONS.map((o) => {
+    const btn = document.createElement("button");
+    btn.className = "opt";
+    btn.innerHTML = `<div class="cap"><svg></svg></div><div class="meta"><b>${o.name}</b><span>${o.desc}</span></div>`;
+    btn.onclick = async () => {
+      const r = await fetch("/api/config", { method: "POST", body: JSON.stringify({ layout: o.id }) });
+      if (r.ok) { state.config = await r.json(); render(); }
+    };
+    grid.appendChild(btn);
+    const dial = KrakenDial.create(btn.querySelector("svg"), { layout: o.id === "fixed" ? "fixed" : "adaptive" });
+    return { o, btn, dial };
+  });
+
+  function render() {
+    if (!state) return;
+    const hwAge = state.hw && state.hw.at ? Date.now() - state.hw.at : Infinity;
+    const live = hwAge < 15e3;
+    const hw = live ? state.hw : empty;
+    for (const { o, btn, dial } of dials) {
+      btn.setAttribute("aria-pressed", String(state.config.layout === o.id));
+      dial.setMode(o.id === "adaptive" ? (live && state.hw.mode) || "work" : o.id);
+      dial.update({ now: Date.now(), hw, limits: state.limits, interval: state.interval });
+    }
+    status.textContent = live ? "chłodzenie wyświetla na żywo" : "chłodzenie nie wysyła danych, sprawdź Web Integration w CAM";
+    status.classList.toggle("bad", !live);
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch("/api/state", { cache: "no-store" });
+      state = await r.json();
+    } catch (_) {
+      status.textContent = "usługa nie odpowiada";
+      status.classList.add("bad");
+    }
+    render();
+  }
+  poll();
+  setInterval(poll, 3000);
+})();
+</script>
+</body>
+</html>

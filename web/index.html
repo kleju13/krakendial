@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kraken LCD</title>
+<link rel="stylesheet" href="dial.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  body { display: grid; place-items: center; }
+  #dial { width: 100vmin; height: 100vmin; }
+</style>
+<script>
+  // Registered before anything else so CAM finds the hook on its first push.
+  window.__hw = null;
+  window.nzxt = window.nzxt || {};
+  window.nzxt.v1 = window.nzxt.v1 || {};
+  window.nzxt.v1.onMonitoringDataUpdate = (data) => {
+    window.__hw = data;
+    if (window.__onHw) window.__onHw(data);
+  };
+</script>
+</head>
+<body>
+<svg id="dial"></svg>
+<script src="dial.js"></script>
+<script>
+(() => {
+  const params = new URLSearchParams(location.search);
+  const forcedLayout = params.get("layout");
+  const mock = params.has("mock");
+  const svg = document.getElementById("dial");
+
+  // Adaptive switching: game after 20 s of a busy GPU, back to work after 60 s of calm.
+  const GAME_LOAD = 0.6, GAME_AFTER = 20, CALM_LOAD = 0.35, CALM_AFTER = 60;
+  const PEAK_WINDOW = 10 * 60e3;
+
+  let state = { limits: {}, interval: 60e3, config: { layout: "adaptive" } };
+  let hw = { cpu: {}, gpu: {}, liquid: null, ram: { used: null, total: null } };
+  let dial = null, builtFor = null;
+  let mode = "work", hot = 0, calm = 0;
+  const peaks = { cpu: [], gpu: [] };
+
+  const DISCRETE = /nvidia|geforce|rtx|gtx|radeon rx|arc a|arc b/i;
+  function pickGpu(gpus) {
+    if (!gpus || !gpus.length) return null;
+    return gpus.find((g) => DISCRETE.test(g.name || "")) ||
+      gpus.slice().sort((a, b) => (b.power ?? -1) - (a.power ?? -1))[0];
+  }
+
+  function peak(key, temp, now) {
+    const list = peaks[key];
+    if (temp != null) list.push([now, temp]);
+    while (list.length && list[0][0] < now - PEAK_WINDOW) list.shift();
+    return list.length ? Math.max(...list.map((p) => p[1])) : null;
+  }
+
+  function onHw(data) {
+    const now = Date.now();
+    const cpu = (data.cpus || [])[0] || {};
+    const gpu = pickGpu(data.gpus) || {};
+    hw = {
+      cpu: { temp: cpu.temperature, load: cpu.load, power: cpu.power, peak: peak("cpu", cpu.temperature, now) },
+      gpu: { temp: gpu.temperature, load: gpu.load, power: gpu.power, peak: peak("gpu", gpu.temperature, now) },
+      liquid: data.kraken ? data.kraken.liquidTemperature : null,
+      ram: { used: data.ram ? data.ram.inUse : null, total: data.ram ? data.ram.totalSize : null },
+    };
+    if (gpu.load != null) {
+      if (mode === "work") {
+        hot = gpu.load > GAME_LOAD ? hot + 1 : 0;
+        if (hot >= GAME_AFTER) { mode = "game"; calm = 0; }
+      } else {
+        calm = gpu.load < CALM_LOAD ? calm + 1 : 0;
+        if (calm >= CALM_AFTER) { mode = "work"; hot = 0; }
+      }
+    }
+    render();
+  }
+
+  function layout() {
+    return forcedLayout || (state.config && state.config.layout) || "adaptive";
+  }
+
+  function render() {
+    const l = layout();
+    if (builtFor !== l) {
+      svg.replaceChildren();
+      dial = KrakenDial.create(svg, { layout: l === "fixed" ? "fixed" : "adaptive" });
+      builtFor = l;
+    }
+    dial.setMode(l === "work" || l === "game" ? l : mode);
+    dial.update({ now: Date.now(), hw, limits: state.limits || {}, interval: state.interval });
+  }
+
+  async function poll() {
+    try {
+      const r = await fetch("/api/state", { cache: "no-store" });
+      if (r.ok) state = await r.json();
+    } catch (_) { /* service down: limits simply age into "stale" */ }
+    render();
+  }
+
+  // Mirror what the cooler shows to the settings page.
+  function share() {
+    if (!window.__hw || mock) return;
+    fetch("/api/hw", { method: "POST", body: JSON.stringify({ ...hw, mode }) }).catch(() => {});
+  }
+
+  if (mock) {
+    let t = 0;
+    setInterval(() => {
+      t++;
+      const busy = Math.floor(t / 40) % 2 === 1;
+      onHw({
+        cpus: [{ temperature: 52 + Math.sin(t / 9) * 6 + (busy ? 14 : 0), load: busy ? 0.45 : 0.15, power: busy ? 105 : 42 }],
+        gpus: [{ name: "Mock RTX", temperature: busy ? 76 : 44, load: busy ? 0.97 : 0.05, power: busy ? 285 : 22 }],
+        kraken: { liquidTemperature: busy ? 36.5 : 31.2 },
+        ram: { inUse: 21900, totalSize: 32768 },
+      });
+    }, 1000);
+  }
+
+  window.__onHw = onHw;
+  if (window.__hw) onHw(window.__hw);
+  render();
+  poll();
+  setInterval(poll, 10e3);
+  setInterval(render, 1000);
+  setInterval(share, 5e3);
+})();
+</script>
+</body>
+</html>

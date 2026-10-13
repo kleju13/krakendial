@@ -66,13 +66,18 @@
 
   function limitView(l, now, interval) {
     if (!l || l.pct == null) {
-      return { state: "none", pct: 0, pace: null, value: "—", frac: 0, dim: true, sub: [{ t: "brak danych" }] };
+      const sub = l && l.error ? [{ t: l.error, signal: true }] : [{ t: "czekam na dane" }];
+      return { state: l && l.error ? "error" : "none", pct: 0, pace: null, value: "—", frac: 0, dim: true, sub };
     }
     const age = now - l.fetchedAt;
-    const pace = l.windowMs ? clamp(100 * (1 - (l.resetsAt - now) / l.windowMs), 0, 100) : null;
+    const pace = l.windowMs && l.resetsAt ? clamp(100 * (1 - (l.resetsAt - now) / l.windowMs), 0, 100) : null;
     const base = { pct: clamp(l.pct, 0, 100), pace, value: `${Math.round(l.pct)}`, frac: clamp(age / interval, 0, 1), fetchedAt: l.fetchedAt };
 
-    if (now >= l.resetsAt) {
+    if (!l.resetsAt && age <= STALE_MS) {
+      // the window starts with the first request; nothing is ticking yet
+      return { ...base, state: l.error ? "error" : "ok", dim: false, sub: [{ t: "okno nie wystartowało" }] };
+    }
+    if (l.resetsAt && now >= l.resetsAt) {
       return { ...base, state: "reset", pct: 0, pace: 0, value: "0", dim: true, sub: [{ t: "po resecie · czekam na dane" }] };
     }
     if (age > STALE_MS) {
@@ -286,8 +291,10 @@
   function ramLine(p, y, cx = C) {
     const t = el(p, "text", { x: cx, y, "text-anchor": "middle", class: "t-fine" });
     return (d) => {
-      const r = d.hw.ram;
-      setParts(t, [{ t: "RAM  " }, { t: `${dec(r.used / 1024)} / ${Math.round(r.total / 1024)} GB` }]);
+      const r = d.hw.ram || {};
+      const used = r.used == null ? "—" : dec(r.used / 1024);
+      const total = r.total == null ? "—" : Math.round(r.total / 1024);
+      t.textContent = `RAM  ${used} / ${total} GB`;
     };
   }
 
