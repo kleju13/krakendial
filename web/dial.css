@@ -1,69 +1,152 @@
-/* Porcelain dial: white-enamel instrument face for a white build.
-   Graphite ink, one vermilion signal colour, DIN numerals (Bahnschrift ships with Windows). */
+/* Kraken LCD dial. Themes are blue/white families to match a white build under blue light.
+   Numerals are DIN (Bahnschrift ships with Windows). Backgrounds animate transforms only. */
 
 .kd {
-  --dial-hi: #f6f4ef;
-  --dial-lo: #e2ded5;
-  --ink: #1a1b1d;
-  --ink-2: #65615a;
-  --ink-3: #a59f94;
-  --track: #d8d3c8;
-  --signal: #df4f27;
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
-
-  display: block;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(circle at 50% 40%, var(--bg-hi) 0%, var(--bg-hi) 38%, var(--bg-lo) 100%);
   font-family: Bahnschrift, "DIN Alternate", "D-DIN", Barlow, sans-serif;
   font-variant-numeric: tabular-nums;
   user-select: none;
 }
+.kd > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+
+/* ---------- themes ---------- */
+
+.th-ice {
+  --bg-hi: #f3f8fe; --bg-lo: #d3e2f3;
+  --ink: #0b1a2e; --ink-2: #44597a; --ink-3: #8399b6;
+  --track: #d0dceb; --fill: #2563eb; --fill-2: #7cb3ff; --warn: #e5484d; --tick: rgba(11, 26, 46, 0.2);
+  --glow-a: rgba(37, 99, 235, 0.16); --glow-b: rgba(96, 165, 250, 0.24);
+  --num-weight: 600;
+}
+.th-deep {
+  --bg-hi: #11264d; --bg-lo: #030914;
+  --ink: #eef4ff; --ink-2: #9fb5d8; --ink-3: #5b7299;
+  --track: #1b2e52; --fill: #5b9cff; --fill-2: #b4d2ff; --warn: #ff6b6b; --tick: rgba(238, 244, 255, 0.16);
+  --glow-a: rgba(64, 132, 255, 0.34); --glow-b: rgba(56, 189, 248, 0.2);
+  --num-weight: 500;
+}
+.th-blue {
+  --bg-hi: #3d6dff; --bg-lo: #1431b0;
+  --ink: #ffffff; --ink-2: #d5e1ff; --ink-3: #a3b9ff;
+  --track: rgba(255, 255, 255, 0.2); --fill: #ffffff; --fill-2: #a9c2ff; --warn: #ffc0b5; --tick: rgba(255, 255, 255, 0.22);
+  --glow-a: rgba(255, 255, 255, 0.16); --glow-b: rgba(140, 220, 255, 0.24);
+  --num-weight: 500;
+}
+.th-night {
+  --bg-hi: #070b13; --bg-lo: #000000;
+  --ink: #f4f7ff; --ink-2: #8494b0; --ink-3: #44536e;
+  --track: #141c2b; --fill: #3b82f6; --fill-2: #9cc6ff; --warn: #ff5d5d; --tick: rgba(244, 247, 255, 0.12);
+  --glow-a: rgba(59, 130, 246, 0.26); --glow-b: rgba(147, 197, 253, 0.12);
+  --num-weight: 500;
+}
+
+/* ---------- text ---------- */
 
 .kd text { fill: var(--ink); }
-
-.kd .t-clock { font-size: 27px; fill: var(--ink-2); letter-spacing: 0.08em; }
-.kd .t-lbl { font-size: 15px; font-weight: 600; letter-spacing: 0.24em; fill: var(--ink-2); }
-.kd .t-lbl-s { font-size: 12px; font-weight: 600; letter-spacing: 0.14em; fill: var(--ink-3); }
-.kd .t-hero { font-size: 142px; font-weight: 600; letter-spacing: -0.03em; font-variation-settings: "wdth" 80; }
-.kd .t-big { font-size: 100px; font-weight: 600; letter-spacing: -0.03em; font-variation-settings: "wdth" 80; }
-.kd .t-mid { font-size: 46px; font-weight: 600; letter-spacing: -0.02em; font-variation-settings: "wdth" 84; }
-.kd .t-val { font-size: 36px; font-weight: 600; letter-spacing: -0.01em; font-variation-settings: "wdth" 84; }
-.kd .t-small { font-size: 27px; font-weight: 600; font-variation-settings: "wdth" 86; }
-.kd .t-sub { font-size: 18px; fill: var(--ink-2); }
-.kd .t-fine { font-size: 13.5px; fill: var(--ink-2); letter-spacing: 0.02em; }
+.kd .t-clock { font-size: 30px; fill: var(--ink-2); letter-spacing: 0.06em; }
+.kd .t-lbl { font-size: 20px; font-weight: 600; letter-spacing: 0.18em; fill: var(--ink-2); }
+.kd .t-lbl-s { font-size: 17px; font-weight: 600; letter-spacing: 0.16em; fill: var(--ink-2); }
+.kd .t-sub { font-size: 19px; fill: var(--ink-2); }
+.kd .t-meta { font-size: 16px; fill: var(--ink-3); letter-spacing: 0.03em; }
+.kd .n { font-weight: var(--num-weight); letter-spacing: -0.02em; font-variation-settings: "wdth" 82; }
 .kd .u { font-weight: 400; fill: var(--ink-2); }
-
-.kd .is-signal, .kd text.is-signal, .kd tspan.is-signal { fill: var(--signal); }
-.kd .is-dim { opacity: 0.36; }
+.kd .is-warn, .kd tspan.is-warn, .kd text.is-warn { fill: var(--warn); font-weight: 600; }
+.kd .is-dim { opacity: 0.38; }
 .kd .dimmable { transition: opacity 0.6s var(--ease); }
+.kd .tick { stroke: var(--tick); }
+.kd .rule { stroke: var(--track); stroke-width: 2; }
+.kd .dot { fill: var(--track); transition: fill 0.6s var(--ease); }
+.kd .dot.is-on { fill: var(--ink-2); }
 
-.kd .tick { stroke: var(--ink-3); }
-.kd .rule { stroke: var(--track); stroke-width: 1.5; }
+/* ---------- gauges ---------- */
 
 .kd .g-track { stroke: var(--track); fill: none; }
-.kd .g-fill { stroke: var(--ink); fill: none; transition: stroke-dasharray 0.9s var(--ease); }
-.kd .g-over { stroke: var(--signal); fill: none; transition: stroke-dasharray 0.9s var(--ease); }
+.kd .g-fill { stroke: var(--fill); fill: none; transition: stroke-dasharray 0.9s var(--ease); }
+.kd .g-over { stroke: var(--fill-2); fill: none; transition: stroke-dasharray 0.9s var(--ease); }
+.kd .gauge.is-hot .g-over { stroke: var(--warn); }
 .kd .gauge.is-dashed .g-track { stroke-dasharray: 1.2 1.2; }
 .kd .notch { transition: transform 0.9s var(--ease); transform-box: view-box; transform-origin: 320px 320px; }
 .kd .notch path { fill: var(--ink); }
-.kd .notch line { stroke: var(--ink); stroke-width: 2; }
+.kd .notch line { stroke: var(--ink); stroke-width: 2.5; }
 .kd .notch.is-peak path { fill: var(--ink-3); }
+.kd .notch.is-peak line { stroke: var(--ink-3); }
 
-/* Freshness pie: fills over one refresh interval, resets on every successful fetch. */
-.kd .pie-ring { fill: none; stroke: var(--ink-3); stroke-width: 1.4; }
-.kd .pie-wedge { fill: var(--ink-2); }
+/* freshness pie next to the meta line: fills until the next fetch is due */
+.kd .pie-ring { fill: none; stroke: var(--ink-3); stroke-width: 1.5; }
+.kd .pie-wedge { fill: var(--ink-3); }
 .kd .pie.is-stale .pie-ring { stroke-dasharray: 2 2.4; }
-.kd .pie.is-error .pie-ring { stroke: var(--signal); }
-.kd .pie.is-error .pie-wedge { fill: var(--signal); }
+.kd .pie.is-error .pie-ring { stroke: var(--warn); }
+.kd .pie.is-error .pie-wedge { fill: var(--warn); }
 .kd .pie-inner { transform-box: fill-box; transform-origin: center; }
 .kd .pie-inner.pulse { animation: kd-pulse 0.9s var(--ease); }
-@keyframes kd-pulse {
-  0% { transform: scale(1.9); opacity: 0.15; }
-  100% { transform: scale(1); opacity: 1; }
-}
+@keyframes kd-pulse { 0% { transform: scale(2); opacity: 0.1; } 100% { transform: scale(1); opacity: 1; } }
 
-/* Adaptive scenes cross-fade with a slight zoom, like focusing a lens. */
+/* ---------- scenes ---------- */
+
 .kd .scene {
   transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
   transform-box: view-box;
   transform-origin: 320px 320px;
 }
-.kd .scene.is-off { opacity: 0; transform: scale(0.94); pointer-events: none; }
+.kd .scene.is-off { opacity: 0; transform: scale(0.95); }
+
+/* ---------- animated backgrounds ---------- */
+
+.kd-bg { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; }
+.kd-bg > * { position: absolute; }
+@keyframes kd-spin { to { transform: rotate(360deg); } }
+
+/* ciecz: soft pools of light orbiting slowly, like coolant swirling in the pump */
+.bg-ciecz .orbit { inset: 0; animation: kd-spin 48s linear infinite; }
+.bg-ciecz .orbit:nth-child(2) { animation-duration: 66s; animation-direction: reverse; }
+.bg-ciecz .orbit:nth-child(3) { animation-duration: 84s; }
+.bg-ciecz .blob { position: absolute; left: 10%; top: 10%; width: 80%; height: 80%; border-radius: 50%; }
+.bg-ciecz .orbit:nth-child(1) .blob { transform: translate(24%, -10%); background: radial-gradient(circle, var(--glow-a) 0%, transparent 62%); }
+.bg-ciecz .orbit:nth-child(2) .blob { transform: translate(-26%, 14%); background: radial-gradient(circle, var(--glow-b) 0%, transparent 60%); }
+.bg-ciecz .orbit:nth-child(3) .blob { transform: translate(6%, 30%) scale(0.8); background: radial-gradient(circle, var(--glow-a) 0%, transparent 58%); }
+
+/* fale: slow ripples spreading from the centre */
+.bg-fale .ring {
+  left: 0; top: 0; width: 100%; height: 100%; border-radius: 50%; opacity: 0;
+  box-shadow: inset 0 0 0 2px var(--glow-b), inset 0 0 28px var(--glow-a);
+  animation: kd-ripple 12s cubic-bezier(0.25, 0.6, 0.3, 1) infinite;
+}
+.bg-fale .ring:nth-child(2) { animation-delay: -4s; }
+.bg-fale .ring:nth-child(3) { animation-delay: -8s; }
+@keyframes kd-ripple { 0% { transform: scale(0.12); opacity: 0; } 18% { opacity: 1; } 100% { transform: scale(1.04); opacity: 0; } }
+
+/* bąbelki: a few bubbles drifting up, as in the loop */
+.bg-babelki .col { top: 100%; height: 100%; animation: kd-rise linear infinite; }
+.bg-babelki .col::before {
+  content: ""; display: block; width: 100%; aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle at 34% 32%, var(--glow-b) 0%, var(--glow-a) 55%, transparent 72%);
+  animation: kd-sway var(--sway, 5s) ease-in-out infinite alternate;
+}
+@keyframes kd-rise { to { transform: translateY(-112%); } }
+@keyframes kd-sway { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+
+/* zorza: two broad bands of light breathing across the dial */
+.bg-zorza .band { left: -30%; top: 24%; width: 160%; height: 52%; border-radius: 50%; animation: kd-aurora 26s ease-in-out infinite alternate; }
+.bg-zorza .band:nth-child(1) { background: radial-gradient(ellipse at center, var(--glow-a) 0%, transparent 66%); }
+.bg-zorza .band:nth-child(2) { background: radial-gradient(ellipse at center, var(--glow-b) 0%, transparent 62%); animation-duration: 34s; animation-delay: -12s; }
+@keyframes kd-aurora {
+  from { transform: translateY(-22%) rotate(-14deg) scaleY(0.7); }
+  to { transform: translateY(26%) rotate(12deg) scaleY(1.1); }
+}
+
+/* obieg: light circulating around the rim, the flow through the pump */
+.bg-obieg .sweep {
+  inset: 0; border-radius: 50%;
+  -webkit-mask: radial-gradient(circle, transparent 74%, #000 82%, #000 97%, transparent 100%);
+  mask: radial-gradient(circle, transparent 74%, #000 82%, #000 97%, transparent 100%);
+  animation: kd-spin 10s linear infinite;
+}
+.bg-obieg .sweep:nth-child(1) { background: conic-gradient(from 0deg, transparent 0deg, var(--glow-a) 70deg, var(--glow-b) 100deg, transparent 140deg); }
+.bg-obieg .sweep:nth-child(2) { background: conic-gradient(from 180deg, transparent 0deg, var(--glow-a) 60deg, transparent 120deg); animation-duration: 15s; }

@@ -16,5 +16,5 @@ Set-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Kr
 Start-Process $exe
 
 Write-Host "Zainstalowano: $exe (autostart przy logowaniu)"
-Write-Host 'Adres dla NZXT CAM: http://127.0.0.1:30640/'
-Write-Host 'Wybór stylu:        http://127.0.0.1:30640/settings'
+Write-Host 'Adres dla NZXT CAM: http://127.0.0.1:30640/  (przycisk Configure w CAM otwiera wybór wariantu)'
+Write-Host 'Podgląd w przeglądarce: http://127.0.0.1:30640/lcd?mock'

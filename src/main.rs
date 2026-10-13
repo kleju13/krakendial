@@ -12,13 +12,45 @@ use std::time::Duration;
 use tiny_http::{Header, Method, Request, Response, Server};
 
 const ADDR: &str = "127.0.0.1:30640";
-const LAYOUTS: [&str; 4] = ["adaptive", "fixed", "work", "game"];
+const LAYOUTS: [&str; 6] = ["rotacja", "adaptacyjny", "pierscienie", "jedna", "limity", "sprzet"];
+const THEMES: [&str; 4] = ["ice", "deep", "blue", "night"];
+const BGS: [&str; 6] = ["ciecz", "fale", "babelki", "zorza", "obieg", "brak"];
+const INTERVALS: [i64; 3] = [60, 120, 300];
 
 fn data_dir() -> PathBuf {
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
     let dir = base.join("krakenlcd");
     let _ = std::fs::create_dir_all(&dir);
     dir
+}
+
+/// Applies the valid fields of `patch` on top of `cfg`; unknown values are ignored.
+fn merge_config(cfg: &mut Value, patch: &Value) {
+    fn legacy(l: &str) -> &str {
+        match l {
+            "adaptive" => "adaptacyjny",
+            "fixed" => "pierscienie",
+            "work" => "limity",
+            "game" => "sprzet",
+            other => other,
+        }
+    }
+    if let Some(l) = patch["layout"].as_str().map(legacy).filter(|l| LAYOUTS.contains(l)) {
+        cfg["layout"] = json!(l);
+    }
+    if let Some(t) = patch["theme"].as_str().filter(|t| THEMES.contains(t)) {
+        cfg["theme"] = json!(t);
+    }
+    if let Some(b) = patch["bg"].as_str().filter(|b| BGS.contains(b)) {
+        cfg["bg"] = json!(b);
+    }
+    if let Some(i) = patch["interval"].as_i64().filter(|i| INTERVALS.contains(i)) {
+        cfg["interval"] = json!(i);
+    }
+}
+
+fn interval_ms(cfg: &Value) -> i64 {
+    cfg["interval"].as_i64().unwrap_or(60) * 1000
 }
 
 fn log(msg: &str) {
@@ -36,6 +68,8 @@ struct App {
     config: Mutex<Value>,
     /// Last hardware snapshot posted by the LCD page, so the settings page can mirror the cooler.
     hw: Mutex<Value>,
+    /// Changes on every restart; open pages reload themselves when it does, so updates reach the LCD.
+    build: i64,
 }
 
 fn asset(name: &str) -> Option<(Vec<u8>, &'static str)> {
@@ -53,7 +87,7 @@ fn asset(name: &str) -> Option<(Vec<u8>, &'static str)> {
     }
     let bytes: &[u8] = match name {
         "index.html" => include_bytes!("../web/index.html"),
-        "settings.html" => include_bytes!("../web/settings.html"),
+        "config.html" => include_bytes!("../web/config.html"),
         "dial.js" => include_bytes!("../web/dial.js"),
         "dial.css" => include_bytes!("../web/dial.css"),
         _ => return None,
@@ -80,13 +114,16 @@ fn read_body(req: &mut Request) -> Option<Value> {
 }
 
 fn handle(app: &App, mut req: Request) {
-    let path = req.url().split('?').next().unwrap_or("/").to_string();
+    let (path, query) = req.url().split_once('?').unwrap_or((req.url(), ""));
+    let (path, on_kraken) = (path.to_string(), query.split('&').any(|kv| kv == "kraken=1"));
     match (req.method(), path.as_str()) {
         (Method::Get, "/api/state") => {
+            let cfg = app.config.lock().unwrap().clone();
             let v = json!({
                 "now": limits::now_ms(),
-                "interval": limits::INTERVAL_MS,
-                "config": *app.config.lock().unwrap(),
+                "build": app.build,
+                "interval": interval_ms(&cfg),
+                "config": cfg,
                 "limits": app.store.lock().unwrap().to_json(),
                 "hw": *app.hw.lock().unwrap(),
             });
@@ -95,9 +132,7 @@ fn handle(app: &App, mut req: Request) {
         (Method::Post, "/api/config") => {
             let Some(body) = read_body(&mut req) else { return reply(req, 400, "text/plain", b"bad json".to_vec()) };
             let mut cfg = app.config.lock().unwrap();
-            if let Some(l) = body["layout"].as_str().filter(|l| LAYOUTS.contains(l)) {
-                cfg["layout"] = json!(l);
-            }
+            merge_config(&mut cfg, &body);
             let _ = std::fs::write(data_dir().join("config.json"), cfg.to_string());
             let out = cfg.clone();
             drop(cfg);
@@ -111,9 +146,11 @@ fn handle(app: &App, mut req: Request) {
             reply(req, 204, "text/plain", Vec::new());
         }
         (Method::Get, p) => {
+            // CAM loads the same URL twice: with ?kraken=1 on the LCD, without it in "Configure".
             let name = match p {
-                "/" => "index.html",
-                "/settings" => "settings.html",
+                "/" if on_kraken => "index.html",
+                "/" | "/config" | "/settings" => "config.html",
+                "/lcd" => "index.html",
                 other => other.trim_start_matches('/'),
             };
             match asset(name) {
@@ -135,15 +172,15 @@ fn main() {
         }
     };
     let state_path = data_dir().join("state.json");
-    let config = std::fs::read_to_string(data_dir().join("config.json"))
-        .ok()
-        .and_then(|s| serde_json::from_str::<Value>(&s).ok())
-        .filter(Value::is_object)
-        .unwrap_or_else(|| json!({ "layout": "adaptive" }));
+    let mut config = json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60 });
+    if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
+        merge_config(&mut config, &saved);
+    }
     let app = Arc::new(App {
         store: Mutex::new(limits::Store::load(&state_path)),
         config: Mutex::new(config),
         hw: Mutex::new(Value::Null),
+        build: limits::now_ms(),
     });
     log(&format!("listening on http://{ADDR}"));
 
@@ -153,8 +190,9 @@ fn main() {
         let mut sources = limits::sources();
         loop {
             let mut polled = false;
+            let interval = interval_ms(&poller.config.lock().unwrap());
             for s in sources.iter_mut() {
-                match s.tick(&fetcher, &poller.store) {
+                match s.tick(&fetcher, &poller.store, interval) {
                     Some(Err(e)) => log(&e),
                     Some(Ok(())) => {}
                     None => continue,

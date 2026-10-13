@@ -26,6 +26,9 @@ pub struct Limit {
     pub fetched_at: Option<i64>,
     #[serde(skip)]
     pub error: Option<String>,
+    /// When the provider is asked next; kept on disk so restarts don't hammer a rate-limited API.
+    #[serde(default)]
+    pub next_at: i64,
     /// (time, percent) samples of the current window, used to measure the burn rate.
     pub history: VecDeque<(i64, f64)>,
 }
@@ -80,6 +83,7 @@ impl Limit {
             "burnAt": self.burn_at(),
             "fetchedAt": self.fetched_at,
             "error": self.error,
+            "nextAt": self.next_at,
         })
     }
 }
@@ -108,6 +112,16 @@ impl Store {
 
     fn record(&mut self, key: &str, pct: f64, window_ms: i64, resets_at: Option<i64>, now: i64) {
         self.limits.entry(key.into()).or_default().record(pct, window_ms, resets_at, now);
+    }
+
+    fn next_at(&self, keys: &[&str]) -> i64 {
+        keys.iter().filter_map(|k| self.limits.get(*k)).map(|l| l.next_at).max().unwrap_or(0)
+    }
+
+    fn schedule(&mut self, keys: &[&str], at: i64) {
+        for k in keys {
+            self.limits.entry((*k).into()).or_default().next_at = at;
+        }
     }
 
     fn fail(&mut self, keys: &[&str], msg: &str) {
@@ -233,27 +247,36 @@ impl Fetcher {
     }
 }
 
-/// One provider's polling schedule; backs off when the server says we ask too often.
+const MAX_BACK_OFF: i64 = 30 * 60_000;
+
+/// One provider's polling schedule, adapting to its rate limit: every "too often" doubles the
+/// wait (up to 30 min) and five clean polls in a row halve it again, so it settles on the
+/// shortest pace the server tolerates.
 pub struct Source {
     pub name: &'static str,
     keys: &'static [&'static str],
-    next_at: i64,
+    strikes: u32,
+    clean: u32,
 }
-
-pub const INTERVAL_MS: i64 = 60_000;
 
 pub fn sources() -> Vec<Source> {
     vec![
-        Source { name: "claude", keys: &["claude5h", "claude7d"], next_at: 0 },
-        Source { name: "codex", keys: &["codex7d"], next_at: 0 },
+        Source { name: "claude", keys: &["claude5h", "claude7d"], strikes: 0, clean: 0 },
+        Source { name: "codex", keys: &["codex7d"], strikes: 0, clean: 0 },
     ]
+}
+
+fn wait(interval: i64, strikes: u32) -> i64 {
+    if strikes == 0 {
+        return interval;
+    }
+    (interval.max(60_000) << strikes.min(6)).min(MAX_BACK_OFF)
 }
 
 impl Source {
     /// Polls if due: None when not due yet, otherwise the outcome (error text is for the log).
-    pub fn tick(&mut self, f: &Fetcher, store: &std::sync::Mutex<Store>) -> Option<Result<(), String>> {
-        let now = now_ms();
-        if now < self.next_at {
+    pub fn tick(&mut self, f: &Fetcher, store: &std::sync::Mutex<Store>, interval: i64) -> Option<Result<(), String>> {
+        if now_ms() < store.lock().unwrap().next_at(self.keys) {
             return None;
         }
         let res = if self.name == "claude" { f.claude() } else { f.codex() };
@@ -264,13 +287,26 @@ impl Source {
                 for (key, pct, window, resets) in samples {
                     s.record(key, pct, window, resets, now);
                 }
-                self.next_at = now + INTERVAL_MS;
+                self.clean += 1;
+                if self.clean >= 5 && self.strikes > 0 {
+                    self.strikes -= 1;
+                    self.clean = 0;
+                }
+                s.schedule(self.keys, now + wait(interval, self.strikes));
                 Some(Ok(()))
             }
-            Err((msg, back_off)) => {
-                s.fail(self.keys, &msg);
-                self.next_at = now + if back_off { 5 * INTERVAL_MS } else { INTERVAL_MS };
-                Some(Err(format!("{}: {msg}", self.name)))
+            Err((msg, too_often)) => {
+                self.clean = 0;
+                if too_often {
+                    self.strikes += 1;
+                }
+                // A single "too often" just slows us down; only a repeated one is worth showing.
+                if !too_often || self.strikes >= 2 {
+                    s.fail(self.keys, &msg);
+                }
+                let next = if too_often { wait(interval, self.strikes) } else { interval };
+                s.schedule(self.keys, now + next);
+                Some(Err(format!("{}: {msg}, retry in {} s", self.name, next / 1000)))
             }
         }
     }
@@ -300,6 +336,14 @@ mod tests {
         idle.record(50.0, 5 * HOUR, Some(t + 3 * HOUR), t);
         idle.record(50.0, 5 * HOUR, Some(t + 3 * HOUR), t + 30 * MIN);
         assert_eq!(idle.burn_at(), None);
+    }
+
+    #[test]
+    fn back_off_doubles_up_to_cap() {
+        assert_eq!(wait(120_000, 0), 120_000);
+        assert_eq!(wait(60_000, 1), 120_000);
+        assert_eq!(wait(60_000, 3), 480_000);
+        assert_eq!(wait(60_000, 9), MAX_BACK_OFF);
     }
 
     #[test]
