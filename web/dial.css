@@ -123,17 +123,13 @@
 .kd .g-fill { stroke: var(--fill); fill: none; }
 .kd .g-over { stroke: var(--fill-2); fill: none; }
 .kd .gauge.is-hot .g-over { stroke: var(--warn); }
-/* "what is left": the gap up to the pace notch is the part the limit won't last */
-.kd .gauge.is-left .g-over { stroke: var(--warn); opacity: 0.38; }
-.kd .gauge.is-left.is-hot .g-over { opacity: 0.6; }
 .kd .gauge.is-dashed .g-track { stroke-dasharray: 1.2 1.2; }
 .kd .notch { transform-box: view-box; transform-origin: 320px 320px; }
 .kd .smooth .g-fill, .kd .smooth .g-over { transition: stroke-dasharray 0.9s var(--ease); }
 .kd .smooth .notch { transition: transform 0.9s var(--ease); }
-.kd .notch path { fill: var(--ink); }
-.kd .notch line, .kd .notch .notch-line { fill: none; stroke: var(--ink); stroke-width: 2.5; }
-.kd .notch.is-peak path { fill: var(--ink-3); }
-.kd .notch.is-peak line, .kd .notch.is-peak .notch-line { stroke: var(--ink-3); }
+/* the pace: a quiet line across the gauge, a little longer than it is wide */
+.kd .notch path, .kd .pace { fill: none; stroke: var(--ink); stroke-width: 2; opacity: 0.5; }
+.kd .notch.is-peak path { stroke: var(--ink-3); opacity: 1; }
 
 /* freshness pie next to the meta line: fills until the next fetch is due */
 .kd .pie-ring { fill: none; stroke: var(--ink-3); stroke-width: 1.5; }
@@ -175,6 +171,15 @@
 .kd .tm-o { fill: var(--fill-2); }
 .kd .tm-e { fill: var(--ink-2); opacity: 0.45; }
 .kd .tm-c { fill: var(--fill); }
+.kd .tm-t { fill: var(--ink); font-weight: 600; }
+.kd .tm-b { fill: var(--ink); font-weight: 700; }
+.kd .tm-inv { fill: var(--bg-hi); font-weight: 600; }
+.kd .tm-inv-bg { fill: var(--fill); }
+.kd .tm-sel { fill: var(--fill); opacity: 0.16; }
+.kd .tm-box { fill: none; stroke: var(--ink-3); stroke-width: 1.5; }
+.kd .nf-logo { fill: var(--fill); }
+.kd .nf-0 { fill: var(--bg-lo); } .kd .nf-1 { fill: var(--warn); } .kd .nf-2 { fill: var(--track); } .kd .nf-3 { fill: var(--ink-3); }
+.kd .nf-4 { fill: var(--fill); } .kd .nf-5 { fill: var(--fill-2); } .kd .nf-6 { fill: var(--ink-2); } .kd .nf-7 { fill: var(--ink); }
 
 /* ---------- scenes ---------- */
 

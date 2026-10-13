@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kraken LCD · konfiguracja</title>
+<title>Kraken LCD · settings</title>
 <link rel="stylesheet" href="dial.css">
 <style>
   :root {
@@ -63,6 +63,7 @@
   .opt small { font-size: 12.5px; line-height: 1.35; color: var(--muted); text-align: center; }
 
   .chips { display: flex; gap: 10px; flex-wrap: wrap; }
+  .grid + .chips { margin-top: 16px; }
   .chip { all: unset; cursor: pointer; padding: 10px 18px; border-radius: 999px; background: var(--panel); border: 1.5px solid transparent; font-size: 14px; }
   .chip[aria-pressed="true"] { border-color: var(--accent); background: #112347; }
   .hint { margin-top: 10px; font-size: 13px; color: var(--dim); }
@@ -75,24 +76,25 @@
     <div class="brand">KRAKEN LCD</div>
     <div class="cap"><div id="preview"></div></div>
     <div class="status">
-      <div>Chłodzenie <b id="s-lcd">…</b></div>
+      <div>Cooler <b id="s-lcd">…</b></div>
       <div>Claude <b id="s-claude">…</b></div>
       <div>Codex <b id="s-codex">…</b></div>
     </div>
   </aside>
   <div>
-    <section><h2>UKŁAD</h2><div class="grid layouts" id="layouts"></div></section>
-    <section><h2>LIMITY POKAZUJĄ</h2><div class="chips" id="units"></div>
-      <div class="hint">Przy „ile zostało” pasek się opróżnia. Kreska mówi, ile powinno zostać przy równym tempie do resetu; czerwona szczelina do niej znaczy, że limit skończy się przed resetem.</div></section>
-    <section><h2>MOTYW</h2><div class="grid themes" id="themes"></div></section>
-    <section><h2>TŁO</h2><div class="grid bgs" id="bgs"></div>
-      <div class="hint">Najedź, żeby zobaczyć ruch. Tło przyspiesza, gdy karta graficzna pracuje.</div></section>
-    <section><h2>WŁASNE TŁA</h2><div class="grid media" id="media"></div>
-      <div class="hint" id="media-hint">Film, GIF albo obrazek. Ruchome pliki są przycinane do kwadratu i zmniejszane do 640×640. Film kosztuje procesor więcej niż rysowane tło.</div></section>
-    <section><h2>PŁYNNOŚĆ TŁA</h2><div class="chips" id="fps"></div>
-      <div class="hint">CAM przechwytuje każdą klatkę i przesyła ją na wyświetlacz, a to kosztuje procesor. Wolne tło wygląda dobrze już przy 10 kl/s.</div></section>
-    <section><h2>POBIERANIE LIMITÓW</h2><div class="chips" id="intervals"></div>
-      <div class="hint">Co ile usługa pyta Claude i Codexa o limity. Odczyt sprzętu z CAM jest co sekundę.</div></section>
+    <section><h2>LAYOUT</h2><div class="grid layouts" id="layouts"></div></section>
+    <section><h2>LIMITS SHOW</h2><div class="chips" id="units"></div>
+      <div class="hint">The thin line on each limit is where it would be at an even pace through the window: with “left”, how much should still be there now.</div></section>
+    <section><h2>THEME</h2><div class="grid themes" id="themes"></div></section>
+    <section><h2>BACKGROUND</h2><div class="grid bgs" id="bgs"></div>
+      <div class="hint">Hover to see it move. Backgrounds speed up while the graphics card is busy.</div></section>
+    <section><h2>OWN BACKGROUNDS</h2><div class="grid media" id="media"></div>
+      <div class="chips" id="looks"></div>
+      <div class="hint" id="media-hint">A video, GIF or picture. Moving ones are cropped square and shrunk to 640×640. ASCII redraws them as characters in the theme’s colours, to go with the terminal layouts. Video costs more CPU than a drawn background.</div></section>
+    <section><h2>BACKGROUND FRAME RATE</h2><div class="chips" id="fps"></div>
+      <div class="hint">CAM captures every changed frame and sends it to the display, which costs CPU. A slow background already looks smooth at 10 fps.</div></section>
+    <section><h2>LIMIT REFRESH</h2><div class="chips" id="intervals"></div>
+      <div class="hint">How often the service asks Claude and Codex for limits. Hardware readings come from CAM every second.</div></section>
   </div>
 </main>
 <script src="bg.js"></script>
@@ -101,11 +103,12 @@
 (() => {
   const K = KrakenDial;
   const INTERVALS = [[60, "1 min"], [120, "2 min"], [300, "5 min"]];
-  const FPS = [[10, "10 kl/s"], [20, "20 kl/s"], [30, "30 kl/s"]];
-  const UNITS = [["left", "Ile zostało"], ["used", "Ile zużyte"]];
+  const FPS = [[10, "10 fps"], [20, "20 fps"], [30, "30 fps"]];
+  const UNITS = [["left", "What’s left"], ["used", "What’s used"]];
+  const LOOKS = [["plain", "As it is"], ["ascii", "ASCII"]];
   const MEDIA_HINT = document.getElementById("media-hint").textContent;
   let state = { limits: {}, interval: 60e3, config: {}, hw: null };
-  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, fps: 10, units: "left", ...(state.config || {}) });
+  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, fps: 10, units: "left", look: "plain", ...(state.config || {}) });
 
   const preview = K.create(document.getElementById("preview"), cfg());
 
@@ -136,6 +139,9 @@
   const unitOpts = UNITS.map(([u, label]) => ({
     u, b: option(document.getElementById("units"), "chip", label, () => save({ units: u })),
   }));
+  const lookOpts = LOOKS.map(([l, label]) => ({
+    l, b: option(document.getElementById("looks"), "chip", label, () => save({ look: l })),
+  }));
   const fpsOpts = FPS.map(([n, label]) => ({
     n, b: option(document.getElementById("fps"), "chip", label, () => save({ fps: n })),
   }));
@@ -163,7 +169,7 @@
     mediaHost.replaceChildren();
     mediaOpts = mediaList.map((m) => {
       const id = `media:${m.name}`;
-      const b = option(mediaHost, "opt", `<div class="thumb"></div><b></b><span class="del">usuń</span>`, () => save({ bg: id }));
+      const b = option(mediaHost, "opt", `<div class="thumb"></div><b></b><span class="del">delete</span>`, () => save({ bg: id }));
       b.querySelector("b").textContent = stem(m.name);
       b.title = m.name;
       const del = b.querySelector(".del");
@@ -172,26 +178,26 @@
         e.stopPropagation();
         if (del.classList.contains("sure")) return remove(m.name);
         del.classList.add("sure");
-        del.textContent = "na pewno?";
+        del.textContent = "sure?";
       };
       b.onmouseenter = () => o.back && o.back.play();
       b.onmouseleave = () => {
         if (o.back) o.back.pause();
         del.classList.remove("sure");
-        del.textContent = "usuń";
+        del.textContent = "delete";
       };
       return o;
     });
     if (uploading || pending) {
       const w = document.createElement("div");
       w.className = "opt busy";
-      w.innerHTML = `<div class="thumb"></div><b></b><small>${uploading ? "wysyłam…" : "przygotowuję…"}</small>`;
+      w.innerHTML = `<div class="thumb"></div><b></b><small>${uploading ? "uploading…" : "converting…"}</small>`;
       w.querySelector("b").textContent = stem(uploading || pending);
       mediaHost.appendChild(w);
     }
     const add = document.createElement("label");
     add.className = "opt add";
-    add.innerHTML = `<div class="thumb">+</div><b>Dodaj</b><small>film, GIF, obrazek</small><input type="file" accept="video/*,image/*" hidden>`;
+    add.innerHTML = `<div class="thumb">+</div><b>Add</b><small>video, GIF, picture</small><input type="file" accept="video/*,image/*" hidden>`;
     add.querySelector("input").onchange = (e) => e.target.files[0] && upload(e.target.files[0]);
     mediaHost.appendChild(add);
     render();
@@ -227,7 +233,7 @@
       if (!r.ok) throw new Error(await r.text());
       pending = (await r.json()).name;
     } catch (e) {
-      hint.textContent = `Nie udało się dodać ${name}: ${e.message}`;
+      hint.textContent = `Could not add ${name}: ${e.message}`;
       hint.classList.add("bad");
     }
     uploading = null;
@@ -244,7 +250,7 @@
   function render() {
     const c = cfg();
     const now = Date.now();
-    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}`;
+    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}`;
     const minis = key !== minisKey || now - minisAt > 5e3;
     if (minis) {
       minisKey = key;
@@ -269,23 +275,26 @@
     }
     for (const o of bgOpts.concat(mediaOpts)) {
       o.b.setAttribute("aria-pressed", String(o.id === c.bg));
-      if (o.theme !== c.theme) {
-        o.back = K.background(o.el, { theme: c.theme, bg: o.id });
+      const look = o.id.startsWith("media:") ? c.look : "plain";
+      if (o.theme !== c.theme || o.look !== look) {
+        o.back = K.background(o.el, { theme: c.theme, bg: o.id, look });
         o.theme = c.theme;
+        o.look = look;
       }
     }
     for (const o of unitOpts) o.b.setAttribute("aria-pressed", String(o.u === c.units));
+    for (const o of lookOpts) o.b.setAttribute("aria-pressed", String(o.l === c.look));
     for (const o of fpsOpts) o.b.setAttribute("aria-pressed", String(o.n === c.fps));
     for (const o of intervalOpts) o.b.setAttribute("aria-pressed", String(o.s === c.interval));
 
     const lcd = document.getElementById("s-lcd");
-    lcd.textContent = live ? "na żywo" : "brak sygnału z CAM";
+    lcd.textContent = live ? "live" : "no signal from CAM";
     lcd.className = live ? "" : "bad";
     for (const [id, key] of [["s-claude", "claude7d"], ["s-codex", "codex7d"]]) {
       const l = (state.limits || {})[key] || {};
       const node = document.getElementById(id);
-      const t = l.fetchedAt ? new Date(l.fetchedAt).toLocaleTimeString("pl-PL") : null;
-      node.textContent = l.error ? `${l.error}${t ? ` · ostatnio ${t}` : ""}` : t ? `pobrane ${t}` : "czekam";
+      const t = l.fetchedAt ? new Date(l.fetchedAt).toLocaleTimeString("en-GB") : null;
+      node.textContent = l.error ? `${l.error}${t ? ` · last ${t}` : ""}` : t ? `synced ${t}` : "waiting";
       node.className = l.error ? "bad" : "";
     }
   }
@@ -298,7 +307,7 @@
       if (build && state.build !== build) return location.reload();
       build = state.build;
     } catch (_) {
-      document.getElementById("s-lcd").textContent = "usługa nie odpowiada";
+      document.getElementById("s-lcd").textContent = "service not responding";
     }
     render();
   }

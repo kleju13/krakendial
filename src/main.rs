@@ -13,13 +13,17 @@ use std::time::Duration;
 use tiny_http::{Header, Method, Request, Response, Server};
 
 const ADDR: &str = "127.0.0.1:30640";
-const LAYOUTS: [&str; 10] =
-    ["rotacja", "adaptacyjny", "kokpit", "chronograf", "slupki", "terminal", "jedna", "limity", "sprzet", "zegar"];
-const THEMES: [&str; 10] = ["ice", "porcelana", "mroz", "blue", "deep", "ocean", "indygo", "grafit", "night", "neon"];
-const BGS: [&str; 15] = [
-    "ciecz", "fale", "babelki", "zorza", "obieg", "gwiazdy", "bokeh", "mglawica", "linie", "topografia", "siatka",
-    "kod", "plaster", "wir", "brak",
+const LAYOUTS: [&str; 13] = [
+    "rotacja", "adaptacyjny", "kokpit", "chronograf", "slupki", "terminal", "htop", "btop", "neofetch", "zegar", "jedna",
+    "limity", "sprzet",
 ];
+const THEMES: [&str; 10] = ["ice", "porcelana", "mroz", "blue", "deep", "ocean", "indygo", "grafit", "night", "neon"];
+const BGS: [&str; 19] = [
+    "ciecz", "fale", "babelki", "zorza", "obieg", "gwiazdy", "bokeh", "mglawica", "linie", "topografia", "siatka",
+    "kod", "plaster", "wir", "donut", "fire", "life", "pipes", "brak",
+];
+/// How the user's own media is drawn: as it is, or as characters to match the terminal layouts.
+const LOOKS: [&str; 2] = ["plain", "ascii"];
 /// Whether limits read as what is left or what is used.
 const UNITS: [&str; 2] = ["left", "used"];
 const INTERVALS: [i64; 3] = [60, 120, 300];
@@ -55,6 +59,9 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     }
     if let Some(u) = patch["units"].as_str().filter(|u| UNITS.contains(u)) {
         cfg["units"] = json!(u);
+    }
+    if let Some(l) = patch["look"].as_str().filter(|l| LOOKS.contains(l)) {
+        cfg["look"] = json!(l);
     }
     if let Some(i) = patch["interval"].as_i64().filter(|i| INTERVALS.contains(i)) {
         cfg["interval"] = json!(i);
@@ -164,7 +171,7 @@ fn handle(app: &App, mut req: Request) {
         (Method::Get, "/api/media") => reply_json(req, &media::list()),
         (Method::Post, "/api/media") => {
             let name = media::query_name(query);
-            let res = name.ok_or("zła nazwa".to_string()).and_then(|n| media::save(&n, req.as_reader()));
+            let res = name.ok_or("bad file name".to_string()).and_then(|n| media::save(&n, req.as_reader()));
             match res {
                 Ok(saved) => reply_json(req, &json!({ "name": saved })),
                 Err(e) => reply(req, 400, "text/plain; charset=utf-8", e.into_bytes()),
@@ -218,7 +225,7 @@ fn main() {
     };
     let state_path = data_dir().join("state.json");
     let mut config =
-        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60, "fps": 10, "units": "left" });
+        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60, "fps": 10, "units": "left", "look": "plain" });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
     }

@@ -110,7 +110,7 @@ pub fn save(name: &str, body: &mut dyn Read) -> Result<String, String> {
     drop(f);
     if n == 0 || n > MAX_UPLOAD {
         let _ = std::fs::remove_file(&upload);
-        return Err("plik pusty albo za duży".into());
+        return Err("file empty or too large".into());
     }
     if !matches!(kind(name), Some((_, "video" | "gif"))) || !has_ffmpeg() {
         std::fs::rename(&upload, &dest).map_err(|e| e.to_string())?;

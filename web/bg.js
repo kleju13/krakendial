@@ -5,23 +5,28 @@
 //   const back = KrakenBg.backdrop(canvas, root);  // root carries the theme's custom properties
 //   back.set("zorza", animate);                    // or "media:<file>" from the media folder
 //   back.play(); back.pause(); back.speed(1.6); back.fps(10);
+//   back.look("ascii");                            // own media redrawn as characters
 (function () {
   const LIST = [
-    { id: "ciecz", name: "Ciecz" },
-    { id: "fale", name: "Fale" },
-    { id: "babelki", name: "Bąbelki" },
-    { id: "zorza", name: "Zorza" },
-    { id: "obieg", name: "Obieg" },
-    { id: "mglawica", name: "Mgławica" },
-    { id: "gwiazdy", name: "Gwiazdy" },
+    { id: "ciecz", name: "Liquid" },
+    { id: "fale", name: "Ripples" },
+    { id: "babelki", name: "Bubbles" },
+    { id: "zorza", name: "Aurora" },
+    { id: "obieg", name: "Flow" },
+    { id: "mglawica", name: "Nebula" },
+    { id: "gwiazdy", name: "Stars" },
     { id: "bokeh", name: "Bokeh" },
-    { id: "linie", name: "Jedwab" },
-    { id: "topografia", name: "Topografia" },
-    { id: "wir", name: "Wir" },
-    { id: "plaster", name: "Plaster" },
-    { id: "siatka", name: "Siatka" },
-    { id: "kod", name: "Kod" },
-    { id: "brak", name: "Bez tła" },
+    { id: "linie", name: "Silk" },
+    { id: "topografia", name: "Contours" },
+    { id: "wir", name: "Vortex" },
+    { id: "plaster", name: "Honeycomb" },
+    { id: "siatka", name: "Grid" },
+    { id: "kod", name: "Code rain" },
+    { id: "donut", name: "donut.c" },
+    { id: "fire", name: "Fire" },
+    { id: "life", name: "Life" },
+    { id: "pipes", name: "Pipes" },
+    { id: "brak", name: "None" },
   ];
 
   const TAU = 2 * Math.PI;
@@ -169,6 +174,35 @@
   // Marching squares: which cell edges (0 top, 1 right, 2 bottom, 3 left) each corner pattern joins.
   const CONTOUR = [[], [3, 2], [2, 1], [3, 1], [0, 1], [3, 0, 2, 1], [0, 2], [3, 0], [3, 0], [0, 2], [0, 1, 3, 2], [0, 1], [3, 1], [2, 1], [3, 2], []];
   let field = null;
+
+  // Character cells like a terminal's: w wide, 1.7 w tall.
+  const grid = (s, cols) => {
+    const w = s / cols, h = w * 1.7;
+    return { w, h, cols, rows: Math.ceil(s / h) };
+  };
+  const RAMP = " .:-=+*#%@";
+  const SHADE = ".,-~:;=!*#$@";
+  // Glyphs pre-rendered in one colour, so a screen of characters costs drawImage calls, not text layout.
+  const atlases = new Map();
+  function atlas(chars, c, g) {
+    const key = `${chars}|${c}|${g.w}`;
+    if (atlases.has(key)) return atlases.get(key);
+    const cw = Math.ceil(g.w), ch = Math.ceil(g.h);
+    const cv = document.createElement("canvas");
+    cv.width = cw * chars.length;
+    cv.height = ch;
+    const x = cv.getContext("2d");
+    x.font = `${Math.round(g.h * 0.82)}px "Cascadia Mono", Consolas, monospace`;
+    x.textAlign = "center";
+    x.textBaseline = "middle";
+    x.fillStyle = rgba(c);
+    [...chars].forEach((k, i) => x.fillText(k, i * cw + cw / 2, ch / 2));
+    const a = { cv, cw, ch };
+    atlases.set(key, a);
+    return a;
+  }
+  const stamp = (ctx, a, i, x, y, g) => ctx.drawImage(a.cv, i * a.cw, 0, a.cw, a.ch, x, y, g.w, g.h);
+  const TRIG = Array.from({ length: 315 }, (_, i) => [Math.sin(i * 0.02), Math.cos(i * 0.02)]);
 
   function stars(ctx, t, s, p, n, scale, keep = () => true) {
     ctx.fillStyle = rgba(p.dark ? p.ink : p.line);
@@ -515,7 +549,183 @@
         });
       },
     },
+    // donut: the spinning ASCII torus of donut.c, shaded with its .,-~:;=!*#$@
+    donut: {
+      res: 512,
+      paint(ctx, t, s, p) {
+        const g = grid(s, 56), A = t * 0.5, B = t * 0.23;
+        const n = g.cols * g.rows, z = new Float32Array(n), lum = new Int8Array(n).fill(-1);
+        const sA = Math.sin(A), cA = Math.cos(A), sB = Math.sin(B), cB = Math.cos(B);
+        const kx = g.cols * 0.44, ky = (kx * g.w) / g.h, cx = g.cols / 2, cy = g.rows / 2;
+        for (let j = 0; j < 6.28; j += 0.07) {
+          const sj = Math.sin(j), cj = Math.cos(j), h = cj + 2;
+          for (const [si, ci] of TRIG) {
+            const D = 1 / (si * h * sA + sj * cA + 5), q = si * h * cA - sj * sA;
+            const x = Math.floor(cx + kx * D * (ci * h * cB - q * sB));
+            const y = Math.floor(cy + ky * D * (ci * h * sB + q * cB));
+            const o = x + g.cols * y;
+            if (x < 0 || x >= g.cols || y < 0 || y >= g.rows || D <= z[o]) continue;
+            z[o] = D;
+            lum[o] = Math.max(0, Math.floor(8 * ((sj * sA - si * cj * cA) * cB - si * cj * sA - sj * cA - ci * cj * sB)));
+          }
+        }
+        const a = atlas(SHADE, p.dark ? p.line2 : p.line, g);
+        for (let o = 0; o < n; o++) {
+          if (lum[o] < 0) continue;
+          ctx.globalAlpha = (0.2 + 0.035 * lum[o]) * (p.dark ? 0.8 : 0.65);
+          stamp(ctx, a, Math.min(11, lum[o]), (o % g.cols) * g.w, Math.floor(o / g.cols) * g.h, g);
+        }
+        ctx.globalAlpha = 1;
+      },
+    },
+    // fire: a gas flame in characters, licking up from the bottom of the dial
+    fire: {
+      res: 448,
+      paint(ctx, t, s, p, st) {
+        const g = grid(s, 52), W = g.cols, H = g.rows;
+        if (!st.heat) {
+          st.heat = new Float32Array(W * (H + 2));
+          st.t = t;
+          for (let i = 0; i < 80; i++) fireStep(st.heat, W, H, t - (80 - i) / 16);
+        }
+        const steps = Math.min(16, Math.floor((t - st.t) * 16));
+        for (let i = 0; i < steps; i++) fireStep(st.heat, W, H, st.t + i / 16);
+        st.t += steps / 16;
+        const layers = [atlas(RAMP, p.line2, g), atlas(RAMP, p.line, g), atlas(RAMP, p.dark ? p.ink : p.line, g)];
+        for (let y = 0; y < H; y++) {
+          for (let x = 0; x < W; x++) {
+            const v = Math.min(1, st.heat[y * W + x] * 1.3);
+            if (v < 0.1) continue;
+            ctx.globalAlpha = (0.2 + 0.8 * v) * (p.dark ? 0.6 : 0.5);
+            stamp(ctx, layers[v > 0.7 ? 2 : v > 0.35 ? 1 : 0], Math.min(9, Math.floor(v * 10)), x * g.w, y * g.h, g);
+          }
+        }
+        ctx.globalAlpha = 1;
+      },
+    },
+    // life: Conway's Game of Life with fading afterglow; it reseeds itself when it settles down
+    life: {
+      res: 512,
+      idle: (t, st) => st.cells && t - st.t < LIFE_STEP,
+      paint(ctx, t, s, p, st) {
+        const N = 56, c = s / N;
+        if (!st.cells || t - st.born > 90) {
+          st.cells = lifeSeed(N);
+          st.born = st.t = t;
+        }
+        const steps = Math.min(8, Math.floor((t - st.t) / LIFE_STEP));
+        for (let i = 0; i < steps; i++) st.cells = lifeStep(st.cells, N);
+        st.t += steps * LIFE_STEP;
+        if (st.cells.reseeded) st.born = t;
+        ctx.fillStyle = rgba(p.line);
+        for (const [lo, hi, k] of [[1, 2, 1], [0.3, 1, 0.42], [0.1, 0.3, 0.22], [0.03, 0.1, 0.1]]) {
+          ctx.globalAlpha = k * (p.dark ? 0.36 : 0.26);
+          ctx.beginPath();
+          for (let i = 0; i < N * N; i++) {
+            const v = st.cells[i];
+            if (v >= lo && v < hi) ctx.rect((i % N) * c + c * 0.1, Math.floor(i / N) * c + c * 0.1, c * 0.8, c * 0.8);
+          }
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      },
+    },
+    // pipes: the pipes.sh screensaver, three pipes wandering until the screen is full, then again
+    pipes: {
+      res: 512,
+      paint(ctx, t, s, p, st) {
+        const g = grid(s, 34), key = `${p.line}|${p.line2}|${p.dark}`;
+        if (!st.cv || st.key !== key || st.placed > g.cols * g.rows * 1.3) {
+          st.cv = st.cv || document.createElement("canvas");
+          st.cv.width = st.cv.height = s;
+          st.key = key;
+          st.placed = 0;
+          st.t = t;
+          const r = (n) => Math.floor(Math.random() * n);
+          st.heads = [p.line, p.line2, p.dark ? p.ink : p.line].map((c) => ({ x: r(g.cols), y: r(g.rows), d: r(4), c }));
+          for (let i = 0; i < 30; i++) pipeStep(st, g);
+        }
+        const steps = Math.min(20, Math.floor((t - st.t) * 9));
+        for (let i = 0; i < steps; i++) pipeStep(st, g);
+        st.t += steps / 9;
+        ctx.globalAlpha = p.dark ? 0.42 : 0.36;
+        ctx.drawImage(st.cv, 0, 0);
+        ctx.globalAlpha = 1;
+      },
+    },
   };
+
+  function fireStep(heat, W, H, t) {
+    for (let x = 0; x < W; x++) {
+      // the burner, under the visible rows: hottest in the middle, flickering
+      const mid = Math.max(0, 1 - Math.abs(x / W - 0.5) * 1.6);
+      const v = mid * (0.7 + 0.5 * (0.5 + 0.5 * noise(x * 0.3, t * 1.8, 7.7)));
+      heat[(H + 1) * W + x] = v;
+      heat[H * W + x] = v * (0.75 + 0.35 * Math.random());
+    }
+    for (let y = 0; y < H; y++) {
+      for (let x = 0; x < W; x++) {
+        const below = (y + 1) * W, side = Math.min(W - 1, Math.max(0, x + ((Math.random() * 3) | 0) - 1));
+        const v = (heat[below + side] * 2 + heat[below + x] + heat[(y + 2) * W + x]) / 4;
+        heat[y * W + x] = Math.max(0, v - 0.016 - Math.random() * 0.04);
+      }
+    }
+  }
+
+  const LIFE_STEP = 0.4;
+  function lifeSeed(N) {
+    const cells = new Float32Array(N * N);
+    for (let i = 0; i < N * N; i++) cells[i] = Math.random() < 0.3 ? 1 : 0;
+    return cells;
+  }
+  // Live cells are exactly 1; dead ones keep a fading afterglow below that.
+  function lifeStep(cells, N) {
+    const next = new Float32Array(N * N);
+    let alive = 0, changed = 0;
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        let n = 0;
+        for (let dy = N - 1; dy <= N + 1; dy++)
+          for (let dx = N - 1; dx <= N + 1; dx++) n += cells[((y + dy) % N) * N + ((x + dx) % N)] === 1;
+        const i = y * N + x, was = cells[i] === 1;
+        n -= was;
+        const on = was ? n === 2 || n === 3 : n === 3;
+        next[i] = on ? 1 : cells[i] * 0.6;
+        alive += on;
+        changed += on !== was;
+      }
+    }
+    // Settled into a few blinkers and still blocks: start over.
+    if (alive < N * N * 0.04 || changed < N * 0.5) {
+      const fresh = lifeSeed(N);
+      fresh.reseeded = true;
+      return fresh;
+    }
+    return next;
+  }
+
+  // One step of each pipe: draw the segment through its cell, maybe turn, move on.
+  function pipeStep(st, g) {
+    const c = st.cv.getContext("2d");
+    const mid = (h, d) => [(h.x + 0.5 + [0, 0.5, 0, -0.5][d]) * g.w, (h.y + 0.5 + [-0.5, 0, 0.5, 0][d]) * g.h];
+    c.lineWidth = g.w * 0.26;
+    c.lineCap = "butt";
+    c.lineJoin = "miter";
+    for (const h of st.heads) {
+      const d = Math.random() < 0.16 ? (h.d + (Math.random() < 0.5 ? 1 : 3)) % 4 : h.d;
+      c.clearRect(h.x * g.w, h.y * g.h, g.w, g.h);
+      c.strokeStyle = rgba(h.c);
+      c.beginPath();
+      c.moveTo(...mid(h, (h.d + 2) % 4));
+      c.lineTo((h.x + 0.5) * g.w, (h.y + 0.5) * g.h);
+      c.lineTo(...mid(h, d));
+      c.stroke();
+      h.d = d;
+      h.x = (h.x + [0, 1, 0, -1][d] + g.cols) % g.cols;
+      h.y = (h.y + [-1, 0, 1, 0][d] + g.rows) % g.rows;
+      st.placed++;
+    }
+  }
 
   function hex(ctx, x, y, r) {
     for (let i = 0; i < 6; i++) {
@@ -626,11 +836,56 @@
     ctx.fillRect(0, 0, s, s);
   }
 
+  // The clip as characters: one probe pixel per cell, its brightness picks a glyph from the ramp.
+  // Levels follow the clip, so a dark scene still uses the whole ramp.
+  const cellProbe = document.createElement("canvas");
+  const cellCtx = cellProbe.getContext("2d", { willReadFrequently: true });
+  function paintAscii(ctx, m, s, p) {
+    const n = m.node;
+    const w = n.videoWidth || n.naturalWidth, h = n.videoHeight || n.naturalHeight;
+    if (!w || !h || (m.video && n.readyState < 2)) return;
+    const g = grid(s, 72);
+    if (cellProbe.width !== g.cols || cellProbe.height !== g.rows) {
+      cellProbe.width = g.cols;
+      cellProbe.height = g.rows;
+    }
+    const k = Math.max(s / w, s / h);
+    cellCtx.drawImage(n, (s - w * k) / 2 / g.w, (s - h * k) / 2 / g.h, (w * k) / g.w, (h * k) / g.h);
+    let d;
+    try {
+      d = cellCtx.getImageData(0, 0, g.cols, g.rows).data;
+    } catch (_) {
+      return;
+    }
+    const y = new Float32Array(g.cols * g.rows);
+    let lo = 1, hi = 0;
+    for (let i = 0; i < y.length; i++) {
+      y[i] = (0.3 * d[i * 4] + 0.59 * d[i * 4 + 1] + 0.11 * d[i * 4 + 2]) / 255;
+      lo = Math.min(lo, y[i]);
+      hi = Math.max(hi, y[i]);
+    }
+    m.lo = m.lo == null ? lo : m.lo + (lo - m.lo) * 0.2;
+    m.hi = m.hi == null ? hi : m.hi + (hi - m.hi) * 0.2;
+    const span = Math.max(0.15, m.hi - m.lo);
+    const ink = atlas(RAMP, p.line, g), bright = atlas(RAMP, p.dark ? p.ink : p.line, g);
+    for (let i = 0; i < y.length; i++) {
+      // Light parts get the dense glyphs on every theme: clips are mostly dark, and an empty
+      // background keeps the numbers readable.
+      const v = clamp01((y[i] - m.lo) / span);
+      const gi = Math.floor(v * 9.99);
+      if (!gi) continue;
+      ctx.globalAlpha = (0.12 + 0.5 * v * v) * (p.dark ? 1 : 0.8);
+      stamp(ctx, v > 0.82 && p.dark ? bright : ink, gi, (i % g.cols) * g.w, Math.floor(i / g.cols) * g.h, g);
+    }
+    ctx.globalAlpha = 1;
+  }
+  const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
   // ---------- the backdrop ----------
 
   function backdrop(canvas, root) {
     const ctx = canvas.getContext("2d");
-    let type = null, painter = null, media = null, pal = null;
+    let type = null, painter = null, media = null, pal = null, state = {}, look = "plain";
     let t = 7, last = null, speed = 1, fps = 10, timer = null;
     function draw() {
       const s = canvas.width;
@@ -640,8 +895,8 @@
       ctx.beginPath();
       ctx.arc(s / 2, s / 2, s / 2, 0, TAU);
       ctx.clip();
-      if (media) paintMedia(ctx, media, s, pal);
-      else painter.paint(ctx, t, s, pal);
+      if (media) (look === "ascii" ? paintAscii : paintMedia)(ctx, media, s, pal);
+      else painter.paint(ctx, t, s, pal, state);
       ctx.restore();
     }
     const moving = () => !!painter || !!(media && media.video);
@@ -651,7 +906,9 @@
       const now = performance.now();
       if (last != null) t += ((now - last) / 1e3) * speed;
       last = now;
-      draw();
+      // A painter that changes less often than the frame rate skips the frame: an unchanged
+      // canvas costs CAM nothing.
+      if (!(painter && painter.idle && painter.idle(t, state))) draw();
       timer = setTimeout(frame, 1000 / fps);
     }
     const self = {
@@ -661,6 +918,7 @@
           if (media) media.stop();
           type = next;
           painter = PAINT[next] || null;
+          state = {};
           media = /^media:/.test(next) ? mediaSource(next.slice(6), () => draw()) : null;
           const res = media ? 640 : painter ? painter.res || 256 : 16;
           if (canvas.width !== res) canvas.width = canvas.height = res;
@@ -692,6 +950,12 @@
       },
       fps(n) {
         fps = n > 0 ? n : 10;
+      },
+      look(l) {
+        l = l === "ascii" ? "ascii" : "plain";
+        if (l === look) return;
+        look = l;
+        if (media) draw();
       },
     };
     return self;

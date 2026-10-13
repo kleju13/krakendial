@@ -149,16 +149,16 @@ fn home() -> PathBuf {
 }
 
 fn read_json(path: PathBuf) -> Result<Value, (String, bool)> {
-    let text = std::fs::read_to_string(path).map_err(|_| ("brak logowania".to_string(), false))?;
-    serde_json::from_str(&text).map_err(|_| ("zły plik logowania".to_string(), false))
+    let text = std::fs::read_to_string(path).map_err(|_| ("not logged in".to_string(), false))?;
+    serde_json::from_str(&text).map_err(|_| ("bad login file".to_string(), false))
 }
 
 fn http_err(e: ureq::Error) -> (String, bool) {
     match e {
-        ureq::Error::Status(401 | 403, _) => ("token odrzucony".into(), false),
-        ureq::Error::Status(429, _) => ("za często".into(), true),
-        ureq::Error::Status(code, _) => (format!("błąd {code}"), false),
-        ureq::Error::Transport(_) => ("brak sieci".into(), false),
+        ureq::Error::Status(401 | 403, _) => ("token rejected".into(), false),
+        ureq::Error::Status(429, _) => ("rate limited".into(), true),
+        ureq::Error::Status(code, _) => (format!("error {code}"), false),
+        ureq::Error::Transport(_) => ("offline".into(), false),
     }
 }
 
@@ -195,10 +195,10 @@ impl Fetcher {
         let dir = std::env::var_os("CLAUDE_CONFIG_DIR").map(PathBuf::from).unwrap_or_else(|| home().join(".claude"));
         let creds = read_json(dir.join(".credentials.json"))?;
         let oauth = &creds["claudeAiOauth"];
-        let token = oauth["accessToken"].as_str().ok_or(("brak logowania".to_string(), false))?;
+        let token = oauth["accessToken"].as_str().ok_or(("not logged in".to_string(), false))?;
         if oauth["expiresAt"].as_i64().is_some_and(|exp| exp < now_ms()) {
             // Claude Code refreshes it on its next run; we never touch the credentials ourselves.
-            return Err(("token wygasł".into(), false));
+            return Err(("token expired".into(), false));
         }
         let body: Value = self
             .agent
@@ -208,7 +208,7 @@ impl Fetcher {
             .call()
             .map_err(http_err)?
             .into_json()
-            .map_err(|_| ("zły format".to_string(), false))?;
+            .map_err(|_| ("unexpected reply".to_string(), false))?;
         let mut out = Vec::new();
         for (key, field, window) in [("claude5h", "five_hour", 5 * HOUR), ("claude7d", "seven_day", 168 * HOUR)] {
             let w = &body[field];
@@ -219,7 +219,7 @@ impl Fetcher {
             }
         }
         if out.is_empty() {
-            return Err(("zły format".into(), false));
+            return Err(("unexpected reply".into(), false));
         }
         Ok(out)
     }
@@ -228,12 +228,12 @@ impl Fetcher {
         let dir = std::env::var_os("CODEX_HOME").map(PathBuf::from).unwrap_or_else(|| home().join(".codex"));
         let auth = read_json(dir.join("auth.json"))?;
         let t = &auth["tokens"];
-        let token = t["access_token"].as_str().ok_or(("brak logowania".to_string(), false))?;
+        let token = t["access_token"].as_str().ok_or(("not logged in".to_string(), false))?;
         let mut req = self.agent.get("https://chatgpt.com/backend-api/wham/usage").set("Authorization", &format!("Bearer {token}"));
         if let Some(acc) = t["account_id"].as_str() {
             req = req.set("ChatGPT-Account-Id", acc);
         }
-        let body: Value = req.call().map_err(http_err)?.into_json().map_err(|_| ("zły format".to_string(), false))?;
+        let body: Value = req.call().map_err(http_err)?.into_json().map_err(|_| ("unexpected reply".to_string(), false))?;
         let mut out = Vec::new();
         for w in [&body["rate_limit"]["primary_window"], &body["rate_limit"]["secondary_window"]] {
             let (Some(pct), Some(secs)) = (w["used_percent"].as_f64(), w["limit_window_seconds"].as_i64()) else { continue };
@@ -241,7 +241,7 @@ impl Fetcher {
             out.push((key, pct, secs * 1000, w["reset_at"].as_i64().map(|s| s * 1000)));
         }
         if out.is_empty() {
-            return Err(("zły format".into(), false));
+            return Err(("unexpected reply".into(), false));
         }
         Ok(out)
     }
