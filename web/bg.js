@@ -1,0 +1,701 @@
+// Moving backgrounds for the Kraken dial, painted on one canvas a few times a second.
+// CAM captures and ships every frame that changes, at a real CPU cost per frame, so the frame
+// rate is a setting (10/20/30) and between frames the page stays idle. Soft light is painted
+// at 256 px (the upscale is invisible), line work at 384–512 px, the user's own media at 640 px.
+//   const back = KrakenBg.backdrop(canvas, root);  // root carries the theme's custom properties
+//   back.set("zorza", animate);                    // or "media:<file>" from the media folder
+//   back.play(); back.pause(); back.speed(1.6); back.fps(10);
+(function () {
+  const LIST = [
+    { id: "ciecz", name: "Ciecz" },
+    { id: "fale", name: "Fale" },
+    { id: "babelki", name: "Bąbelki" },
+    { id: "zorza", name: "Zorza" },
+    { id: "obieg", name: "Obieg" },
+    { id: "mglawica", name: "Mgławica" },
+    { id: "gwiazdy", name: "Gwiazdy" },
+    { id: "bokeh", name: "Bokeh" },
+    { id: "linie", name: "Jedwab" },
+    { id: "topografia", name: "Topografia" },
+    { id: "wir", name: "Wir" },
+    { id: "plaster", name: "Plaster" },
+    { id: "siatka", name: "Siatka" },
+    { id: "kod", name: "Kod" },
+    { id: "brak", name: "Bez tła" },
+  ];
+
+  const TAU = 2 * Math.PI;
+  const ease = (x) => (1 - Math.cos(Math.PI * x)) / 2;
+  const pingPong = (t, period) => {
+    const q = (t / period) % 2;
+    return ease(q < 1 ? q : 2 - q);
+  };
+  const rgba = (c, k = 1) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] * k).toFixed(3)})`;
+  const solid = (c) => [c[0], c[1], c[2], 1];
+  // Seeded, so every dial shows the same sky.
+  function seeded(seed, n, make) {
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    return Array.from({ length: n }, () => make(rnd));
+  }
+  function ihash(n) {
+    n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+    n = Math.imul(n ^ (n >>> 16), 0x45d9f3b);
+    return (n ^ (n >>> 16)) >>> 0;
+  }
+  const hash = (n) => ihash(n) / 4294967296;
+
+  function parseColor(v) {
+    v = v.trim();
+    if (v[0] === "#") {
+      const h = v.length === 4 ? [...v.slice(1)].map((c) => c + c).join("") : v.slice(1, 7);
+      return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), 1];
+    }
+    const n = (v.match(/[\d.]+/g) || []).map(Number);
+    return [n[0] || 0, n[1] || 0, n[2] || 0, n.length > 3 ? n[3] : 1];
+  }
+  function palette(root) {
+    const cs = getComputedStyle(root);
+    const get = (k) => parseColor(cs.getPropertyValue(k));
+    const lo = get("--bg-lo");
+    return {
+      a: get("--glow-a"),
+      b: get("--glow-b"),
+      line: solid(get("--fill")),
+      line2: solid(get("--fill-2")),
+      ink: solid(get("--ink")),
+      lo,
+      hi: get("--bg-hi"),
+      dark: 0.3 * lo[0] + 0.59 * lo[1] + 0.11 * lo[2] < 128,
+    };
+  }
+  function glow(ctx, x, y, r, c) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c));
+    g.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+
+  // Ken Perlin's improved noise, roughly -1..1.
+  const PERM = (() => {
+    const order = seeded(3, 256, (r) => r())
+      .map((v, i) => [v, i])
+      .sort((a, b) => a[0] - b[0])
+      .map((x) => x[1]);
+    return Uint8Array.from(order.concat(order));
+  })();
+  const fade = (x) => x * x * x * (x * (x * 6 - 15) + 10);
+  const lerp = (a, b, k) => a + (b - a) * k;
+  function grad(h, x, y, z) {
+    h &= 15;
+    const u = h < 8 ? x : y;
+    const v = h < 4 ? y : h === 12 || h === 14 ? x : z;
+    return (h & 1 ? -u : u) + (h & 2 ? -v : v);
+  }
+  function noise(x, y, z) {
+    const fx = Math.floor(x), fy = Math.floor(y), fz = Math.floor(z);
+    const X = fx & 255, Y = fy & 255, Z = fz & 255;
+    x -= fx;
+    y -= fy;
+    z -= fz;
+    const u = fade(x), v = fade(y), w = fade(z);
+    const P = PERM;
+    const A = P[X] + Y, AA = P[A] + Z, AB = P[A + 1] + Z;
+    const B = P[X + 1] + Y, BA = P[B] + Z, BB = P[B + 1] + Z;
+    return lerp(
+      lerp(lerp(grad(P[AA], x, y, z), grad(P[BA], x - 1, y, z), u), lerp(grad(P[AB], x, y - 1, z), grad(P[BB], x - 1, y - 1, z), u), v),
+      lerp(
+        lerp(grad(P[AA + 1], x, y, z - 1), grad(P[BA + 1], x - 1, y, z - 1), u),
+        lerp(grad(P[AB + 1], x, y - 1, z - 1), grad(P[BB + 1], x - 1, y - 1, z - 1), u),
+        v,
+      ),
+      w,
+    );
+  }
+
+  // A cloud of one colour, computed once per theme and then only rotated.
+  const clouds = new Map();
+  function cloud(c, seed) {
+    const key = `${c}|${seed}`;
+    if (clouds.has(key)) return clouds.get(key);
+    const n = 128;
+    const cv = document.createElement("canvas");
+    cv.width = cv.height = n;
+    const g = cv.getContext("2d");
+    const img = g.createImageData(n, n);
+    const alpha = Math.min(1, c[3] * 2.2);
+    for (let y = 0; y < n; y++) {
+      for (let x = 0; x < n; x++) {
+        let v = 0;
+        for (let o = 0, amp = 1, f = 2.4 / n; o < 5; o++, amp *= 0.5, f *= 2) v += amp * noise(x * f, y * f, seed + o * 1.7);
+        const d = Math.max(0, Math.min(1, (v + 0.1) * 1.5)) ** 2;
+        const i = (y * n + x) * 4;
+        img.data[i] = c[0];
+        img.data[i + 1] = c[1];
+        img.data[i + 2] = c[2];
+        img.data[i + 3] = Math.round(255 * alpha * d);
+      }
+    }
+    g.putImageData(img, 0, 0);
+    clouds.set(key, cv);
+    return cv;
+  }
+
+  const BUBBLES = seeded(7, 14, (rnd) => {
+    const x = 0.06 + rnd() * 0.86, w = 0.013 + rnd() * 0.024, dur = 16 + rnd() * 18;
+    return { x, w, dur, delay: rnd() * dur, sway: 3 + rnd() * 4 };
+  });
+  const STARS = seeded(11, 240, (r) => ({
+    a: r() * TAU,
+    d: Math.sqrt(r()) * 1.02,
+    size: 0.55 + r() ** 4 * 2,
+    tw: 0.4 + r() * 1.8,
+    ph: r() * TAU,
+    far: r() < 0.65,
+  }));
+  const BOKEH = seeded(5, 17, (r) => ({
+    x: 0.1 + r() * 0.8,
+    y: 0.1 + r() * 0.8,
+    rad: 0.04 + r() ** 2 * 0.12,
+    px: 30 + r() * 40,
+    py: 40 + r() * 50,
+    ph: r() * TAU,
+    second: r() < 0.5,
+    k: 0.5 + r() * 0.5,
+  }));
+  const DROPS = seeded(17, 26, (r) => ({ v: 1.4 + r() * 2.4, len: 6 + Math.floor(r() * 10), gap: 6 + r() * 22, ph: r() * 60 }));
+  const GLYPHS = "01ｱｲｳｴｵｶｷｸｹｺｻｼｽｾｿﾀﾁﾂﾃﾄﾅﾆﾇﾈﾊﾋﾌﾍﾎﾏﾐﾑﾒﾓﾔﾕﾖﾗﾘﾙﾚﾛﾜ<>{}[]/=+*";
+  const WHIRL = seeded(23, 120, (r) => ({ a: r() * TAU, life: 16 + r() * 22, ph: r(), w: 0.6 + r() * 1.5, second: r() < 0.4 }));
+  // Marching squares: which cell edges (0 top, 1 right, 2 bottom, 3 left) each corner pattern joins.
+  const CONTOUR = [[], [3, 2], [2, 1], [3, 1], [0, 1], [3, 0, 2, 1], [0, 2], [3, 0], [3, 0], [0, 2], [0, 1, 3, 2], [0, 1], [3, 1], [2, 1], [3, 2], []];
+  let field = null;
+
+  function stars(ctx, t, s, p, n, scale, keep = () => true) {
+    ctx.fillStyle = rgba(p.dark ? p.ink : p.line);
+    const c = s / 2;
+    for (let i = 0; i < n; i++) {
+      const st = STARS[i];
+      const a = st.a + t * (st.far ? 0.004 : 0.009);
+      const x = c + st.d * c * Math.cos(a), y = c + st.d * c * Math.sin(a);
+      if (!keep(x, y)) continue;
+      const k = 0.25 + 0.75 * (0.5 + 0.5 * Math.sin(t * st.tw + st.ph)) ** 2;
+      ctx.globalAlpha = k * (st.far ? 0.55 : 0.95) * (p.dark ? 1 : 0.55);
+      ctx.beginPath();
+      ctx.arc(x, y, st.size * scale, 0, TAU);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // Each painter draws the moment t (seconds) on an s×s canvas already clipped to the dial.
+  const PAINT = {
+    // ciecz: soft pools of light orbiting slowly, like coolant swirling in the pump
+    ciecz: {
+      paint(ctx, t, s, p) {
+        for (const [period, ox, oy, r, c] of [[48, 0.19, -0.08, 0.35, p.a], [-66, -0.21, 0.11, 0.34, p.b], [84, 0.05, 0.24, 0.26, p.a]]) {
+          const a = (TAU * t) / period;
+          glow(ctx, s * (0.5 + ox * Math.cos(a) - oy * Math.sin(a)), s * (0.5 + ox * Math.sin(a) + oy * Math.cos(a)), s * r, c);
+        }
+      },
+    },
+    // fale: slow ripples spreading from the centre
+    fale: {
+      paint(ctx, t, s, p) {
+        const c = s / 2;
+        for (let i = 0; i < 3; i++) {
+          const q = ((t + i * 4) / 12) % 1;
+          const r = c * (0.12 + 0.92 * (1 - (1 - q) ** 2.4));
+          const k = q < 0.18 ? ease(q / 0.18) : 1 - ease((q - 0.18) / 0.82);
+          const g = ctx.createRadialGradient(c, c, r * 0.91, c, c, r);
+          g.addColorStop(0, rgba(p.a, 0));
+          g.addColorStop(1, rgba(p.a, k));
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(c, c, r, 0, TAU);
+          ctx.fill();
+          ctx.strokeStyle = rgba(p.b, k);
+          ctx.lineWidth = Math.max(0.6, r / 160);
+          ctx.stroke();
+        }
+      },
+    },
+    // bąbelki: a few bubbles drifting up
+    babelki: {
+      paint(ctx, t, s, p) {
+        for (const b of BUBBLES) {
+          const w = b.w * s;
+          const x = b.x * s + (pingPong(t, b.sway) * 2.4 - 1.2) * w;
+          const y = s * (1 - 1.12 * (((t + b.delay) / b.dur) % 1));
+          const g = ctx.createRadialGradient(x + w * 0.34, y + w * 0.32, 0, x + w * 0.34, y + w * 0.32, w * 0.68);
+          g.addColorStop(0, rgba(p.b));
+          g.addColorStop(0.76, rgba(p.a));
+          g.addColorStop(1, rgba(p.a, 0));
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(x + w / 2, y + w / 2, w / 2, 0, TAU);
+          ctx.fill();
+        }
+      },
+    },
+    // zorza: two broad bands of light breathing across the dial
+    zorza: {
+      paint(ctx, t, s, p) {
+        for (const [period, delay, rx, ry, c] of [[26, 0, 0.75, 0.24, p.a], [34, 12, 0.7, 0.23, p.b]]) {
+          const k = pingPong(t + delay, period);
+          ctx.save();
+          ctx.translate(s / 2, s * (0.386 + 0.25 * k));
+          ctx.rotate(((-14 + 26 * k) * Math.PI) / 180);
+          ctx.scale(1, ((0.7 + 0.4 * k) * ry) / rx);
+          glow(ctx, 0, 0, s * rx, c);
+          ctx.restore();
+        }
+      },
+    },
+    // obieg: light circulating around the rim, the flow through the pump
+    obieg: {
+      paint(ctx, t, s, p) {
+        const c = s / 2;
+        const sweeps = [
+          [10, 0, [[0, p.a, 0], [70, p.a, 1], [100, p.b, 1], [140, p.b, 0]]],
+          [15, 180, [[0, p.a, 0], [60, p.a, 1], [120, p.a, 0]]],
+        ];
+        for (const [period, from, stops] of sweeps) {
+          const g = ctx.createConicGradient(((from - 90) * Math.PI) / 180 + (TAU * t) / period, c, c);
+          for (const [deg, col, k] of stops) g.addColorStop(deg / 360, rgba(col, k));
+          ctx.fillStyle = g;
+          ctx.fillRect(0, 0, s, s);
+        }
+        // keep only a soft band along the rim
+        const m = ctx.createRadialGradient(c, c, 0, c, c, c);
+        m.addColorStop(0.7, "rgba(0,0,0,0)");
+        m.addColorStop(0.84, "#000");
+        m.addColorStop(0.97, "#000");
+        m.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.fillStyle = m;
+        ctx.fillRect(0, 0, s, s);
+        ctx.globalCompositeOperation = "source-over";
+      },
+    },
+    // mgławica: two clouds turning against each other, a handful of stars in front
+    mglawica: {
+      res: 320,
+      paint(ctx, t, s, p) {
+        const c = s / 2;
+        if (p.dark) ctx.globalCompositeOperation = "lighter";
+        for (const [tex, turn, k, from] of [[cloud(p.a, 0.3), 0.011, 1.45, 0], [cloud(p.b, 5.1), -0.016, 1.2, 2]]) {
+          ctx.save();
+          ctx.translate(c, c);
+          ctx.rotate(from + t * turn);
+          ctx.scale(k, k);
+          ctx.drawImage(tex, -c, -c, s, s);
+          ctx.restore();
+        }
+        ctx.globalCompositeOperation = "source-over";
+        stars(ctx, t, s, p, 70, s / 640);
+      },
+    },
+    // gwiazdy: a slowly turning sky, twinkling, with a meteor now and then
+    gwiazdy: {
+      res: 512,
+      paint(ctx, t, s, p) {
+        const c = s / 2;
+        glow(ctx, c * 1.3, c * 0.7, s * 0.5, p.a);
+        glow(ctx, c * 0.6, c * 1.4, s * 0.38, p.b);
+        stars(ctx, t, s, p, STARS.length, s / 512);
+        const cycle = Math.floor(t / 19), q = t - cycle * 19;
+        if (q > 1.3) return;
+        const k = q / 1.3, star = p.dark ? p.ink : p.line;
+        const dir = hash(cycle * 7 + 1) < 0.5 ? 1 : -1;
+        const ang = 0.45 + hash(cycle * 7 + 2) * 0.5;
+        const dx = Math.cos(ang) * dir, dy = Math.sin(ang);
+        const sx = s * (0.5 - dir * (0.05 + 0.2 * hash(cycle * 7 + 3))), sy = s * (0.1 + 0.22 * hash(cycle * 7 + 4));
+        const hx = sx + dx * s * 0.5 * k, hy = sy + dy * s * 0.5 * k, len = s * 0.16;
+        const g = ctx.createLinearGradient(hx - dx * len, hy - dy * len, hx, hy);
+        g.addColorStop(0, rgba(star, 0));
+        g.addColorStop(1, rgba(star, 0.9 * Math.sin(Math.PI * k)));
+        ctx.strokeStyle = g;
+        ctx.lineWidth = s / 300;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(hx - dx * len, hy - dy * len);
+        ctx.lineTo(hx, hy);
+        ctx.stroke();
+      },
+    },
+    // bokeh: out-of-focus lights drifting and breathing
+    bokeh: {
+      paint(ctx, t, s, p) {
+        for (const b of BOKEH) {
+          const x = s * (b.x + 0.06 * Math.sin((TAU * t) / b.px + b.ph));
+          const y = s * (b.y + 0.06 * Math.cos((TAU * t) / b.py + b.ph));
+          const r = s * b.rad;
+          const c = b.second ? p.b : p.a;
+          const k = b.k * (0.7 + 0.3 * Math.sin((TAU * t) / (b.px * 0.6) + b.ph)) * 1.6;
+          const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+          g.addColorStop(0, rgba(c, 0.5 * k));
+          g.addColorStop(0.82, rgba(c, 0.75 * k));
+          g.addColorStop(0.93, rgba(c, k));
+          g.addColorStop(1, rgba(c, 0));
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(x, y, r, 0, TAU);
+          ctx.fill();
+        }
+      },
+    },
+    // jedwab: two ribbons of fine threads twisting slowly across the dial
+    linie: {
+      res: 512,
+      paint(ctx, t, s, p) {
+        ctx.lineWidth = s / 400;
+        const N = 48;
+        for (const [cy, amp, wid, w1, w2, ph, col] of [[0.43, 0.15, 0.3, 0.17, 0.23, 0, p.line], [0.6, 0.12, 0.24, -0.13, 0.19, 2.1, p.line2]]) {
+          for (let i = 0; i < 16; i++) {
+            const f = i / 15 - 0.5;
+            ctx.beginPath();
+            for (let j = 0; j <= N; j++) {
+              const u = j / N, env = Math.sin(Math.PI * u);
+              const mid = cy + env * amp * Math.sin(TAU * u * 0.8 + t * w1 + ph);
+              const width = env * wid * Math.sin(TAU * u * 0.9 + t * w2 + ph * 1.7);
+              const y = (mid + f * width) * s;
+              if (j) ctx.lineTo(u * s, y);
+              else ctx.moveTo(u * s, y);
+            }
+            ctx.strokeStyle = rgba(col, (0.1 + 0.26 * (1 - Math.abs(f) * 2)) * (p.dark ? 1 : 0.85));
+            ctx.stroke();
+          }
+        }
+      },
+    },
+    // topografia: contour lines of a landscape that slowly reshapes itself
+    topografia: {
+      res: 512,
+      paint(ctx, t, s, p) {
+        const G = 44, W = G + 1, cs = s / G, z = t * 0.035, c = s / 2;
+        if (!field) field = new Float32Array(W * W);
+        for (let j = 0; j <= G; j++) {
+          for (let i = 0; i <= G; i++) {
+            const x = (i / G) * 2.6, y = (j / G) * 2.6;
+            field[j * W + i] = noise(x, y, z) + 0.45 * noise(x * 2.1 + 5.3, y * 2.1 + 1.7, z * 1.4 + 3);
+          }
+        }
+        for (let li = 0; li < 12; li++) {
+          const lv = -0.66 + li * 0.12;
+          ctx.beginPath();
+          for (let j = 0; j < G; j++) {
+            for (let i = 0; i < G; i++) {
+              const x0 = i * cs, y0 = j * cs;
+              if ((x0 + cs / 2 - c) ** 2 + (y0 + cs / 2 - c) ** 2 > (c + cs) ** 2) continue;
+              const k = j * W + i;
+              const a = field[k], b = field[k + 1], cc = field[k + W + 1], d = field[k + W];
+              const segs = CONTOUR[(a > lv ? 8 : 0) | (b > lv ? 4 : 0) | (cc > lv ? 2 : 0) | (d > lv ? 1 : 0)];
+              for (let m = 0; m < segs.length; m++) {
+                const e = segs[m];
+                const px = e === 0 ? x0 + (cs * (lv - a)) / (b - a) : e === 1 ? x0 + cs : e === 2 ? x0 + (cs * (lv - d)) / (cc - d) : x0;
+                const py = e === 0 ? y0 : e === 1 ? y0 + (cs * (lv - b)) / (cc - b) : e === 2 ? y0 + cs : y0 + (cs * (lv - a)) / (d - a);
+                if (m % 2) ctx.lineTo(px, py);
+                else ctx.moveTo(px, py);
+              }
+            }
+          }
+          const major = li % 4 === 1;
+          ctx.strokeStyle = rgba(p.line, (major ? 0.42 : 0.2) * (p.dark ? 1 : 0.85));
+          ctx.lineWidth = ((major ? 1.7 : 1) * s) / 512;
+          ctx.stroke();
+        }
+      },
+    },
+    // wir: streaks of light spiralling into the centre, faster as they sink
+    wir: {
+      res: 384,
+      paint(ctx, t, s, p) {
+        const c = s / 2;
+        glow(ctx, c, c, s * 0.36, p.a);
+        glow(ctx, c, c, s * 0.14, p.b);
+        ctx.lineCap = "round";
+        for (const m of WHIRL) {
+          const q = (t / m.life + m.ph) % 1;
+          const r = c * (1.02 - 0.92 * q ** 0.8);
+          const a = m.a + 2.2 * -Math.log(1 - 0.94 * q) + t * 0.05;
+          const rate = (2.2 * 0.94) / (1 - 0.94 * q) / m.life + 0.05;
+          const len = Math.min(1.3, rate * 1.7);
+          const k = Math.min(1, q * 8, (1 - q) * 4);
+          ctx.strokeStyle = rgba(m.second ? p.line2 : p.line, 0.5 * k * (p.dark ? 1 : 0.8));
+          ctx.lineWidth = (m.w * s) / 384;
+          ctx.beginPath();
+          ctx.arc(c, c, r, a - len, a);
+          ctx.stroke();
+        }
+      },
+    },
+    // plaster: a honeycomb with pulses rippling out from the pump, and the odd cell lighting up
+    plaster: {
+      res: 512,
+      paint(ctx, t, s, p) {
+        const R = s / 21, w = Math.sqrt(3) * R, h = 1.5 * R, c = s / 2;
+        const lit = Array.from({ length: 6 }, () => []);
+        ctx.beginPath();
+        for (let row = 0; row * h < s + R; row++) {
+          for (let col = -1; col * w < s + w; col++) {
+            const x = col * w + (row & 1 ? w / 2 : 0), y = row * h;
+            const d = Math.hypot(x - c, y - c) / c;
+            if (d > 1.1) continue;
+            hex(ctx, x, y, R * 0.94);
+            let k = Math.max(0, Math.sin(d * 5.5 - t * 1.1)) ** 6 * (1 - 0.45 * d);
+            const id = row * 97 + col + 1000, slot = Math.floor(t / 3.5 + hash(id) * 9);
+            if (hash(id * 31 + slot) < 0.05) k = Math.max(k, 0.8 * Math.sin((Math.PI * ((t / 3.5 + hash(id) * 9) % 1))));
+            if (k > 0.06) lit[Math.min(5, Math.floor(k * 6))].push([x, y]);
+          }
+        }
+        ctx.strokeStyle = rgba(p.line, p.dark ? 0.16 : 0.13);
+        ctx.lineWidth = s / 512;
+        ctx.stroke();
+        lit.forEach((cells, i) => {
+          if (!cells.length) return;
+          ctx.beginPath();
+          for (const [x, y] of cells) hex(ctx, x, y, R * 0.8);
+          ctx.fillStyle = rgba(p.line, ((i + 1) / 6) * (p.dark ? 0.3 : 0.2));
+          ctx.fill();
+        });
+      },
+    },
+    // siatka: a grid floor running towards a glowing horizon
+    siatka: {
+      res: 512,
+      paint(ctx, t, s, p) {
+        const hz = s * 0.6, vx = s / 2, f = s * 0.5, zn = f / (s - hz);
+        stars(ctx, t, s, p, 90, s / 512, (x, y) => y < hz - 6);
+        ctx.save();
+        ctx.translate(vx, hz);
+        ctx.scale(1, 0.3);
+        glow(ctx, 0, 0, s * 0.64, p.a);
+        ctx.restore();
+        glow(ctx, vx, hz, s * 0.2, p.b);
+        const g = ctx.createLinearGradient(0, hz, 0, s);
+        g.addColorStop(0, rgba(p.line, 0));
+        g.addColorStop(0.3, rgba(p.line, 0.2));
+        g.addColorStop(1, rgba(p.line, p.dark ? 0.5 : 0.38));
+        ctx.strokeStyle = g;
+        ctx.lineWidth = s / 400;
+        ctx.beginPath();
+        for (let k = -16; k <= 16; k++) {
+          ctx.moveTo(vx + (f * k * 0.5) / zn, s);
+          ctx.lineTo(vx, hz);
+        }
+        const step = 0.5, off = (t * 0.45) % step;
+        for (let Z = step - off; Z < 24; Z += step) {
+          if (Z < zn) continue;
+          const y = hz + f / Z;
+          ctx.moveTo(0, y);
+          ctx.lineTo(s, y);
+        }
+        ctx.stroke();
+      },
+    },
+    // kod: columns of glyphs falling, quietly
+    kod: {
+      res: 384,
+      paint(ctx, t, s, p) {
+        const n = DROPS.length, cw = s / n, rows = Math.ceil(s / cw);
+        ctx.font = `${Math.round(cw * 0.9)}px "Cascadia Mono", Consolas, monospace`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        const dim = p.dark ? 1 : 0.7;
+        DROPS.forEach((d, i) => {
+          const head = Math.floor((t * d.v + d.ph) % (rows + d.len + d.gap));
+          for (let k = 0; k < d.len; k++) {
+            const row = head - k;
+            if (row < 0 || row >= rows) continue;
+            const tick = Math.floor(t * 1.3 + i * 7 + row * 3);
+            const g = GLYPHS[ihash(i * 131 + row * 17 + (k === 0 ? tick : Math.floor(tick / 5)) * 7919) % GLYPHS.length];
+            ctx.fillStyle = rgba(k === 0 ? p.ink : p.line, (k === 0 ? 0.7 : 0.45 * (1 - k / d.len)) * dim);
+            ctx.fillText(g, (i + 0.5) * cw, row * cw);
+          }
+        });
+      },
+    },
+  };
+
+  function hex(ctx, x, y, r) {
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 6 + (i * Math.PI) / 3;
+      const px = x + r * Math.cos(a), py = y + r * Math.sin(a);
+      if (i) ctx.lineTo(px, py);
+      else ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+  }
+
+  // ---------- the user's own media ----------
+  // Fetched whole into a blob: the service doesn't do range requests, and a blob loops cleanly.
+
+  const blobs = new Map();
+  function mediaUrl(name) {
+    if (!blobs.has(name)) {
+      const p = fetch(`/media/${encodeURIComponent(name)}`, { cache: "no-store" })
+        .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(r.status))))
+        .then((b) => URL.createObjectURL(b));
+      p.catch(() => blobs.delete(name));
+      blobs.set(name, p);
+    }
+    return blobs.get(name);
+  }
+
+  function mediaSource(name, onReady) {
+    const video = /\.(mp4|webm)$/i.test(name);
+    const node = video ? document.createElement("video") : new Image();
+    if (video) Object.assign(node, { muted: true, loop: true, playsInline: true, preload: "auto" });
+    let alive = true, wanted = false;
+    node.addEventListener(video ? "loadeddata" : "load", () => alive && onReady());
+    const start = () => video && node.src && node.paused && node.play().catch(() => {});
+    mediaUrl(name)
+      .then((url) => {
+        if (!alive) return;
+        node.src = url;
+        if (wanted) start();
+      })
+      .catch(() => {});
+    return {
+      video,
+      node,
+      play() {
+        wanted = true;
+        start();
+      },
+      pause() {
+        wanted = false;
+        if (video) node.pause();
+      },
+      stop() {
+        alive = false;
+        if (video) {
+          node.pause();
+          node.removeAttribute("src");
+          node.load();
+        }
+      },
+    };
+  }
+
+  // How bright the clip is right now (0..1), from a 16 px copy taken about once a second.
+  const probe = document.createElement("canvas");
+  probe.width = probe.height = 16;
+  const probeCtx = probe.getContext("2d", { willReadFrequently: true });
+  function brightness(m, now) {
+    if (m.lumaAt && now - m.lumaAt < 1000) return m.luma;
+    m.lumaAt = now;
+    try {
+      probeCtx.drawImage(m.node, 0, 0, 16, 16);
+      const d = probeCtx.getImageData(0, 0, 16, 16).data;
+      let sum = 0;
+      for (let i = 0; i < d.length; i += 4) sum += 0.3 * d[i] + 0.59 * d[i + 1] + 0.11 * d[i + 2];
+      const y = sum / (256 * 255);
+      m.luma = m.luma == null ? y : m.luma + (y - m.luma) * 0.3;
+    } catch (_) {
+      m.luma = 0.5;
+    }
+    return m.luma;
+  }
+
+  // Cover-fit, then washed towards the theme's background so the numbers stay readable; the
+  // brighter the clip, the stronger the wash. A light theme first turns the picture into a
+  // blue-and-white duotone, since washing a dark clip towards white otherwise leaves grey fog.
+  function paintMedia(ctx, m, s, p) {
+    const n = m.node;
+    const w = n.videoWidth || n.naturalWidth, h = n.videoHeight || n.naturalHeight;
+    if (!w || !h) return;
+    const k = Math.max(s / w, s / h);
+    ctx.drawImage(n, (s - w * k) / 2, (s - h * k) / 2, w * k, h * k);
+    const y = brightness(m, performance.now());
+    if (!p.dark) {
+      ctx.fillStyle = rgba(p.line);
+      ctx.globalCompositeOperation = "color";
+      ctx.fillRect(0, 0, s, s);
+      ctx.globalCompositeOperation = "screen";
+      ctx.fillRect(0, 0, s, s);
+      ctx.globalCompositeOperation = "source-over";
+    }
+    const wash = Math.min(0.8, p.dark ? 0.3 + 0.6 * y : 0.45 + 0.3 * (1 - y));
+    const c = s / 2, base = p.dark ? p.lo : p.hi;
+    const g = ctx.createRadialGradient(c, c, 0, c, c, c);
+    g.addColorStop(0, rgba(base, wash));
+    g.addColorStop(0.72, rgba(base, wash + 0.06));
+    g.addColorStop(1, rgba(base, 0.9));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, s, s);
+  }
+
+  // ---------- the backdrop ----------
+
+  function backdrop(canvas, root) {
+    const ctx = canvas.getContext("2d");
+    let type = null, painter = null, media = null, pal = null;
+    let t = 7, last = null, speed = 1, fps = 10, timer = null;
+    function draw() {
+      const s = canvas.width;
+      ctx.clearRect(0, 0, s, s);
+      if (!painter && !media) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(s / 2, s / 2, s / 2, 0, TAU);
+      ctx.clip();
+      if (media) paintMedia(ctx, media, s, pal);
+      else painter.paint(ctx, t, s, pal);
+      ctx.restore();
+    }
+    const moving = () => !!painter || !!(media && media.video);
+    function frame() {
+      timer = null;
+      if (!canvas.isConnected) return self.pause();
+      const now = performance.now();
+      if (last != null) t += ((now - last) / 1e3) * speed;
+      last = now;
+      draw();
+      timer = setTimeout(frame, 1000 / fps);
+    }
+    const self = {
+      // Re-reads the theme colours, so call it after a theme change too.
+      set(next, animate = true) {
+        if (next !== type) {
+          if (media) media.stop();
+          type = next;
+          painter = PAINT[next] || null;
+          media = /^media:/.test(next) ? mediaSource(next.slice(6), () => draw()) : null;
+          const res = media ? 640 : painter ? painter.res || 256 : 16;
+          if (canvas.width !== res) canvas.width = canvas.height = res;
+        }
+        pal = palette(root);
+        draw();
+        if (animate) self.play();
+        else self.pause();
+      },
+      play() {
+        if (media) media.play();
+        // A still background must not keep a frame loop: every redraw costs CAM a capture.
+        if (!moving()) {
+          clearTimeout(timer);
+          timer = null;
+          return;
+        }
+        if (timer) return;
+        last = null;
+        timer = setTimeout(frame, 0);
+      },
+      pause() {
+        if (media) media.pause();
+        clearTimeout(timer);
+        timer = null;
+      },
+      speed(r) {
+        speed = r;
+      },
+      fps(n) {
+        fps = n > 0 ? n : 10;
+      },
+    };
+    return self;
+  }
+
+  window.KrakenBg = { LIST, backdrop };
+})();

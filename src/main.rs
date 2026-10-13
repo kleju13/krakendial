@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod limits;
+mod media;
 
 use serde_json::{json, Value};
 use std::io::{Read, Write};
@@ -12,9 +13,15 @@ use std::time::Duration;
 use tiny_http::{Header, Method, Request, Response, Server};
 
 const ADDR: &str = "127.0.0.1:30640";
-const LAYOUTS: [&str; 6] = ["rotacja", "adaptacyjny", "pierscienie", "jedna", "limity", "sprzet"];
-const THEMES: [&str; 4] = ["ice", "deep", "blue", "night"];
-const BGS: [&str; 6] = ["ciecz", "fale", "babelki", "zorza", "obieg", "brak"];
+const LAYOUTS: [&str; 10] =
+    ["rotacja", "adaptacyjny", "kokpit", "chronograf", "slupki", "terminal", "jedna", "limity", "sprzet", "zegar"];
+const THEMES: [&str; 10] = ["ice", "porcelana", "mroz", "blue", "deep", "ocean", "indygo", "grafit", "night", "neon"];
+const BGS: [&str; 15] = [
+    "ciecz", "fale", "babelki", "zorza", "obieg", "gwiazdy", "bokeh", "mglawica", "linie", "topografia", "siatka",
+    "kod", "plaster", "wir", "brak",
+];
+/// Whether limits read as what is left or what is used.
+const UNITS: [&str; 2] = ["left", "used"];
 const INTERVALS: [i64; 3] = [60, 120, 300];
 /// Background frame rates. CAM spends CPU on every frame it captures, so the default is low.
 const FPS: [i64; 3] = [10, 20, 30];
@@ -31,7 +38,7 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     fn legacy(l: &str) -> &str {
         match l {
             "adaptive" => "adaptacyjny",
-            "fixed" => "pierscienie",
+            "fixed" | "pierscienie" => "kokpit",
             "work" => "limity",
             "game" => "sprzet",
             other => other,
@@ -43,8 +50,11 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     if let Some(t) = patch["theme"].as_str().filter(|t| THEMES.contains(t)) {
         cfg["theme"] = json!(t);
     }
-    if let Some(b) = patch["bg"].as_str().filter(|b| BGS.contains(b)) {
+    if let Some(b) = patch["bg"].as_str().filter(|b| BGS.contains(b) || media::bg_exists(b)) {
         cfg["bg"] = json!(b);
+    }
+    if let Some(u) = patch["units"].as_str().filter(|u| UNITS.contains(u)) {
+        cfg["units"] = json!(u);
     }
     if let Some(i) = patch["interval"].as_i64().filter(|i| INTERVALS.contains(i)) {
         cfg["interval"] = json!(i);
@@ -94,6 +104,7 @@ fn asset(name: &str) -> Option<(Vec<u8>, &'static str)> {
         "index.html" => include_bytes!("../web/index.html"),
         "config.html" => include_bytes!("../web/config.html"),
         "dial.js" => include_bytes!("../web/dial.js"),
+        "bg.js" => include_bytes!("../web/bg.js"),
         "dial.css" => include_bytes!("../web/dial.css"),
         _ => return None,
     };
@@ -150,6 +161,35 @@ fn handle(app: &App, mut req: Request) {
             }
             reply(req, 204, "text/plain", Vec::new());
         }
+        (Method::Get, "/api/media") => reply_json(req, &media::list()),
+        (Method::Post, "/api/media") => {
+            let name = media::query_name(query);
+            let res = name.ok_or("zła nazwa".to_string()).and_then(|n| media::save(&n, req.as_reader()));
+            match res {
+                Ok(saved) => reply_json(req, &json!({ "name": saved })),
+                Err(e) => reply(req, 400, "text/plain; charset=utf-8", e.into_bytes()),
+            }
+        }
+        (Method::Delete, "/api/media") => {
+            if let Some(name) = media::query_name(query) {
+                media::remove(&name);
+                let mut cfg = app.config.lock().unwrap();
+                if cfg["bg"].as_str() == Some(&format!("media:{name}")) {
+                    cfg["bg"] = json!("ciecz");
+                    let _ = std::fs::write(data_dir().join("config.json"), cfg.to_string());
+                }
+            }
+            reply(req, 204, "text/plain", Vec::new());
+        }
+        (Method::Get, p) if p.starts_with("/media/") => match media::open(&p["/media/".len()..]) {
+            Some((file, ctype)) => {
+                let resp = Response::from_file(file)
+                    .with_header(Header::from_bytes("Content-Type", ctype).unwrap())
+                    .with_header(Header::from_bytes("Cache-Control", "no-store").unwrap());
+                let _ = req.respond(resp);
+            }
+            None => reply(req, 404, "text/plain", b"not found".to_vec()),
+        },
         (Method::Get, p) => {
             // CAM loads the same URL twice: with ?kraken=1 on the LCD, without it in "Configure".
             let name = match p {
@@ -177,7 +217,8 @@ fn main() {
         }
     };
     let state_path = data_dir().join("state.json");
-    let mut config = json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60, "fps": 10 });
+    let mut config =
+        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60, "fps": 10, "units": "left" });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
     }

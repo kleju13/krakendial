@@ -1,6 +1,6 @@
 /* Kraken LCD dial. Themes are blue/white families to match a white build under blue light.
    Numerals are DIN (Bahnschrift ships with Windows). CAM rasterises without a GPU, so nothing
-   here animates continuously: the moving background is a canvas painted by dial.js, and only
+   here animates continuously: the moving background is a canvas painted by bg.js, and only
    whole scene layers fade. No rounded overflow clip either; the dial is round by itself. */
 
 .kd {
@@ -48,6 +48,49 @@
   --num-weight: 500;
 }
 
+.th-porcelana {
+  --bg-hi: #fdfcfa; --bg-lo: #e4e8ef;
+  --ink: #111a2c; --ink-2: #4a5568; --ink-3: #9aa3b2;
+  --track: #dde2ea; --fill: #1e40af; --fill-2: #93b4f5; --warn: #d9363e; --tick: rgba(17, 26, 44, 0.18);
+  --glow-a: rgba(30, 64, 175, 0.12); --glow-b: rgba(147, 180, 245, 0.24);
+  --num-weight: 600;
+}
+.th-mroz {
+  --bg-hi: #f1fbff; --bg-lo: #c9e6f5;
+  --ink: #062438; --ink-2: #376581; --ink-3: #7fa6be;
+  --track: #c6e0ee; --fill: #0284c7; --fill-2: #7dd3fc; --warn: #e5484d; --tick: rgba(6, 36, 56, 0.2);
+  --glow-a: rgba(2, 132, 199, 0.15); --glow-b: rgba(125, 211, 252, 0.32);
+  --num-weight: 600;
+}
+.th-ocean {
+  --bg-hi: #0c3d60; --bg-lo: #021523;
+  --ink: #e8f7ff; --ink-2: #93c5e0; --ink-3: #4d7d9b;
+  --track: #123f5d; --fill: #38bdf8; --fill-2: #a5f3fc; --warn: #ff7a7a; --tick: rgba(232, 247, 255, 0.16);
+  --glow-a: rgba(56, 189, 248, 0.28); --glow-b: rgba(45, 212, 191, 0.16);
+  --num-weight: 500;
+}
+.th-indygo {
+  --bg-hi: #27287a; --bg-lo: #08082a;
+  --ink: #eef0ff; --ink-2: #aeb4ec; --ink-3: #6a6fae;
+  --track: #2a2c6a; --fill: #818cf8; --fill-2: #c7d2fe; --warn: #ff8a8a; --tick: rgba(238, 240, 255, 0.16);
+  --glow-a: rgba(129, 140, 248, 0.3); --glow-b: rgba(96, 165, 250, 0.18);
+  --num-weight: 500;
+}
+.th-grafit {
+  --bg-hi: #2b3038; --bg-lo: #0e1013;
+  --ink: #f2f4f7; --ink-2: #a3abb7; --ink-3: #5d6672;
+  --track: #2d333b; --fill: #7dd3fc; --fill-2: #e0f2fe; --warn: #ff6b6b; --tick: rgba(242, 244, 247, 0.14);
+  --glow-a: rgba(125, 211, 252, 0.16); --glow-b: rgba(255, 255, 255, 0.07);
+  --num-weight: 500;
+}
+.th-neon {
+  --bg-hi: #041226; --bg-lo: #000000;
+  --ink: #e6fbff; --ink-2: #7fd6f2; --ink-3: #2f6d86;
+  --track: #0b2236; --fill: #22d3ee; --fill-2: #3b82f6; --warn: #ff4d6d; --tick: rgba(34, 211, 238, 0.22);
+  --glow-a: rgba(34, 211, 238, 0.3); --glow-b: rgba(59, 130, 246, 0.3);
+  --num-weight: 500;
+}
+
 /* ---------- text ---------- */
 
 .kd text { fill: var(--ink); }
@@ -56,8 +99,16 @@
 .kd .t-lbl-s { font-size: 17px; font-weight: 600; letter-spacing: 0.16em; fill: var(--ink-2); }
 .kd .t-sub { font-size: 19px; fill: var(--ink-2); }
 .kd .t-meta { font-size: 16px; fill: var(--ink-3); letter-spacing: 0.03em; }
+.kd .t-head { font-size: 14px; font-weight: 600; letter-spacing: 0.22em; fill: var(--ink-3); }
+.kd .t-lbl-xs { font-size: 14px; font-weight: 600; letter-spacing: 0.12em; fill: var(--ink-2); }
+.kd .t-lbl-xxs { font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; fill: var(--ink-2); }
+.kd .t-sub-s { font-size: 15px; fill: var(--ink-2); }
+.kd .t-sub-xs { font-size: 13px; fill: var(--ink-2); }
+.kd .t-unit { fill: var(--ink-3); }
+.kd .t-date { font-size: 22px; fill: var(--ink-2); letter-spacing: 0.04em; }
 .kd .n { font-weight: var(--num-weight); letter-spacing: -0.02em; font-variation-settings: "wdth" 82; }
 .kd .u { font-weight: 400; fill: var(--ink-2); }
+.kd .n.t-big { font-weight: 300; letter-spacing: 0; font-variation-settings: "wdth" 90; }
 .kd .is-warn, .kd tspan.is-warn, .kd text.is-warn { fill: var(--warn); font-weight: 600; }
 .kd .is-dim { opacity: 0.38; }
 .kd .dimmable { transition: opacity 0.6s var(--ease); }
@@ -72,14 +123,17 @@
 .kd .g-fill { stroke: var(--fill); fill: none; }
 .kd .g-over { stroke: var(--fill-2); fill: none; }
 .kd .gauge.is-hot .g-over { stroke: var(--warn); }
+/* "what is left": the gap up to the pace notch is the part the limit won't last */
+.kd .gauge.is-left .g-over { stroke: var(--warn); opacity: 0.38; }
+.kd .gauge.is-left.is-hot .g-over { opacity: 0.6; }
 .kd .gauge.is-dashed .g-track { stroke-dasharray: 1.2 1.2; }
 .kd .notch { transform-box: view-box; transform-origin: 320px 320px; }
 .kd .smooth .g-fill, .kd .smooth .g-over { transition: stroke-dasharray 0.9s var(--ease); }
 .kd .smooth .notch { transition: transform 0.9s var(--ease); }
 .kd .notch path { fill: var(--ink); }
-.kd .notch line { stroke: var(--ink); stroke-width: 2.5; }
+.kd .notch line, .kd .notch .notch-line { fill: none; stroke: var(--ink); stroke-width: 2.5; }
 .kd .notch.is-peak path { fill: var(--ink-3); }
-.kd .notch.is-peak line { stroke: var(--ink-3); }
+.kd .notch.is-peak line, .kd .notch.is-peak .notch-line { stroke: var(--ink-3); }
 
 /* freshness pie next to the meta line: fills until the next fetch is due */
 .kd .pie-ring { fill: none; stroke: var(--ink-3); stroke-width: 1.5; }
@@ -91,6 +145,37 @@
 .kd .pie-inner.pulse { animation: kd-pulse 0.9s var(--ease); }
 @keyframes kd-pulse { 0% { transform: scale(2); opacity: 0.1; } 100% { transform: scale(1); opacity: 1; } }
 
+/* ---------- layout parts ---------- */
+
+.kd .bracket { fill: none; stroke: var(--ink-3); stroke-width: 1.5; }
+.kd .sec-now { stroke: var(--fill); stroke-width: 4; stroke-linecap: round; }
+
+/* chronograph */
+.kd .hour { stroke: var(--ink-2); stroke-width: 4; stroke-linecap: round; }
+.kd .face { fill: var(--track); opacity: 0.32; }
+.kd .window { fill: none; stroke: var(--track); stroke-width: 2; }
+.kd .hand line { stroke: var(--ink); stroke-linecap: round; }
+.kd .hand-h line { stroke-width: 9; }
+.kd .hand-m line { stroke-width: 5.5; }
+.kd .hand-s line { stroke: var(--fill); stroke-width: 2.5; }
+.kd .hand-s circle { fill: var(--fill); }
+.kd .hub { fill: var(--ink); }
+.kd .hub-s { fill: var(--fill); }
+
+/* terminal */
+.kd .t-term {
+  font-family: "Cascadia Mono", "Cascadia Code", Consolas, monospace; font-size: 20px;
+  white-space: pre; letter-spacing: 0; fill: var(--ink);
+}
+.kd .tm-p { fill: var(--fill); font-weight: 600; }
+.kd .tm-d { fill: var(--ink-3); }
+.kd .tm-k { fill: var(--ink-2); }
+.kd .tm-w { fill: var(--warn); }
+.kd .tm-f { fill: var(--fill); }
+.kd .tm-o { fill: var(--fill-2); }
+.kd .tm-e { fill: var(--ink-2); opacity: 0.45; }
+.kd .tm-c { fill: var(--fill); }
+
 /* ---------- scenes ---------- */
 
 /* each scene is its own <svg> layer, so a fade or scale is composited instead of repainted */
@@ -101,6 +186,6 @@
 }
 .kd .scene.is-off { opacity: 0; transform: scale(0.95); }
 
-/* ---------- background canvas (painted by dial.js) ---------- */
+/* ---------- background canvas (painted by bg.js) ---------- */
 
 .kd-bg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }

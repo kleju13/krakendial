@@ -25,14 +25,26 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
 - **Układ:**
   - **Rotacja:** limity i sprzęt na zmianę.
   - **Adaptacyjny:** limity, a gdy GPU pracuje (>60% przez 20 s), sprzęt.
-  - **Pierścienie:** wszystko naraz.
+  - **Kokpit:** wszystko naraz: trzy limity z paskami tempa, temperatury, ciecz, moc i RAM.
+  - **Chronograf:** zegarek ze wskazówkami, każdy limit na osobnej tarczce.
+  - **Słupki:** siedem słupków obok siebie.
+  - **Terminal:** wszystko jako wynik w konsoli.
+  - **Zegar:** duża godzina, limity nad nią, sprzęt pod nią.
   - **Jedna liczba:** karuzela dużych wartości.
   - **Tylko limity** / **Tylko sprzęt**.
-- **Motyw:** Lód, Głębia, Błękit, Noc.
-- **Tło:** animacje Ciecz, Fale, Bąbelki, Zorza, Obieg albo brak. Przyspieszają razem z obciążeniem GPU.
+- **Limity pokazują:** ile zostało (domyślnie) albo ile zużyte.
+
+  Przy „ile zostało” pasek się opróżnia, a kreska tempa mówi, ile powinno zostać przy równym zużyciu do resetu. Czerwona szczelina do kreski znaczy, że limit skończy się przed resetem.
+- **Motyw:** Lód, Porcelana, Mróz, Błękit, Ocean, Głębia, Indygo, Grafit, Noc, Neon.
+- **Tło:** rysowane animacje albo brak. Przyspieszają razem z obciążeniem GPU.
+  - Ciecz, Fale, Bąbelki, Zorza, Obieg, Mgławica, Gwiazdy, Bokeh.
+  - Jedwab, Topografia, Wir, Plaster, Siatka, Kod.
+- **Własne tła:** film, GIF albo obrazek dodany w panelu (trafia do `%LOCALAPPDATA%\krakenlcd\media`).
+
+  Ruchome pliki są przycinane do kwadratu i zmniejszane do 640×640 przez ffmpeg, jeśli jest zainstalowany. Tarcza przyciemnia film tym mocniej, im jest jaśniejszy, a w jasnych motywach zamienia go na biało-niebieski duoton, żeby liczby zostały czytelne.
 - **Płynność tła:** 10, 20 albo 30 kl/s.
 
-  CAM renderuje stronę bez GPU i każdą zmienioną klatkę przechwytuje i wysyła na wyświetlacz, co kosztuje ok. 2–3% jednego rdzenia na każdą klatkę na sekundę. Dlatego tło jest rysowane na małym canvasie, a domyślnie 10 kl/s.
+  CAM renderuje stronę bez GPU i każdą zmienioną klatkę przechwytuje i wysyła na wyświetlacz, co kosztuje ok. 2–3% jednego rdzenia na każdą klatkę na sekundę. Przy 10 kl/s cały CAM zużywa ok. 55% jednego rdzenia z animowanym tłem albo filmem i ok. 20% bez tła.
 - **Pobieranie limitów:** co 1, 2 albo 5 min.
 
   Gdy serwer odpowiada „za często”, usługa sama wydłuża odstęp, a po serii udanych zapytań znowu go skraca.
@@ -43,7 +55,7 @@ Na dole tarczy jest godzina ostatniego pobrania i realny odstęp, a obok kółko
 
 - `http://127.0.0.1:30640/lcd?mock` to sama tarcza ze sztucznymi danymi sprzętu.
 
-  Parametry `layout`, `theme` i `bg` wymuszają wariant, np. `/lcd?mock&layout=jedna&theme=deep&bg=fale`.
+  Parametry `layout`, `theme`, `bg`, `units` i `fps` wymuszają wariant, np. `/lcd?mock&layout=chronograf&theme=deep&bg=gwiazdy&units=used`.
 - `KRAKENLCD_WEB=<repo>\web` przy uruchomieniu exe serwuje pliki z dysku bez przebudowy.
 
   Otwarte strony same się przeładowują po restarcie usługi.

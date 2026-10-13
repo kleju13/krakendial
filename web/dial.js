@@ -1,10 +1,9 @@
-// Kraken Elite LCD dial (640×640, round). SVG + a small canvas, no dependencies.
-// CAM renders web integrations without a GPU, so everything here keeps the CPU idle: the
-// background is a low-res canvas drawn at a modest frame rate, scenes are separate layers so
-// fades are composited, and the DOM is only touched when a value really changes.
-//   const dial = KrakenDial.create(container, { layout, theme, bg });
+// Kraken Elite LCD dial (640×640, round). SVG over a canvas background (bg.js), no dependencies.
+// CAM renders web integrations without a GPU, so everything here keeps the CPU idle: scenes are
+// separate layers so fades are composited, and the DOM is only touched when a value really changes.
+//   const dial = KrakenDial.create(container, { layout, theme, bg, fps, units });
 //   dial.update({ now, hw, limits, interval, mode });  // call about once a second
-//   dial.configure({ layout, theme, bg, fps });        // switch variant live
+//   dial.configure({ layout, theme, bg, fps, units }); // switch variant live
 //   dial.setActivity(gpuLoad);                         // 0..1, speeds the background up under load
 (function () {
   const NS = "http://www.w3.org/2000/svg";
@@ -14,33 +13,38 @@
   const CAROUSEL_MS = 6e3;
   const HOT = { cpu: 85, gpu: 80 };
   const DAYS = ["nd", "pn", "wt", "śr", "cz", "pt", "sb"];
+  const DAY_NAMES = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
+  const MONTHS = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września", "października", "listopada", "grudnia"];
 
   const LAYOUTS = [
     { id: "rotacja", name: "Rotacja", desc: "Limity i sprzęt na zmianę co 12 s." },
     { id: "adaptacyjny", name: "Adaptacyjny", desc: "Limity, a gdy grasz, sprzęt." },
-    { id: "pierscienie", name: "Pierścienie", desc: "Wszystko naraz: limity jako pierścienie." },
+    { id: "kokpit", name: "Kokpit", desc: "Wszystko naraz: limity, temperatury, moc, RAM." },
+    { id: "chronograf", name: "Chronograf", desc: "Zegarek ze wskazówkami, limity na tarczkach." },
+    { id: "slupki", name: "Słupki", desc: "Siedem słupków obok siebie." },
+    { id: "terminal", name: "Terminal", desc: "Wszystko jako wynik w konsoli." },
+    { id: "zegar", name: "Zegar", desc: "Duża godzina, limity i sprzęt dookoła." },
     { id: "jedna", name: "Jedna liczba", desc: "Jedna wielka wartość, kolejna co 6 s." },
     { id: "limity", name: "Tylko limity", desc: "Claude 5h, Claude 7d i Codex." },
     { id: "sprzet", name: "Tylko sprzęt", desc: "CPU, GPU, ciecz i moc." },
   ];
   const THEMES = [
     { id: "ice", name: "Lód" },
-    { id: "deep", name: "Głębia" },
+    { id: "porcelana", name: "Porcelana" },
+    { id: "mroz", name: "Mróz" },
     { id: "blue", name: "Błękit" },
+    { id: "ocean", name: "Ocean" },
+    { id: "deep", name: "Głębia" },
+    { id: "indygo", name: "Indygo" },
+    { id: "grafit", name: "Grafit" },
     { id: "night", name: "Noc" },
+    { id: "neon", name: "Neon" },
   ];
-  const BGS = [
-    { id: "ciecz", name: "Ciecz" },
-    { id: "fale", name: "Fale" },
-    { id: "babelki", name: "Bąbelki" },
-    { id: "zorza", name: "Zorza" },
-    { id: "obieg", name: "Obieg" },
-    { id: "brak", name: "Bez tła" },
-  ];
+  const BGS = window.KrakenBg.LIST;
   const LIMITS = [
-    { key: "claude5h", label: "CLAUDE · 5H", short: "CLAUDE 5H", tiny: "5H" },
-    { key: "claude7d", label: "CLAUDE · 7D", short: "CLAUDE 7D", tiny: "7D" },
-    { key: "codex7d", label: "CODEX · 7D", short: "CODEX 7D", tiny: "CODEX" },
+    { key: "claude5h", label: "CLAUDE · 5H", short: "CLAUDE 5H", tiny: "5H", cmd: "claude 5h" },
+    { key: "claude7d", label: "CLAUDE · 7D", short: "CLAUDE 7D", tiny: "7D", cmd: "claude 7d" },
+    { key: "codex7d", label: "CODEX · 7D", short: "CODEX 7D", tiny: "CODEX", cmd: "codex  7d" },
   ];
 
   // ---------- helpers ----------
@@ -53,13 +57,13 @@
     return n;
   }
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
-  const polar = (r, deg) => {
+  const polar = (r, deg, cx = C, cy = C) => {
     const a = (deg * Math.PI) / 180;
-    return [C + r * Math.sin(a), C - r * Math.cos(a)];
+    return [cx + r * Math.sin(a), cy - r * Math.cos(a)];
   };
-  function arcD(r, a0, a1) {
-    const [x0, y0] = polar(r, a0);
-    const [x1, y1] = polar(r, a1);
+  function arcD(r, a0, a1, cx = C, cy = C) {
+    const [x0, y0] = polar(r, a0, cx, cy);
+    const [x1, y1] = polar(r, a1, cx, cy);
     const large = Math.abs(a1 - a0) > 180 ? 1 : 0;
     const sweep = a1 > a0 ? 1 : 0;
     return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${large} ${sweep} ${x1.toFixed(2)} ${y1.toFixed(2)}`;
@@ -84,6 +88,7 @@
   const scale = (v, lo, hi) => clamp(((v ?? lo) - lo) / (hi - lo), 0, 1) * 100;
   const tempF = (t) => scale(t, 20, 100);
   const power = (hw) => (hw.cpu.power == null && hw.gpu.power == null ? null : (hw.cpu.power ?? 0) + (hw.gpu.power ?? 0));
+  const isHot = (h, key) => h.temp != null && h.temp >= HOT[key];
 
   function setText(node, s) {
     if (node.textContent !== s) node.textContent = s;
@@ -97,6 +102,14 @@
     textEl._key = key;
     textEl.replaceChildren();
     for (const p of parts) el(textEl, "tspan", p.warn ? { class: "is-warn" } : {}, p.t);
+  }
+  // Coloured runs of text: [[className, text], ...]
+  function setSpans(textEl, spans) {
+    const key = spans.map((s) => s.join("\u0001")).join("\u0002");
+    if (textEl._key === key) return;
+    textEl._key = key;
+    textEl.replaceChildren();
+    for (const [cls, s] of spans) if (s) el(textEl, "tspan", cls ? { class: cls } : {}, s);
   }
   // Number with a lighter unit; a degree sign is lifted to cap height.
   function setNum(textEl, num, unit, unitSize, fontSize) {
@@ -114,17 +127,20 @@
 
   // ---------- data -> what the dial shows ----------
 
-  function limitView(l, now, interval) {
+  // `left`: show what remains of the limit instead of what has been used.
+  function limitView(l, now, interval, left) {
     const staleAfter = Math.max(STALE_MS, 3 * interval);
     if (!l || l.pct == null) {
       const sub = l && l.error ? [{ t: l.error, warn: true }] : [{ t: "czekam na dane" }];
-      return { state: l && l.error ? "error" : "none", pct: 0, pace: null, value: "—", dim: true, sub };
+      return { state: l && l.error ? "error" : "none", pct: 0, pace: null, value: "—", dim: true, sub, left };
     }
+    const show = (used) => (left ? 100 - used : used);
     const age = now - l.fetchedAt;
     const pace = l.windowMs && l.resetsAt ? clamp(100 * (1 - (l.resetsAt - now) / l.windowMs), 0, 100) : null;
-    const base = { pct: clamp(l.pct, 0, 100), pace, value: `${Math.round(l.pct)}`, dim: false, state: "ok" };
+    const pct = show(clamp(l.pct, 0, 100));
+    const base = { pct, pace, value: `${Math.round(pct)}`, dim: false, state: "ok", left };
     if (l.resetsAt && now >= l.resetsAt) {
-      return { ...base, state: "reset", pct: 0, pace: 0, value: "0", dim: true, sub: [{ t: "po resecie" }] };
+      return { ...base, state: "reset", pct: show(0), pace: 0, value: `${show(0)}`, dim: true, sub: [{ t: "po resecie" }] };
     }
     if (age > staleAfter) {
       return { ...base, state: l.error ? "error" : "stale", dim: true, sub: [{ t: `sprzed ${dur(age)}` }] };
@@ -133,6 +149,16 @@
     if (l.pct >= 100) return { ...base, hot: true, sub: [{ t: `limit · reset ${when(l.resetsAt, now)}`, warn: true }] };
     if (l.burnAt && l.burnAt < l.resetsAt) return { ...base, hot: true, sub: [{ t: `koniec za ${dur(l.burnAt - now)}`, warn: true }] };
     return { ...base, sub: [{ t: `reset ${when(l.resetsAt, now)}` }] };
+  }
+
+  // Where a limit gauge fills to, where the pace notch sits and where the second colour starts.
+  // Used: fill up to the pace, then the overshoot. Left: fill what remains; the notch marks how
+  // much of the window remains, and a gap up to it means the limit runs out before the reset.
+  function limitSpan(v) {
+    if (v.state === "none") return { f: 0, notch: null, over: null };
+    if (!v.left) return { f: v.pct, notch: v.pace, over: v.pace };
+    const ahead = v.pace == null ? null : 100 - v.pace;
+    return ahead != null && ahead > v.pct ? { f: ahead, notch: ahead, over: v.pct } : { f: v.pct, notch: ahead, over: null };
   }
 
   // The quiet status line: when limits were last fetched and how often, or what is failing.
@@ -155,7 +181,7 @@
 
   // ---------- primitives ----------
 
-  // Any path drawn with pathLength=100 (arc or bar). fill covers [0, min(f, overFrom)],
+  // Any path drawn with pathLength=100 (arc or straight bar). fill covers [0, min(f, overFrom)],
   // the second colour covers [overFrom, f], the notch marks a reference such as the pace.
   function gauge(parent, geo, width, notchStyle = "full") {
     const g = el(parent, "g", { class: "gauge" });
@@ -166,18 +192,22 @@
     const notch = el(g, "g", { class: "notch" });
     const h = width / 2;
     const t = Math.max(6, width * 0.6);
+    let place;
     if (geo.kind === "arc") {
-      const r = geo.r;
-      if (notchStyle === "full") el(notch, "path", { d: `M${C - t} ${C - (r + h + 4 + t * 1.3)}L${C + t} ${C - (r + h + 4 + t * 1.3)}L${C} ${C - (r + h + 3)}Z` });
-      el(notch, "line", { x1: C, x2: C, y1: C - (r - h - 2), y2: C - (r + h + 2) });
+      const { r, cx, cy, a0, a1 } = geo;
+      if (notchStyle === "full") el(notch, "path", { d: `M${cx - t} ${cy - (r + h + 4 + t * 1.3)}L${cx + t} ${cy - (r + h + 4 + t * 1.3)}L${cx} ${cy - (r + h + 3)}Z` });
+      el(notch, "line", { x1: cx, x2: cx, y1: cy - (r - h - 2), y2: cy - (r + h + 2) });
+      if (cx !== C || cy !== C) notch.style.transformOrigin = `${cx}px ${cy}px`;
+      place = (f) => `rotate(${(a0 + ((a1 - a0) * f) / 100).toFixed(2)}deg)`;
     } else {
-      el(notch, "path", { d: `M${-t} ${geo.y - h - 4 - t * 1.3}L${t} ${geo.y - h - 4 - t * 1.3}L0 ${geo.y - h - 3}Z` });
-      el(notch, "line", { x1: 0, x2: 0, y1: geo.y - h - 2, y2: geo.y + h + 2 });
+      // A straight bar: the notch is drawn across its start and slides along it.
+      const { x0, y0, x1, y1 } = geo;
+      const len = Math.hypot(x1 - x0, y1 - y0), dx = (x1 - x0) / len, dy = (y1 - y0) / len;
+      const pt = (along, out) => `${(x0 + dx * along + dy * out).toFixed(1)} ${(y0 + dy * along - dx * out).toFixed(1)}`;
+      if (notchStyle === "full") el(notch, "path", { d: `M${pt(-t, h + 4 + t * 1.3)}L${pt(t, h + 4 + t * 1.3)}L${pt(0, h + 3)}Z` });
+      el(notch, "path", { d: `M${pt(0, -(h + 2))}L${pt(0, h + 2)}`, class: "notch-line" });
+      place = (f) => `translate(${(((x1 - x0) * f) / 100).toFixed(1)}px, ${(((y1 - y0) * f) / 100).toFixed(1)}px)`;
     }
-    const place = (f) =>
-      geo.kind === "arc"
-        ? `rotate(${(geo.a0 + ((geo.a1 - geo.a0) * f) / 100).toFixed(2)}deg)`
-        : `translate(${(geo.x0 + ((geo.x1 - geo.x0) * f) / 100).toFixed(1)}px, 0px)`;
     let placed = (notch.style.transform = place(0));
     return {
       g,
@@ -196,17 +226,25 @@
       },
     };
   }
-  const arcGauge = (p, r, a0, a1, w, notchStyle) => gauge(p, { kind: "arc", d: arcD(r, a0, a1), r, a0, a1 }, w, notchStyle);
-  const barGauge = (p, x0, x1, y, w) => gauge(p, { kind: "bar", d: `M${x0} ${y}H${x1}`, x0, x1, y }, w);
+  const arcGauge = (p, r, a0, a1, w, notchStyle, cx = C, cy = C) =>
+    gauge(p, { kind: "arc", d: arcD(r, a0, a1, cx, cy), r, a0, a1, cx, cy }, w, notchStyle);
+  const barGauge = (p, x0, x1, y, w, notchStyle) => gauge(p, { kind: "bar", d: `M${x0} ${y}H${x1}`, x0, y0: y, x1, y1: y }, w, notchStyle);
+  const columnGauge = (p, x, bottom, top, w) => gauge(p, { kind: "bar", d: `M${x} ${bottom}V${top}`, x0: x, y0: bottom, x1: x, y1: top }, w, "line");
   // Limits change once per fetch, so they may glide; hardware gauges tick every second and jump.
-  const limitGauge = (gg, v) => gg.g.classList.add("smooth") || gg.set(v.pct, v.pace, v.pace, { hot: v.hot, dashed: v.state === "reset" || v.state === "none" });
+  function limitGauge(gg, v) {
+    const s = limitSpan(v);
+    gg.g.classList.add("smooth");
+    gg.g.classList.toggle("is-left", !!v.left);
+    gg.set(s.f, s.notch, s.over, { hot: v.hot, dashed: v.state === "reset" || v.state === "none" });
+  }
+  const tempGauge = (gg, h, key) => gg.set(tempF(h.temp), h.peak != null ? tempF(h.peak) : null, tempF(HOT[key]), { hot: true });
 
-  function ticks(parent, r0, r1, a0, a1, n) {
+  function ticks(parent, r0, r1, a0, a1, n, cx = C, cy = C, width = 2) {
     for (let i = 0; i <= n; i++) {
       const a = a0 + ((a1 - a0) * i) / n;
-      const [x0, y0] = polar(r0, a);
-      const [x1, y1] = polar(r1, a);
-      el(parent, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "tick", "stroke-width": 2 });
+      const [x0, y0] = polar(r0, a, cx, cy);
+      const [x1, y1] = polar(r1, a, cx, cy);
+      el(parent, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "tick", "stroke-width": width });
     }
   }
 
@@ -263,6 +301,12 @@
     };
   }
 
+  // "ZOSTAŁO" or "ZUŻYTE": says which way the limit numbers read.
+  function unitHead(p, x, y, anchor = "middle") {
+    const t = el(p, "text", { x, y, "text-anchor": anchor, class: "t-head" });
+    return (d) => setText(t, d.unitWord);
+  }
+
   function ramLine(p, y) {
     const t = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-sub" });
     return (d) => {
@@ -279,10 +323,9 @@
     gpu.notch.classList.add("is-peak");
     ticks(p, 262, 270, -150, -30, 8);
     ticks(p, 262, 270, 150, 30, 8);
-    const set = (gg, h, hot) => gg.set(tempF(h.temp), h.peak != null ? tempF(h.peak) : null, tempF(hot), { hot: true });
     return (d) => {
-      set(cpu, d.hw.cpu, HOT.cpu);
-      set(gpu, d.hw.gpu, HOT.gpu);
+      tempGauge(cpu, d.hw.cpu, "cpu");
+      tempGauge(gpu, d.hw.gpu, "gpu");
     };
   }
 
@@ -293,21 +336,25 @@
     return (d) => {
       const h = d.hw[key];
       setNum(val, int(h.temp), "°", size * 0.5, size);
-      val.classList.toggle("is-warn", h.temp != null && h.temp >= HOT[key]);
+      val.classList.toggle("is-warn", isHot(h, key));
       if (sub) setText(sub, `${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
     };
   }
 
+  // read(d) -> [number, unit, unit size as a share of size, warn?]
   function statBlock(p, label, cx, y, size, read, lblClass = "t-lbl") {
     el(p, "text", { x: cx, y: y - size * 0.92, "text-anchor": "middle", class: lblClass }, label);
     const val = num(p, cx, y, size);
     return (d) => {
-      const [n, u, us] = read(d);
+      const [n, u, us, warn] = read(d);
       setNum(val, n, u, size * (us || 0.42), size);
+      val.classList.toggle("is-warn", !!warn);
     };
   }
   const readLiquid = (d) => [dec(d.hw.liquid), "°", 0.5];
   const readPower = (d) => [int(power(d.hw)), " W", 0.38];
+  const readRam = (d) => [d.hw.ram && d.hw.ram.used != null ? dec(d.hw.ram.used / 1024) : "—", " GB", 0.38];
+  const readTemp = (key) => (d) => [int(d.hw[key].temp), "°", 0.5, isHot(d.hw[key], key)];
 
   // ---------- scenes ----------
 
@@ -315,6 +362,7 @@
   function sceneLimity(p) {
     const up = [clock(p, 96)];
     const x0 = 118, x1 = 522;
+    up.push(unitHead(p, x1, 128, "end"));
     LIMITS.forEach((def, i) => {
       const yb = 204 + i * 128;
       el(p, "text", { x: x0, y: yb - 38, class: "t-lbl" }, def.short);
@@ -345,34 +393,218 @@
     return up;
   }
 
-  // Everything at once: limits as three rim rings (outer 5H, 7D, inner Codex), hardware in the middle.
-  function scenePierscienie(p) {
-    const R = [288, 262, 236];
-    const up = [];
+  // Everything at once, in reading order: three limits with pace bars, then the hardware.
+  function sceneKokpit(p) {
+    const up = [clock(p, 90), tempArcs(p), unitHead(p, C, 126)];
     LIMITS.forEach((def, i) => {
-      const ring = arcGauge(p, R[i], -135, 135, 14, "line");
-      const [lx, ly] = polar(R[i], -142);
-      el(p, "text", { x: lx, y: ly + 5, "text-anchor": "middle", class: "t-meta" }, def.tiny === "CODEX" ? "CX" : def.tiny);
-      up.push((d) => limitGauge(ring, d.views[def.key]));
-    });
-    LIMITS.forEach((def, i) => {
-      const x = 226 + i * 94;
-      el(p, "text", { x, y: 150, "text-anchor": "middle", class: "t-lbl-s" }, def.tiny);
-      const val = num(p, x + 4, 202, 54);
+      const x = 200 + i * 120;
+      el(p, "text", { x, y: 158, "text-anchor": "middle", class: "t-lbl-xs" }, def.short);
+      const val = num(p, x + 6, 216, 60);
+      const bar = barGauge(p, x - 46, x + 46, 238, 6, "line");
+      const sub = el(p, "text", { x, y: 266, "text-anchor": "middle", class: "t-sub-s" });
       up.push((d) => {
         const v = d.views[def.key];
-        setNum(val, v.value, "%", 24, 54);
+        limitGauge(bar, v);
+        setNum(val, v.value, "%", 26, 60);
+        val.classList.toggle("is-dim", v.dim);
+        setParts(sub, v.sub);
+      });
+    });
+    el(p, "line", { x1: 170, x2: 470, y1: 292, y2: 292, class: "rule" });
+    up.push(tempBlock(p, "cpu", 226, 398, 92, true));
+    up.push(tempBlock(p, "gpu", 414, 398, 92, true));
+    up.push(statBlock(p, "CIECZ", 200, 500, 38, readLiquid, "t-lbl-xs"));
+    up.push(statBlock(p, "MOC", 320, 500, 38, readPower, "t-lbl-xs"));
+    up.push(statBlock(p, "RAM", 440, 500, 38, readRam, "t-lbl-xs"));
+    up.push(meta(p, 554));
+    return up;
+  }
+
+  // A watch: hands for the time, a subdial per limit, the hardware in the window at twelve.
+  function sceneChronograf(p) {
+    const up = [];
+    for (let i = 0; i < 12; i++) {
+      const [x0, y0] = polar(i % 3 ? 274 : 264, i * 30);
+      const [x1, y1] = polar(290, i * 30);
+      el(p, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "hour" });
+    }
+    for (const [def, cx, cy] of [[LIMITS[0], 182, 322], [LIMITS[1], 458, 322], [LIMITS[2], 320, 452]]) {
+      el(p, "circle", { cx, cy, r: 82, class: "face" });
+      ticks(p, 72, 79, -135, 135, 10, cx, cy, 1.4);
+      const g = arcGauge(p, 60, -135, 135, 8, "line", cx, cy);
+      el(p, "text", { x: cx, y: cy - 14, "text-anchor": "middle", class: "t-lbl-xxs" }, def.short);
+      const val = num(p, cx + 6, cy + 28, 42);
+      const sub = el(p, "text", { x: cx, y: cy + 64, "text-anchor": "middle", class: "t-sub-xs" });
+      up.push((d) => {
+        const v = d.views[def.key];
+        limitGauge(g, v);
+        setNum(val, v.value, "%", 20, 42);
+        val.classList.toggle("is-dim", v.dim);
+        val.classList.toggle("is-warn", !!v.hot);
+        setParts(sub, v.sub);
+      });
+    }
+    el(p, "rect", { x: 198, y: 128, width: 244, height: 78, rx: 18, class: "window" });
+    [["CPU", 242, readTemp("cpu")], ["GPU", 320, readTemp("gpu")], ["CIECZ", 398, readLiquid]].forEach(([label, x, read]) => {
+      up.push(statBlock(p, label, x + 3, 192, 32, read, "t-lbl-xxs"));
+    });
+    const extra = el(p, "text", { x: C, y: 232, "text-anchor": "middle", class: "t-sub-s" });
+    up.push((d) => {
+      const r = d.hw.ram || {};
+      setText(extra, `${int(power(d.hw))} W · RAM ${r.used == null ? "—" : dec(r.used / 1024)} GB`);
+    });
+    up.push(meta(p, 566));
+    // hands last, so they pass over everything
+    const hand = (len, tail, cls) => {
+      const g = el(p, "g", { class: cls });
+      el(g, "line", { x1: C, y1: C + tail, x2: C, y2: C - len });
+      return g;
+    };
+    const hh = hand(124, 20, "hand hand-h");
+    const mm = hand(212, 24, "hand hand-m");
+    const ss = hand(246, 46, "hand hand-s");
+    el(ss, "circle", { cx: C, cy: C + 36, r: 5 });
+    el(p, "circle", { cx: C, cy: C, r: 9, class: "hub" });
+    el(p, "circle", { cx: C, cy: C, r: 3.5, class: "hub-s" });
+    up.push((d) => {
+      const t = new Date(d.now);
+      const s = t.getSeconds(), m = t.getMinutes() + s / 60, h = (t.getHours() % 12) + m / 60;
+      setAttr(hh, "transform", `rotate(${(h * 30).toFixed(1)} ${C} ${C})`);
+      setAttr(mm, "transform", `rotate(${(m * 6).toFixed(1)} ${C} ${C})`);
+      setAttr(ss, "transform", `rotate(${s * 6} ${C} ${C})`);
+    });
+    return up;
+  }
+
+  // Seven columns side by side: the three limits, then CPU, GPU, liquid and power.
+  function sceneSlupki(p) {
+    const up = [clock(p, 96)];
+    const X = (i) => C + (i - 3) * 58 + (i < 3 ? -14 : 14);
+    const top = 238, bottom = 436;
+    up.push(unitHead(p, X(1), 150));
+    el(p, "text", { x: (X(4) + X(5)) / 2, y: 150, "text-anchor": "middle", class: "t-head" }, "SPRZĘT");
+    const cols = [
+      ...LIMITS.map((def) => ({ label: def.tiny, limit: def.key })),
+      { label: "CPU", temp: "cpu" },
+      { label: "GPU", temp: "gpu" },
+      { label: "CIECZ", read: (d) => [int(d.hw.liquid), "°", 14], f: (d) => scale(d.hw.liquid, 20, 50) },
+      { label: "MOC", read: (d) => [int(power(d.hw)), "W", 12], f: (d) => scale(power(d.hw), 0, 600) },
+    ];
+    cols.forEach((col, i) => {
+      const x = X(i);
+      const bar = columnGauge(p, x, bottom, top, 30);
+      if (col.temp) bar.notch.classList.add("is-peak");
+      const val = num(p, x + 3, 214, 28);
+      el(p, "text", { x, y: 466, "text-anchor": "middle", class: "t-lbl-xs" }, col.label);
+      up.push((d) => {
+        if (col.limit) {
+          const v = d.views[col.limit];
+          limitGauge(bar, v);
+          setNum(val, v.value, "%", 13, 28);
+          val.classList.toggle("is-dim", v.dim);
+          val.classList.toggle("is-warn", !!v.hot);
+        } else if (col.temp) {
+          const h = d.hw[col.temp];
+          tempGauge(bar, h, col.temp);
+          setNum(val, int(h.temp), "°", 14, 28);
+          val.classList.toggle("is-warn", isHot(h, col.temp));
+        } else {
+          const [n, u, us] = col.read(d);
+          bar.set(col.f(d), null, null);
+          setNum(val, n, u, us, 28);
+        }
+      });
+    });
+    el(p, "path", { d: `M${X(0) - 15} 480V486H${X(1) + 15}V480`, class: "bracket" });
+    el(p, "text", { x: (X(0) + X(1)) / 2, y: 506, "text-anchor": "middle", class: "t-head" }, "CLAUDE");
+    up.push(ramLine(p, 534));
+    up.push(meta(p, 568));
+    return up;
+  }
+
+  // ██████▒▒░░ : a limit gauge in ten cells.
+  function cells(v, n = 10) {
+    const s = limitSpan(v);
+    const cut = Math.round((Math.min(s.f, s.over ?? s.f) / 100) * n);
+    const end = Math.max(cut, Math.round((s.f / 100) * n));
+    const over = v.left ? ["tm-w", "▒"] : [v.hot ? "tm-w" : "tm-o", "█"];
+    return [["tm-f", "█".repeat(cut)], [over[0], over[1].repeat(end - cut)], ["tm-e", "░".repeat(n - end)]];
+  }
+  const loadCells = (load, n = 10) => {
+    const k = load == null ? 0 : Math.round(clamp(load, 0, 1) * n);
+    return [["tm-f", "█".repeat(k)], ["tm-e", "░".repeat(n - k)]];
+  };
+  const fit = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+  // Everything as console output, with a blinking cursor.
+  function sceneTerminal(p) {
+    const L = [128, 168, 204, 240, 284, 320, 356, 392, 428, 472, 510].map((y) => el(p, "text", { x: 78, y, class: "t-term" }));
+    const prompt = (cmd) => [["tm-p", "kraken"], ["tm-d", "@lcd ~ $ "], ["", cmd]];
+    return [
+      (d) => {
+        setSpans(L[0], prompt(`limity --${d.left ? "zostało" : "zużyte"}`));
+        LIMITS.forEach((def, i) => {
+          const v = d.views[def.key];
+          const val = v.value === "—" ? "   —" : `${v.value.padStart(3)}%`;
+          const sub = fit(v.sub.map((x) => x.t).join(" "), 16);
+          setSpans(L[1 + i], [
+            ["tm-k", `${def.cmd} `],
+            ...cells(v),
+            [v.dim ? "tm-d" : v.hot ? "tm-w" : "", ` ${val}`],
+            [v.sub.some((x) => x.warn) ? "tm-w" : "tm-d", `  ${sub}`],
+          ]);
+        });
+        setSpans(L[4], prompt("sprzet"));
+        for (const [i, key] of [[5, "cpu"], [6, "gpu"]]) {
+          const h = d.hw[key];
+          setSpans(L[i], [
+            ["tm-k", key.padEnd(6)],
+            [isHot(h, key) ? "tm-w" : "", `${int(h.temp)}°`.padStart(4)],
+            ["", "  "],
+            ...loadCells(h.load),
+            ["", ` ${h.load == null ? "  —" : String(Math.round(h.load * 100)).padStart(3)}%`],
+            ["tm-d", `  ${int(h.power).padStart(3)} W`],
+          ]);
+        }
+        setSpans(L[7], [["tm-k", "ciecz "], ["", `${dec(d.hw.liquid)}°`.padEnd(8)], ["tm-k", "moc "], ["", `${int(power(d.hw))} W`]]);
+        const r = d.hw.ram || {};
+        setSpans(L[8], [["tm-k", "ram   "], ["", `${r.used == null ? "—" : dec(r.used / 1024)} / ${r.total == null ? "—" : Math.round(r.total / 1024)} GB`]]);
+        setSpans(L[9], [[d.meta.state === "error" ? "tm-w" : "tm-d", `# ${d.meta.text}`]]);
+        setSpans(L[10], [["tm-d", `[${hhmmss(d.now)}] `], ["tm-p", "~ $ "], ["tm-c", Math.floor(d.now / 1000) % 2 ? " " : "▌"]]);
+      },
+    ];
+  }
+
+  // The time, large; limits above it, hardware below, a seconds marker running round the rim.
+  function sceneZegar(p) {
+    const up = [unitHead(p, C, 102)];
+    LIMITS.forEach((def, i) => {
+      const x = 216 + i * 104;
+      el(p, "text", { x, y: 130, "text-anchor": "middle", class: "t-lbl-xs" }, def.short);
+      const val = num(p, x + 5, 170, 36);
+      const bar = barGauge(p, x - 34, x + 34, 188, 4, "line");
+      up.push((d) => {
+        const v = d.views[def.key];
+        limitGauge(bar, v);
+        setNum(val, v.value, "%", 16, 36);
         val.classList.toggle("is-dim", v.dim);
         val.classList.toggle("is-warn", !!v.hot);
       });
     });
-    el(p, "line", { x1: 196, x2: 444, y1: 230, y2: 230, class: "rule" });
-    up.push(tempBlock(p, "cpu", 250, 340, 78, false));
-    up.push(tempBlock(p, "gpu", 390, 340, 78, false));
-    up.push(statBlock(p, "CIECZ", 250, 444, 54, readLiquid, "t-lbl-s"));
-    up.push(statBlock(p, "MOC", 390, 444, 54, readPower, "t-lbl-s"));
-    up.push(clock(p, 548));
-    up.push(meta(p, 588));
+    const time = el(p, "text", { x: C, y: 348, "text-anchor": "middle", class: "n t-big", "font-size": 164 });
+    const date = el(p, "text", { x: C, y: 400, "text-anchor": "middle", class: "t-date" });
+    const sec = el(p, "line", { x1: C, y1: C - 298, x2: C, y2: C - 314, class: "sec-now" });
+    up.push((d) => {
+      const t = new Date(d.now);
+      setText(time, hhmm(d.now));
+      setText(date, `${DAY_NAMES[t.getDay()]}, ${t.getDate()} ${MONTHS[t.getMonth()]}`);
+      setAttr(sec, "transform", `rotate(${t.getSeconds() * 6} ${C} ${C})`);
+    });
+    up.push(statBlock(p, "CPU", 194, 492, 30, readTemp("cpu"), "t-lbl-xs"));
+    up.push(statBlock(p, "GPU", 278, 492, 30, readTemp("gpu"), "t-lbl-xs"));
+    up.push(statBlock(p, "CIECZ", 362, 492, 30, readLiquid, "t-lbl-xs"));
+    up.push(statBlock(p, "MOC", 446, 492, 30, readPower, "t-lbl-xs"));
+    up.push(meta(p, 550));
     return up;
   }
 
@@ -391,21 +623,23 @@
       g.classList.add("is-off");
       const arc = arcGauge(g, 284, -135, 135, 14);
       if (it.temp) arc.notch.classList.add("is-peak");
-      el(g, "text", { x: C, y: 196, "text-anchor": "middle", class: "t-lbl" }, it.label);
+      const lbl = el(g, "text", { x: C, y: 196, "text-anchor": "middle", class: "t-lbl" }, it.label);
+      const unit = it.limit ? el(lbl, "tspan", { class: "t-unit" }) : null;
       const val = num(g, it.temp || it.read === readLiquid ? C + 16 : C, 384, 196);
       const sub = el(g, "text", { x: C, y: 438, "text-anchor": "middle", class: "t-sub" });
       up.push((d) => {
         if (it.limit) {
           const v = d.views[it.limit];
+          setText(unit, ` · ${d.unitWord}`);
           limitGauge(arc, v);
           setNum(val, v.value, "%", 80, 196);
           val.classList.toggle("is-dim", v.dim);
           setParts(sub, v.sub);
         } else if (it.temp) {
           const h = d.hw[it.temp];
-          arc.set(tempF(h.temp), h.peak != null ? tempF(h.peak) : null, tempF(HOT[it.temp]), { hot: true });
+          tempGauge(arc, h, it.temp);
           setNum(val, int(h.temp), "°", 98, 196);
-          val.classList.toggle("is-warn", h.temp != null && h.temp >= HOT[it.temp]);
+          val.classList.toggle("is-warn", isHot(h, it.temp));
           setText(sub, `obciążenie ${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
         } else {
           const [n, u, us] = it.read(d);
@@ -426,182 +660,22 @@
     return up;
   }
 
-  const SCENES = { limity: sceneLimity, sprzet: sceneSprzet, pierscienie: scenePierscienie, jedna: sceneJedna };
-  const LEGACY = { adaptive: "adaptacyjny", fixed: "pierscienie", work: "limity", game: "sprzet" };
+  const SCENES = {
+    limity: sceneLimity,
+    sprzet: sceneSprzet,
+    kokpit: sceneKokpit,
+    chronograf: sceneChronograf,
+    slupki: sceneSlupki,
+    terminal: sceneTerminal,
+    zegar: sceneZegar,
+    jedna: sceneJedna,
+  };
+  const LEGACY = { adaptive: "adaptacyjny", fixed: "kokpit", pierscienie: "kokpit", work: "limity", game: "sprzet" };
   function normLayout(l) {
     const id = LEGACY[l] || l;
     return LAYOUTS.some((x) => x.id === id) ? id : "rotacja";
   }
-
-  // ---------- backgrounds ----------
-  // A 256 px canvas (the light is soft, so the upscale is invisible) redrawn a few times a
-  // second. CAM captures and ships every frame that changes, at a real CPU cost per frame,
-  // so the rate is a setting (10/20/30) and between frames the page stays idle.
-
-  const BG_RES = 256;
-  const TAU = 2 * Math.PI;
-  const ease = (x) => (1 - Math.cos(Math.PI * x)) / 2;
-  const pingPong = (t, period) => {
-    const q = (t / period) % 2;
-    return ease(q < 1 ? q : 2 - q);
-  };
-  const rgba = (c, k = 1) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] * k).toFixed(3)})`;
-  function palette(root) {
-    const cs = getComputedStyle(root);
-    const parse = (v) => {
-      const n = (v.match(/[\d.]+/g) || []).map(Number);
-      return [n[0] || 0, n[1] || 0, n[2] || 0, n.length > 3 ? n[3] : 1];
-    };
-    return { a: parse(cs.getPropertyValue("--glow-a")), b: parse(cs.getPropertyValue("--glow-b")) };
-  }
-  function glow(ctx, x, y, r, c) {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, rgba(c));
-    g.addColorStop(1, rgba(c, 0));
-    ctx.fillStyle = g;
-    ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
-  }
-  const BUBBLES = (() => {
-    let seed = 7;
-    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-    return Array.from({ length: 14 }, () => {
-      const x = 0.06 + rnd() * 0.86, w = 0.013 + rnd() * 0.024, dur = 16 + rnd() * 18;
-      return { x, w, dur, delay: rnd() * dur, sway: 3 + rnd() * 4 };
-    });
-  })();
-
-  // Each painter draws the moment t (seconds) on an s×s canvas already clipped to the dial.
-  const PAINT = {
-    // ciecz: soft pools of light orbiting slowly, like coolant swirling in the pump
-    ciecz(ctx, t, s, p) {
-      for (const [period, ox, oy, r, c] of [[48, 0.19, -0.08, 0.35, p.a], [-66, -0.21, 0.11, 0.34, p.b], [84, 0.05, 0.24, 0.26, p.a]]) {
-        const a = (TAU * t) / period;
-        glow(ctx, s * (0.5 + ox * Math.cos(a) - oy * Math.sin(a)), s * (0.5 + ox * Math.sin(a) + oy * Math.cos(a)), s * r, c);
-      }
-    },
-    // fale: slow ripples spreading from the centre
-    fale(ctx, t, s, p) {
-      const c = s / 2;
-      for (let i = 0; i < 3; i++) {
-        const q = ((t + i * 4) / 12) % 1;
-        const r = c * (0.12 + 0.92 * (1 - (1 - q) ** 2.4));
-        const k = q < 0.18 ? ease(q / 0.18) : 1 - ease((q - 0.18) / 0.82);
-        const g = ctx.createRadialGradient(c, c, r * 0.91, c, c, r);
-        g.addColorStop(0, rgba(p.a, 0));
-        g.addColorStop(1, rgba(p.a, k));
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(c, c, r, 0, TAU);
-        ctx.fill();
-        ctx.strokeStyle = rgba(p.b, k);
-        ctx.lineWidth = Math.max(0.6, r / 160);
-        ctx.stroke();
-      }
-    },
-    // bąbelki: a few bubbles drifting up, as in the loop
-    babelki(ctx, t, s, p) {
-      for (const b of BUBBLES) {
-        const w = b.w * s;
-        const x = b.x * s + (pingPong(t, b.sway) * 2.4 - 1.2) * w;
-        const y = s * (1 - 1.12 * (((t + b.delay) / b.dur) % 1));
-        const g = ctx.createRadialGradient(x + w * 0.34, y + w * 0.32, 0, x + w * 0.34, y + w * 0.32, w * 0.68);
-        g.addColorStop(0, rgba(p.b));
-        g.addColorStop(0.76, rgba(p.a));
-        g.addColorStop(1, rgba(p.a, 0));
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(x + w / 2, y + w / 2, w / 2, 0, TAU);
-        ctx.fill();
-      }
-    },
-    // zorza: two broad bands of light breathing across the dial
-    zorza(ctx, t, s, p) {
-      for (const [period, delay, rx, ry, c] of [[26, 0, 0.75, 0.24, p.a], [34, 12, 0.7, 0.23, p.b]]) {
-        const k = pingPong(t + delay, period);
-        ctx.save();
-        ctx.translate(s / 2, s * (0.386 + 0.25 * k));
-        ctx.rotate(((-14 + 26 * k) * Math.PI) / 180);
-        ctx.scale(1, ((0.7 + 0.4 * k) * ry) / rx);
-        glow(ctx, 0, 0, s * rx, c);
-        ctx.restore();
-      }
-    },
-    // obieg: light circulating around the rim, the flow through the pump
-    obieg(ctx, t, s, p) {
-      const c = s / 2;
-      const sweeps = [
-        [10, 0, [[0, p.a, 0], [70, p.a, 1], [100, p.b, 1], [140, p.b, 0]]],
-        [15, 180, [[0, p.a, 0], [60, p.a, 1], [120, p.a, 0]]],
-      ];
-      for (const [period, from, stops] of sweeps) {
-        const g = ctx.createConicGradient(((from - 90) * Math.PI) / 180 + (TAU * t) / period, c, c);
-        for (const [deg, col, k] of stops) g.addColorStop(deg / 360, rgba(col, k));
-        ctx.fillStyle = g;
-        ctx.fillRect(0, 0, s, s);
-      }
-      // keep only a soft band along the rim
-      const m = ctx.createRadialGradient(c, c, 0, c, c, c);
-      m.addColorStop(0.7, "rgba(0,0,0,0)");
-      m.addColorStop(0.84, "#000");
-      m.addColorStop(0.97, "#000");
-      m.addColorStop(1, "rgba(0,0,0,0)");
-      ctx.globalCompositeOperation = "destination-in";
-      ctx.fillStyle = m;
-      ctx.fillRect(0, 0, s, s);
-      ctx.globalCompositeOperation = "source-over";
-    },
-  };
-
-  function backdrop(canvas, root) {
-    canvas.width = canvas.height = BG_RES;
-    const ctx = canvas.getContext("2d");
-    let type = "brak", pal = null, t = 7, last = null, speed = 1, fps = 10, timer = null;
-    function draw() {
-      ctx.clearRect(0, 0, BG_RES, BG_RES);
-      if (!PAINT[type]) return;
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(BG_RES / 2, BG_RES / 2, BG_RES / 2, 0, TAU);
-      ctx.clip();
-      PAINT[type](ctx, t, BG_RES, pal);
-      ctx.restore();
-    }
-    function frame() {
-      if (!canvas.isConnected) return self.pause();
-      const now = performance.now();
-      if (last != null) t += ((now - last) / 1e3) * speed;
-      last = now;
-      draw();
-      timer = setTimeout(frame, 1000 / fps);
-    }
-    const self = {
-      // Re-reads the theme colours, so call it after a theme change too.
-      set(next, animate = true) {
-        type = next;
-        pal = palette(root);
-        draw();
-        if (animate) self.play();
-        else self.pause();
-      },
-      play() {
-        if (!PAINT[type]) return self.pause();
-        if (timer) return;
-        last = null;
-        timer = setTimeout(frame, 0);
-      },
-      pause() {
-        clearTimeout(timer);
-        timer = null;
-      },
-      speed(r) {
-        speed = r;
-      },
-      fps(n) {
-        fps = n > 0 ? n : 10;
-      },
-    };
-    return self;
-  }
+  const validBg = (b) => BGS.some((x) => x.id === b) || /^media:./.test(b || "");
 
   // ---------- dial ----------
 
@@ -618,10 +692,10 @@
       el(rim, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "tick", "stroke-width": major ? 2.2 : 1.1 });
     }
     container.replaceChildren(root);
-    const back = backdrop(canvas, root);
+    const back = window.KrakenBg.backdrop(canvas, root);
     const animate = cfg.animate !== false;
 
-    let layout = null, theme = null, bgType = null;
+    let layout = null, theme = null, bgType = null, left = true;
     let scenes = {}, updaters = [];
     // Every scene is its own <svg>, so switching between them is a composited fade, not a repaint.
     const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: "scene" });
@@ -640,7 +714,8 @@
     function configure(next) {
       const l = normLayout(next.layout);
       const t = THEMES.some((x) => x.id === next.theme) ? next.theme : "ice";
-      const b = BGS.some((x) => x.id === next.bg) ? next.bg : "ciecz";
+      const b = validBg(next.bg) ? next.bg : "ciecz";
+      left = next.units !== "used";
       back.fps(next.fps);
       const themed = t !== theme;
       if (themed) root.className = `kd th-${(theme = t)}`;
@@ -662,8 +737,8 @@
         const now = data.now ?? Date.now();
         const interval = data.interval ?? 60e3;
         const views = {};
-        for (const def of LIMITS) views[def.key] = limitView((data.limits || {})[def.key], now, interval);
-        const d = { now, hw: data.hw || emptyHw(), views, meta: metaView(data.limits, now, interval) };
+        for (const def of LIMITS) views[def.key] = limitView((data.limits || {})[def.key], now, interval, left);
+        const d = { now, hw: data.hw || emptyHw(), views, left, unitWord: left ? "ZOSTAŁO" : "ZUŻYTE", meta: metaView(data.limits, now, interval) };
         let active = Object.keys(scenes);
         if (layout === "rotacja") active = [Math.floor(now / ROTATE_MS) % 2 ? "sprzet" : "limity"];
         if (layout === "adaptacyjny") active = [data.mode === "game" ? "sprzet" : "limity"];
@@ -688,7 +763,7 @@
     canvas.className = "kd-bg";
     root.appendChild(canvas);
     container.replaceChildren(root);
-    const back = backdrop(canvas, root);
+    const back = window.KrakenBg.backdrop(canvas, root);
     back.set(bg, false);
     return back;
   }

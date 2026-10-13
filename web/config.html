@@ -47,7 +47,18 @@
   .opt:focus-visible { border-color: var(--dim); }
   .opt[aria-pressed="true"] { border-color: var(--accent); background: #112347; }
   .thumb { width: 100%; max-width: 132px; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #060a12; }
-  .bgs .thumb { max-width: 64px; }
+  .bgs .thumb { max-width: 76px; }
+  .media { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
+  .media .thumb { max-width: 92px; }
+  .media .opt { position: relative; }
+  .media .opt b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .del { position: absolute; top: 8px; right: 8px; padding: 3px 8px; border-radius: 999px; font-size: 11.5px; color: var(--muted);
+    background: rgba(8, 16, 31, 0.85); opacity: 0; transition: opacity 0.2s; }
+  .opt:hover .del, .del.sure { opacity: 1; }
+  .del:hover, .del.sure { color: var(--warn); }
+  .add .thumb { display: grid; place-items: center; font-size: 34px; color: var(--muted); box-shadow: none; border: 1.5px dashed var(--dim); }
+  .busy { cursor: default; opacity: 0.7; }
+  .busy .thumb { box-shadow: none; border: 1.5px dashed var(--dim); }
   .opt b { font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
   .opt small { font-size: 12.5px; line-height: 1.35; color: var(--muted); text-align: center; }
 
@@ -55,6 +66,7 @@
   .chip { all: unset; cursor: pointer; padding: 10px 18px; border-radius: 999px; background: var(--panel); border: 1.5px solid transparent; font-size: 14px; }
   .chip[aria-pressed="true"] { border-color: var(--accent); background: #112347; }
   .hint { margin-top: 10px; font-size: 13px; color: var(--dim); }
+  .hint.bad { color: var(--warn); }
 </style>
 </head>
 <body>
@@ -70,23 +82,30 @@
   </aside>
   <div>
     <section><h2>UKŁAD</h2><div class="grid layouts" id="layouts"></div></section>
+    <section><h2>LIMITY POKAZUJĄ</h2><div class="chips" id="units"></div>
+      <div class="hint">Przy „ile zostało” pasek się opróżnia. Kreska mówi, ile powinno zostać przy równym tempie do resetu; czerwona szczelina do niej znaczy, że limit skończy się przed resetem.</div></section>
     <section><h2>MOTYW</h2><div class="grid themes" id="themes"></div></section>
     <section><h2>TŁO</h2><div class="grid bgs" id="bgs"></div>
       <div class="hint">Najedź, żeby zobaczyć ruch. Tło przyspiesza, gdy karta graficzna pracuje.</div></section>
+    <section><h2>WŁASNE TŁA</h2><div class="grid media" id="media"></div>
+      <div class="hint" id="media-hint">Film, GIF albo obrazek. Ruchome pliki są przycinane do kwadratu i zmniejszane do 640×640. Film kosztuje procesor więcej niż rysowane tło.</div></section>
     <section><h2>PŁYNNOŚĆ TŁA</h2><div class="chips" id="fps"></div>
       <div class="hint">CAM przechwytuje każdą klatkę i przesyła ją na wyświetlacz, a to kosztuje procesor. Wolne tło wygląda dobrze już przy 10 kl/s.</div></section>
     <section><h2>POBIERANIE LIMITÓW</h2><div class="chips" id="intervals"></div>
       <div class="hint">Co ile usługa pyta Claude i Codexa o limity. Odczyt sprzętu z CAM jest co sekundę.</div></section>
   </div>
 </main>
+<script src="bg.js"></script>
 <script src="dial.js"></script>
 <script>
 (() => {
   const K = KrakenDial;
   const INTERVALS = [[60, "1 min"], [120, "2 min"], [300, "5 min"]];
   const FPS = [[10, "10 kl/s"], [20, "20 kl/s"], [30, "30 kl/s"]];
+  const UNITS = [["left", "Ile zostało"], ["used", "Ile zużyte"]];
+  const MEDIA_HINT = document.getElementById("media-hint").textContent;
   let state = { limits: {}, interval: 60e3, config: {}, hw: null };
-  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, fps: 10, ...(state.config || {}) });
+  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, fps: 10, units: "left", ...(state.config || {}) });
 
   const preview = K.create(document.getElementById("preview"), cfg());
 
@@ -114,6 +133,9 @@
     b.onmouseleave = () => o.back && o.back.pause();
     return o;
   });
+  const unitOpts = UNITS.map(([u, label]) => ({
+    u, b: option(document.getElementById("units"), "chip", label, () => save({ units: u })),
+  }));
   const fpsOpts = FPS.map(([n, label]) => ({
     n, b: option(document.getElementById("fps"), "chip", label, () => save({ fps: n })),
   }));
@@ -131,11 +153,98 @@
     render();
   }
 
+  // ---------- own backgrounds ----------
+
+  const mediaHost = document.getElementById("media");
+  let mediaList = [], mediaKey = null, mediaOpts = [], uploading = null, pending = null;
+  const stem = (n) => n.replace(/\.[^.]+$/, "");
+
+  function buildMedia() {
+    mediaHost.replaceChildren();
+    mediaOpts = mediaList.map((m) => {
+      const id = `media:${m.name}`;
+      const b = option(mediaHost, "opt", `<div class="thumb"></div><b></b><span class="del">usuń</span>`, () => save({ bg: id }));
+      b.querySelector("b").textContent = stem(m.name);
+      b.title = m.name;
+      const del = b.querySelector(".del");
+      const o = { id, b, el: b.querySelector(".thumb"), theme: null, back: null };
+      del.onclick = (e) => {
+        e.stopPropagation();
+        if (del.classList.contains("sure")) return remove(m.name);
+        del.classList.add("sure");
+        del.textContent = "na pewno?";
+      };
+      b.onmouseenter = () => o.back && o.back.play();
+      b.onmouseleave = () => {
+        if (o.back) o.back.pause();
+        del.classList.remove("sure");
+        del.textContent = "usuń";
+      };
+      return o;
+    });
+    if (uploading || pending) {
+      const w = document.createElement("div");
+      w.className = "opt busy";
+      w.innerHTML = `<div class="thumb"></div><b></b><small>${uploading ? "wysyłam…" : "przygotowuję…"}</small>`;
+      w.querySelector("b").textContent = stem(uploading || pending);
+      mediaHost.appendChild(w);
+    }
+    const add = document.createElement("label");
+    add.className = "opt add";
+    add.innerHTML = `<div class="thumb">+</div><b>Dodaj</b><small>film, GIF, obrazek</small><input type="file" accept="video/*,image/*" hidden>`;
+    add.querySelector("input").onchange = (e) => e.target.files[0] && upload(e.target.files[0]);
+    mediaHost.appendChild(add);
+    render();
+  }
+
+  async function loadMedia() {
+    try {
+      const r = await fetch("/api/media", { cache: "no-store" });
+      if (r.ok) mediaList = await r.json();
+    } catch (_) {}
+    // A converted upload shows up under its final name once ffmpeg is done; then select it.
+    const ready = pending && mediaList.some((m) => m.name === pending);
+    if (ready) {
+      save({ bg: `media:${pending}` });
+      pending = null;
+    }
+    const key = JSON.stringify([mediaList, uploading, pending]);
+    if (key !== mediaKey) {
+      mediaKey = key;
+      buildMedia();
+    }
+  }
+
+  async function upload(file) {
+    const hint = document.getElementById("media-hint");
+    const name = file.name.replace(/[^\p{L}\p{N} ._()-]/gu, "-").replace(/^\.+/, "").slice(-120);
+    uploading = name;
+    hint.textContent = MEDIA_HINT;
+    hint.classList.remove("bad");
+    await loadMedia();
+    try {
+      const r = await fetch(`/api/media?name=${encodeURIComponent(name)}`, { method: "POST", body: file });
+      if (!r.ok) throw new Error(await r.text());
+      pending = (await r.json()).name;
+    } catch (e) {
+      hint.textContent = `Nie udało się dodać ${name}: ${e.message}`;
+      hint.classList.add("bad");
+    }
+    uploading = null;
+    loadMedia();
+  }
+
+  async function remove(name) {
+    await fetch(`/api/media?name=${encodeURIComponent(name)}`, { method: "DELETE" }).catch(() => {});
+    await poll();
+    loadMedia();
+  }
+
   let minisAt = 0, minisKey = "";
   function render() {
     const c = cfg();
     const now = Date.now();
-    const key = `${c.layout}|${c.theme}|${c.bg}`;
+    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}`;
     const minis = key !== minisKey || now - minisAt > 5e3;
     if (minis) {
       minisKey = key;
@@ -149,22 +258,23 @@
     for (const o of layoutOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.layout));
       if (!minis) continue;
-      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak" });
+      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak", units: c.units });
       o.dial.update(data);
     }
     for (const o of themeOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.theme));
       if (!minis) continue;
-      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak" });
+      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak", units: c.units });
       o.dial.update(data);
     }
-    for (const o of bgOpts) {
+    for (const o of bgOpts.concat(mediaOpts)) {
       o.b.setAttribute("aria-pressed", String(o.id === c.bg));
       if (o.theme !== c.theme) {
         o.back = K.background(o.el, { theme: c.theme, bg: o.id });
         o.theme = c.theme;
       }
     }
+    for (const o of unitOpts) o.b.setAttribute("aria-pressed", String(o.u === c.units));
     for (const o of fpsOpts) o.b.setAttribute("aria-pressed", String(o.n === c.fps));
     for (const o of intervalOpts) o.b.setAttribute("aria-pressed", String(o.s === c.interval));
 
@@ -193,7 +303,9 @@
     render();
   }
   poll();
+  loadMedia();
   setInterval(poll, 2000);
+  setInterval(loadMedia, 3000);
   setInterval(render, 1000);
 })();
 </script>
