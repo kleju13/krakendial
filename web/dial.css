@@ -1,5 +1,7 @@
 /* Kraken LCD dial. Themes are blue/white families to match a white build under blue light.
-   Numerals are DIN (Bahnschrift ships with Windows). Backgrounds animate transforms only. */
+   Numerals are DIN (Bahnschrift ships with Windows). CAM rasterises without a GPU, so nothing
+   here animates continuously: the moving background is a canvas painted by dial.js, and only
+   whole scene layers fade. No rounded overflow clip either; the dial is round by itself. */
 
 .kd {
   --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
@@ -7,7 +9,6 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  overflow: hidden;
   isolation: isolate;
   background: radial-gradient(circle at 50% 40%, var(--bg-hi) 0%, var(--bg-hi) 38%, var(--bg-lo) 100%);
   font-family: Bahnschrift, "DIN Alternate", "D-DIN", Barlow, sans-serif;
@@ -68,11 +69,13 @@
 /* ---------- gauges ---------- */
 
 .kd .g-track { stroke: var(--track); fill: none; }
-.kd .g-fill { stroke: var(--fill); fill: none; transition: stroke-dasharray 0.9s var(--ease); }
-.kd .g-over { stroke: var(--fill-2); fill: none; transition: stroke-dasharray 0.9s var(--ease); }
+.kd .g-fill { stroke: var(--fill); fill: none; }
+.kd .g-over { stroke: var(--fill-2); fill: none; }
 .kd .gauge.is-hot .g-over { stroke: var(--warn); }
 .kd .gauge.is-dashed .g-track { stroke-dasharray: 1.2 1.2; }
-.kd .notch { transition: transform 0.9s var(--ease); transform-box: view-box; transform-origin: 320px 320px; }
+.kd .notch { transform-box: view-box; transform-origin: 320px 320px; }
+.kd .smooth .g-fill, .kd .smooth .g-over { transition: stroke-dasharray 0.9s var(--ease); }
+.kd .smooth .notch { transition: transform 0.9s var(--ease); }
 .kd .notch path { fill: var(--ink); }
 .kd .notch line { stroke: var(--ink); stroke-width: 2.5; }
 .kd .notch.is-peak path { fill: var(--ink-3); }
@@ -90,63 +93,14 @@
 
 /* ---------- scenes ---------- */
 
+/* each scene is its own <svg> layer, so a fade or scale is composited instead of repainted */
 .kd .scene {
+  will-change: opacity, transform;
   transition: opacity 0.9s var(--ease), transform 0.9s var(--ease);
-  transform-box: view-box;
-  transform-origin: 320px 320px;
+  transform-origin: 50% 50%;
 }
 .kd .scene.is-off { opacity: 0; transform: scale(0.95); }
 
-/* ---------- animated backgrounds ---------- */
+/* ---------- background canvas (painted by dial.js) ---------- */
 
-.kd-bg { position: absolute; inset: 0; border-radius: 50%; overflow: hidden; pointer-events: none; }
-.kd-bg > * { position: absolute; }
-@keyframes kd-spin { to { transform: rotate(360deg); } }
-
-/* ciecz: soft pools of light orbiting slowly, like coolant swirling in the pump */
-.bg-ciecz .orbit { inset: 0; animation: kd-spin 48s linear infinite; }
-.bg-ciecz .orbit:nth-child(2) { animation-duration: 66s; animation-direction: reverse; }
-.bg-ciecz .orbit:nth-child(3) { animation-duration: 84s; }
-.bg-ciecz .blob { position: absolute; left: 10%; top: 10%; width: 80%; height: 80%; border-radius: 50%; }
-.bg-ciecz .orbit:nth-child(1) .blob { transform: translate(24%, -10%); background: radial-gradient(circle, var(--glow-a) 0%, transparent 62%); }
-.bg-ciecz .orbit:nth-child(2) .blob { transform: translate(-26%, 14%); background: radial-gradient(circle, var(--glow-b) 0%, transparent 60%); }
-.bg-ciecz .orbit:nth-child(3) .blob { transform: translate(6%, 30%) scale(0.8); background: radial-gradient(circle, var(--glow-a) 0%, transparent 58%); }
-
-/* fale: slow ripples spreading from the centre */
-.bg-fale .ring {
-  left: 0; top: 0; width: 100%; height: 100%; border-radius: 50%; opacity: 0;
-  box-shadow: inset 0 0 0 2px var(--glow-b), inset 0 0 28px var(--glow-a);
-  animation: kd-ripple 12s cubic-bezier(0.25, 0.6, 0.3, 1) infinite;
-}
-.bg-fale .ring:nth-child(2) { animation-delay: -4s; }
-.bg-fale .ring:nth-child(3) { animation-delay: -8s; }
-@keyframes kd-ripple { 0% { transform: scale(0.12); opacity: 0; } 18% { opacity: 1; } 100% { transform: scale(1.04); opacity: 0; } }
-
-/* bąbelki: a few bubbles drifting up, as in the loop */
-.bg-babelki .col { top: 100%; height: 100%; animation: kd-rise linear infinite; }
-.bg-babelki .col::before {
-  content: ""; display: block; width: 100%; aspect-ratio: 1; border-radius: 50%;
-  background: radial-gradient(circle at 34% 32%, var(--glow-b) 0%, var(--glow-a) 55%, transparent 72%);
-  animation: kd-sway var(--sway, 5s) ease-in-out infinite alternate;
-}
-@keyframes kd-rise { to { transform: translateY(-112%); } }
-@keyframes kd-sway { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
-
-/* zorza: two broad bands of light breathing across the dial */
-.bg-zorza .band { left: -30%; top: 24%; width: 160%; height: 52%; border-radius: 50%; animation: kd-aurora 26s ease-in-out infinite alternate; }
-.bg-zorza .band:nth-child(1) { background: radial-gradient(ellipse at center, var(--glow-a) 0%, transparent 66%); }
-.bg-zorza .band:nth-child(2) { background: radial-gradient(ellipse at center, var(--glow-b) 0%, transparent 62%); animation-duration: 34s; animation-delay: -12s; }
-@keyframes kd-aurora {
-  from { transform: translateY(-22%) rotate(-14deg) scaleY(0.7); }
-  to { transform: translateY(26%) rotate(12deg) scaleY(1.1); }
-}
-
-/* obieg: light circulating around the rim, the flow through the pump */
-.bg-obieg .sweep {
-  inset: 0; border-radius: 50%;
-  -webkit-mask: radial-gradient(circle, transparent 74%, #000 82%, #000 97%, transparent 100%);
-  mask: radial-gradient(circle, transparent 74%, #000 82%, #000 97%, transparent 100%);
-  animation: kd-spin 10s linear infinite;
-}
-.bg-obieg .sweep:nth-child(1) { background: conic-gradient(from 0deg, transparent 0deg, var(--glow-a) 70deg, var(--glow-b) 100deg, transparent 140deg); }
-.bg-obieg .sweep:nth-child(2) { background: conic-gradient(from 180deg, transparent 0deg, var(--glow-a) 60deg, transparent 120deg); animation-duration: 15s; }
+.kd-bg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }

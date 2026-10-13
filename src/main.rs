@@ -16,6 +16,8 @@ const LAYOUTS: [&str; 6] = ["rotacja", "adaptacyjny", "pierscienie", "jedna", "l
 const THEMES: [&str; 4] = ["ice", "deep", "blue", "night"];
 const BGS: [&str; 6] = ["ciecz", "fale", "babelki", "zorza", "obieg", "brak"];
 const INTERVALS: [i64; 3] = [60, 120, 300];
+/// Background frame rates. CAM spends CPU on every frame it captures, so the default is low.
+const FPS: [i64; 3] = [10, 20, 30];
 
 fn data_dir() -> PathBuf {
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
@@ -46,6 +48,9 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     }
     if let Some(i) = patch["interval"].as_i64().filter(|i| INTERVALS.contains(i)) {
         cfg["interval"] = json!(i);
+    }
+    if let Some(f) = patch["fps"].as_i64().filter(|f| FPS.contains(f)) {
+        cfg["fps"] = json!(f);
     }
 }
 
@@ -172,7 +177,7 @@ fn main() {
         }
     };
     let state_path = data_dir().join("state.json");
-    let mut config = json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60 });
+    let mut config = json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60, "fps": 10 });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
     }

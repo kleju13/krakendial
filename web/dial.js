@@ -1,7 +1,10 @@
-// Kraken Elite LCD dial (640×640, round). Pure SVG + CSS, no dependencies.
+// Kraken Elite LCD dial (640×640, round). SVG + a small canvas, no dependencies.
+// CAM renders web integrations without a GPU, so everything here keeps the CPU idle: the
+// background is a low-res canvas drawn at a modest frame rate, scenes are separate layers so
+// fades are composited, and the DOM is only touched when a value really changes.
 //   const dial = KrakenDial.create(container, { layout, theme, bg });
 //   dial.update({ now, hw, limits, interval, mode });  // call about once a second
-//   dial.configure({ layout, theme, bg });             // switch variant live
+//   dial.configure({ layout, theme, bg, fps });        // switch variant live
 //   dial.setActivity(gpuLoad);                         // 0..1, speeds the background up under load
 (function () {
   const NS = "http://www.w3.org/2000/svg";
@@ -49,12 +52,6 @@
     if (parent) parent.appendChild(n);
     return n;
   }
-  function div(parent, cls) {
-    const d = document.createElement("div");
-    if (cls) d.className = cls;
-    parent.appendChild(d);
-    return d;
-  }
   const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
   const polar = (r, deg) => {
     const a = (deg * Math.PI) / 180;
@@ -88,12 +85,24 @@
   const tempF = (t) => scale(t, 20, 100);
   const power = (hw) => (hw.cpu.power == null && hw.gpu.power == null ? null : (hw.cpu.power ?? 0) + (hw.gpu.power ?? 0));
 
+  function setText(node, s) {
+    if (node.textContent !== s) node.textContent = s;
+  }
+  function setAttr(node, k, v) {
+    if (node.getAttribute(k) !== v) node.setAttribute(k, v);
+  }
   function setParts(textEl, parts) {
+    const key = JSON.stringify(parts);
+    if (textEl._key === key) return;
+    textEl._key = key;
     textEl.replaceChildren();
     for (const p of parts) el(textEl, "tspan", p.warn ? { class: "is-warn" } : {}, p.t);
   }
   // Number with a lighter unit; a degree sign is lifted to cap height.
   function setNum(textEl, num, unit, unitSize, fontSize) {
+    const key = `${num}|${unit}|${unitSize}`;
+    if (textEl._key === key) return;
+    textEl._key = key;
     textEl.replaceChildren(document.createTextNode(num));
     if (!unit) return;
     const attrs = { class: "u", "font-size": unitSize };
@@ -167,19 +176,21 @@
     }
     const place = (f) =>
       geo.kind === "arc"
-        ? `rotate(${geo.a0 + ((geo.a1 - geo.a0) * f) / 100}deg)`
-        : `translate(${geo.x0 + ((geo.x1 - geo.x0) * f) / 100}px, 0px)`;
-    notch.style.transform = place(0);
+        ? `rotate(${(geo.a0 + ((geo.a1 - geo.a0) * f) / 100).toFixed(2)}deg)`
+        : `translate(${(geo.x0 + ((geo.x1 - geo.x0) * f) / 100).toFixed(1)}px, 0px)`;
+    let placed = (notch.style.transform = place(0));
     return {
       g,
       notch,
       set(f, notchF, overFrom, state = {}) {
         const cut = overFrom == null ? f : Math.min(f, overFrom);
-        fill.setAttribute("stroke-dasharray", `${cut.toFixed(2)} 200`);
+        setAttr(fill, "stroke-dasharray", `${cut.toFixed(1)} 200`);
         const ov = overFrom != null && f > overFrom ? f - overFrom : 0;
-        over.setAttribute("stroke-dasharray", `0 ${(overFrom ?? 0).toFixed(2)} ${ov.toFixed(2)} 200`);
-        notch.style.display = notchF == null ? "none" : "";
-        if (notchF != null) notch.style.transform = place(notchF);
+        setAttr(over, "stroke-dasharray", `0 ${(overFrom ?? 0).toFixed(1)} ${ov.toFixed(1)} 200`);
+        const display = notchF == null ? "none" : "";
+        if (notch.style.display !== display) notch.style.display = display;
+        const at = notchF == null ? placed : place(Math.round(notchF * 10) / 10);
+        if (at !== placed) notch.style.transform = placed = at;
         g.classList.toggle("is-hot", !!state.hot);
         g.classList.toggle("is-dashed", !!state.dashed);
       },
@@ -187,7 +198,8 @@
   }
   const arcGauge = (p, r, a0, a1, w, notchStyle) => gauge(p, { kind: "arc", d: arcD(r, a0, a1), r, a0, a1 }, w, notchStyle);
   const barGauge = (p, x0, x1, y, w) => gauge(p, { kind: "bar", d: `M${x0} ${y}H${x1}`, x0, x1, y }, w);
-  const limitGauge = (gg, v) => gg.set(v.pct, v.pace, v.pace, { hot: v.hot, dashed: v.state === "reset" || v.state === "none" });
+  // Limits change once per fetch, so they may glide; hardware gauges tick every second and jump.
+  const limitGauge = (gg, v) => gg.g.classList.add("smooth") || gg.set(v.pct, v.pace, v.pace, { hot: v.hot, dashed: v.state === "reset" || v.state === "none" });
 
   function ticks(parent, r0, r1, a0, a1, n) {
     for (let i = 0; i <= n; i++) {
@@ -210,13 +222,13 @@
         outer.setAttribute("transform", `translate(${x.toFixed(1)} ${y})`);
       },
       set(m) {
-        g.setAttribute("class", `pie is-${m.state}`);
+        setAttr(g, "class", `pie is-${m.state}`);
         const ri = r - 2.4;
-        const f = m.state === "ok" ? Math.max(0.04, m.frac) : m.state === "error" ? 1 : 0;
-        if (f >= 0.999) wedge.setAttribute("d", `M0 ${-ri}A${ri} ${ri} 0 1 1 -0.01 ${-ri}Z`);
+        const f = m.state === "ok" ? Math.max(0.04, Math.round(m.frac * 40) / 40) : m.state === "error" ? 1 : 0;
+        if (f >= 0.999) setAttr(wedge, "d", `M0 ${-ri}A${ri} ${ri} 0 1 1 -0.01 ${-ri}Z`);
         else {
           const a = f * 2 * Math.PI;
-          wedge.setAttribute("d", `M0 0L0 ${-ri}A${ri} ${ri} 0 ${f > 0.5 ? 1 : 0} 1 ${(ri * Math.sin(a)).toFixed(2)} ${(-ri * Math.cos(a)).toFixed(2)}Z`);
+          setAttr(wedge, "d", `M0 0L0 ${-ri}A${ri} ${ri} 0 ${f > 0.5 ? 1 : 0} 1 ${(ri * Math.sin(a)).toFixed(2)} ${(-ri * Math.cos(a)).toFixed(2)}Z`);
         }
         if (lastFetch && m.last && m.last !== lastFetch) {
           inner.classList.remove("pulse");
@@ -232,7 +244,7 @@
 
   function clock(p, y) {
     const t = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-clock" });
-    return (d) => (t.textContent = hhmm(d.now));
+    return (d) => setText(t, hhmm(d.now));
   }
 
   function meta(p, y) {
@@ -255,7 +267,7 @@
     const t = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-sub" });
     return (d) => {
       const r = d.hw.ram || {};
-      t.textContent = `RAM  ${r.used == null ? "—" : dec(r.used / 1024)} / ${r.total == null ? "—" : Math.round(r.total / 1024)} GB`;
+      setText(t, `RAM  ${r.used == null ? "—" : dec(r.used / 1024)} / ${r.total == null ? "—" : Math.round(r.total / 1024)} GB`);
     };
   }
 
@@ -282,7 +294,7 @@
       const h = d.hw[key];
       setNum(val, int(h.temp), "°", size * 0.5, size);
       val.classList.toggle("is-warn", h.temp != null && h.temp >= HOT[key]);
-      if (sub) sub.textContent = `${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`;
+      if (sub) setText(sub, `${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
     };
   }
 
@@ -365,7 +377,7 @@
   }
 
   // One huge value at a time; the rim gauge and the dots follow the carousel.
-  function sceneJedna(p) {
+  function sceneJedna(p, layer) {
     const items = [
       ...LIMITS.map((def) => ({ label: def.label, limit: def.key })),
       { label: "CPU", temp: "cpu" },
@@ -375,7 +387,8 @@
     ];
     const up = [clock(p, 108)];
     const groups = items.map((it) => {
-      const g = el(p, "g", { class: "scene is-off" });
+      const g = layer();
+      g.classList.add("is-off");
       const arc = arcGauge(g, 284, -135, 135, 14);
       if (it.temp) arc.notch.classList.add("is-peak");
       el(g, "text", { x: C, y: 196, "text-anchor": "middle", class: "t-lbl" }, it.label);
@@ -393,12 +406,12 @@
           arc.set(tempF(h.temp), h.peak != null ? tempF(h.peak) : null, tempF(HOT[it.temp]), { hot: true });
           setNum(val, int(h.temp), "°", 98, 196);
           val.classList.toggle("is-warn", h.temp != null && h.temp >= HOT[it.temp]);
-          sub.textContent = `obciążenie ${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`;
+          setText(sub, `obciążenie ${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
         } else {
           const [n, u, us] = it.read(d);
           arc.set(it.gauge(d), null, null);
           setNum(val, n, u, 196 * us, 196);
-          sub.textContent = it.sub ? it.sub(d) : "";
+          setText(sub, it.sub ? it.sub(d) : "");
         }
       });
       return g;
@@ -421,59 +434,206 @@
   }
 
   // ---------- backgrounds ----------
+  // A 256 px canvas (the light is soft, so the upscale is invisible) redrawn a few times a
+  // second. CAM captures and ships every frame that changes, at a real CPU cost per frame,
+  // so the rate is a setting (10/20/30) and between frames the page stays idle.
 
-  function buildBg(layer, type) {
-    layer.replaceChildren();
-    layer.className = `kd-bg bg-${type}`;
-    if (type === "ciecz") for (let i = 0; i < 3; i++) div(div(layer, "orbit"), "blob");
-    if (type === "fale") for (let i = 0; i < 3; i++) div(layer, "ring");
-    if (type === "zorza") for (let i = 0; i < 2; i++) div(layer, "band");
-    if (type === "obieg") for (let i = 0; i < 2; i++) div(layer, "sweep");
-    if (type === "babelki") {
-      let seed = 7;
-      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-      for (let i = 0; i < 14; i++) {
-        const col = div(layer, "col");
-        const d = 16 + rnd() * 18;
-        col.style.cssText = `left:${6 + rnd() * 86}%;width:${1.3 + rnd() * 2.4}%;animation-duration:${d.toFixed(1)}s;animation-delay:${(-rnd() * d).toFixed(1)}s;--sway:${(3 + rnd() * 4).toFixed(1)}s`;
+  const BG_RES = 256;
+  const TAU = 2 * Math.PI;
+  const ease = (x) => (1 - Math.cos(Math.PI * x)) / 2;
+  const pingPong = (t, period) => {
+    const q = (t / period) % 2;
+    return ease(q < 1 ? q : 2 - q);
+  };
+  const rgba = (c, k = 1) => `rgba(${c[0]},${c[1]},${c[2]},${(c[3] * k).toFixed(3)})`;
+  function palette(root) {
+    const cs = getComputedStyle(root);
+    const parse = (v) => {
+      const n = (v.match(/[\d.]+/g) || []).map(Number);
+      return [n[0] || 0, n[1] || 0, n[2] || 0, n.length > 3 ? n[3] : 1];
+    };
+    return { a: parse(cs.getPropertyValue("--glow-a")), b: parse(cs.getPropertyValue("--glow-b")) };
+  }
+  function glow(ctx, x, y, r, c) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, rgba(c));
+    g.addColorStop(1, rgba(c, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, 2 * r, 2 * r);
+  }
+  const BUBBLES = (() => {
+    let seed = 7;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    return Array.from({ length: 14 }, () => {
+      const x = 0.06 + rnd() * 0.86, w = 0.013 + rnd() * 0.024, dur = 16 + rnd() * 18;
+      return { x, w, dur, delay: rnd() * dur, sway: 3 + rnd() * 4 };
+    });
+  })();
+
+  // Each painter draws the moment t (seconds) on an s×s canvas already clipped to the dial.
+  const PAINT = {
+    // ciecz: soft pools of light orbiting slowly, like coolant swirling in the pump
+    ciecz(ctx, t, s, p) {
+      for (const [period, ox, oy, r, c] of [[48, 0.19, -0.08, 0.35, p.a], [-66, -0.21, 0.11, 0.34, p.b], [84, 0.05, 0.24, 0.26, p.a]]) {
+        const a = (TAU * t) / period;
+        glow(ctx, s * (0.5 + ox * Math.cos(a) - oy * Math.sin(a)), s * (0.5 + ox * Math.sin(a) + oy * Math.cos(a)), s * r, c);
       }
+    },
+    // fale: slow ripples spreading from the centre
+    fale(ctx, t, s, p) {
+      const c = s / 2;
+      for (let i = 0; i < 3; i++) {
+        const q = ((t + i * 4) / 12) % 1;
+        const r = c * (0.12 + 0.92 * (1 - (1 - q) ** 2.4));
+        const k = q < 0.18 ? ease(q / 0.18) : 1 - ease((q - 0.18) / 0.82);
+        const g = ctx.createRadialGradient(c, c, r * 0.91, c, c, r);
+        g.addColorStop(0, rgba(p.a, 0));
+        g.addColorStop(1, rgba(p.a, k));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(c, c, r, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = rgba(p.b, k);
+        ctx.lineWidth = Math.max(0.6, r / 160);
+        ctx.stroke();
+      }
+    },
+    // bąbelki: a few bubbles drifting up, as in the loop
+    babelki(ctx, t, s, p) {
+      for (const b of BUBBLES) {
+        const w = b.w * s;
+        const x = b.x * s + (pingPong(t, b.sway) * 2.4 - 1.2) * w;
+        const y = s * (1 - 1.12 * (((t + b.delay) / b.dur) % 1));
+        const g = ctx.createRadialGradient(x + w * 0.34, y + w * 0.32, 0, x + w * 0.34, y + w * 0.32, w * 0.68);
+        g.addColorStop(0, rgba(p.b));
+        g.addColorStop(0.76, rgba(p.a));
+        g.addColorStop(1, rgba(p.a, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x + w / 2, y + w / 2, w / 2, 0, TAU);
+        ctx.fill();
+      }
+    },
+    // zorza: two broad bands of light breathing across the dial
+    zorza(ctx, t, s, p) {
+      for (const [period, delay, rx, ry, c] of [[26, 0, 0.75, 0.24, p.a], [34, 12, 0.7, 0.23, p.b]]) {
+        const k = pingPong(t + delay, period);
+        ctx.save();
+        ctx.translate(s / 2, s * (0.386 + 0.25 * k));
+        ctx.rotate(((-14 + 26 * k) * Math.PI) / 180);
+        ctx.scale(1, ((0.7 + 0.4 * k) * ry) / rx);
+        glow(ctx, 0, 0, s * rx, c);
+        ctx.restore();
+      }
+    },
+    // obieg: light circulating around the rim, the flow through the pump
+    obieg(ctx, t, s, p) {
+      const c = s / 2;
+      const sweeps = [
+        [10, 0, [[0, p.a, 0], [70, p.a, 1], [100, p.b, 1], [140, p.b, 0]]],
+        [15, 180, [[0, p.a, 0], [60, p.a, 1], [120, p.a, 0]]],
+      ];
+      for (const [period, from, stops] of sweeps) {
+        const g = ctx.createConicGradient(((from - 90) * Math.PI) / 180 + (TAU * t) / period, c, c);
+        for (const [deg, col, k] of stops) g.addColorStop(deg / 360, rgba(col, k));
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, s, s);
+      }
+      // keep only a soft band along the rim
+      const m = ctx.createRadialGradient(c, c, 0, c, c, c);
+      m.addColorStop(0.7, "rgba(0,0,0,0)");
+      m.addColorStop(0.84, "#000");
+      m.addColorStop(0.97, "#000");
+      m.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.fillStyle = m;
+      ctx.fillRect(0, 0, s, s);
+      ctx.globalCompositeOperation = "source-over";
+    },
+  };
+
+  function backdrop(canvas, root) {
+    canvas.width = canvas.height = BG_RES;
+    const ctx = canvas.getContext("2d");
+    let type = "brak", pal = null, t = 7, last = null, speed = 1, fps = 10, timer = null;
+    function draw() {
+      ctx.clearRect(0, 0, BG_RES, BG_RES);
+      if (!PAINT[type]) return;
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(BG_RES / 2, BG_RES / 2, BG_RES / 2, 0, TAU);
+      ctx.clip();
+      PAINT[type](ctx, t, BG_RES, pal);
+      ctx.restore();
     }
+    function frame() {
+      if (!canvas.isConnected) return self.pause();
+      const now = performance.now();
+      if (last != null) t += ((now - last) / 1e3) * speed;
+      last = now;
+      draw();
+      timer = setTimeout(frame, 1000 / fps);
+    }
+    const self = {
+      // Re-reads the theme colours, so call it after a theme change too.
+      set(next, animate = true) {
+        type = next;
+        pal = palette(root);
+        draw();
+        if (animate) self.play();
+        else self.pause();
+      },
+      play() {
+        if (!PAINT[type]) return self.pause();
+        if (timer) return;
+        last = null;
+        timer = setTimeout(frame, 0);
+      },
+      pause() {
+        clearTimeout(timer);
+        timer = null;
+      },
+      speed(r) {
+        speed = r;
+      },
+      fps(n) {
+        fps = n > 0 ? n : 10;
+      },
+    };
+    return self;
   }
 
   // ---------- dial ----------
 
   function create(container, cfg = {}) {
     const root = document.createElement("div");
-    const bg = div(root, "kd-bg");
-    const svg = el(root, "svg", { viewBox: "0 0 640 640" });
+    const canvas = document.createElement("canvas");
+    canvas.className = "kd-bg";
+    root.appendChild(canvas);
+    const rim = el(root, "svg", { viewBox: "0 0 640 640" });
+    for (let i = 0; i < 60; i++) {
+      const major = i % 5 === 0;
+      const [x0, y0] = polar(major ? 302 : 307, i * 6);
+      const [x1, y1] = polar(313, i * 6);
+      el(rim, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "tick", "stroke-width": major ? 2.2 : 1.1 });
+    }
     container.replaceChildren(root);
+    const back = backdrop(canvas, root);
+    const animate = cfg.animate !== false;
 
-    let layout = null, theme = null, bgType = null, rate = 1;
+    let layout = null, theme = null, bgType = null;
     let scenes = {}, updaters = [];
+    // Every scene is its own <svg>, so switching between them is a composited fade, not a repaint.
+    const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: "scene" });
 
     function buildLayout() {
-      svg.replaceChildren();
-      const rim = el(svg, "g");
-      for (let i = 0; i < 60; i++) {
-        const major = i % 5 === 0;
-        const [x0, y0] = polar(major ? 302 : 307, i * 6);
-        const [x1, y1] = polar(313, i * 6);
-        el(rim, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "tick", "stroke-width": major ? 2.2 : 1.1 });
-      }
+      for (const n of root.querySelectorAll("svg.scene")) n.remove();
       const names = layout === "rotacja" || layout === "adaptacyjny" ? ["limity", "sprzet"] : [layout];
       scenes = {};
       updaters = [];
       for (const name of names) {
-        const g = el(svg, "g", { class: "scene" });
-        scenes[name] = g;
-        updaters = updaters.concat(SCENES[name](g));
-      }
-    }
-
-    function applyRate(force) {
-      if (!bg.getAnimations) return;
-      for (const a of bg.getAnimations({ subtree: true })) {
-        if (force || a.playbackRate !== rate) a.updatePlaybackRate(rate);
+        scenes[name] = layer();
+        updaters = updaters.concat(SCENES[name](scenes[name], layer));
       }
     }
 
@@ -481,11 +641,10 @@
       const l = normLayout(next.layout);
       const t = THEMES.some((x) => x.id === next.theme) ? next.theme : "ice";
       const b = BGS.some((x) => x.id === next.bg) ? next.bg : "ciecz";
-      if (t !== theme) root.className = `kd th-${(theme = t)}`;
-      if (b !== bgType) {
-        buildBg(bg, (bgType = b));
-        applyRate(true);
-      }
+      back.fps(next.fps);
+      const themed = t !== theme;
+      if (themed) root.className = `kd th-${(theme = t)}`;
+      if (themed || b !== bgType) back.set((bgType = b), animate);
       if (l !== layout) {
         layout = l;
         buildLayout();
@@ -497,11 +656,7 @@
     return {
       configure,
       setActivity(load) {
-        const r = Math.round((1 + 2.2 * clamp(load || 0, 0, 1)) * 10) / 10;
-        if (r !== rate) {
-          rate = r;
-          applyRate(false);
-        }
+        back.speed(1 + 2.2 * clamp(load || 0, 0, 1));
       },
       update(data) {
         const now = data.now ?? Date.now();
@@ -525,12 +680,17 @@
     return { cpu: {}, gpu: {}, liquid: null, ram: {} };
   }
 
-  // A bare animated background in a theme, for swatches.
+  // A bare background in a theme, for swatches: a still frame until play() is called.
   function background(container, { theme, bg }) {
     const root = document.createElement("div");
     root.className = `kd th-${theme}`;
-    buildBg(div(root, "kd-bg"), bg);
+    const canvas = document.createElement("canvas");
+    canvas.className = "kd-bg";
+    root.appendChild(canvas);
     container.replaceChildren(root);
+    const back = backdrop(canvas, root);
+    back.set(bg, false);
+    return back;
   }
 
   window.KrakenDial = { create, background, LAYOUTS, THEMES, BGS, emptyHw };

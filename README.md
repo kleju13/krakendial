@@ -30,6 +30,9 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
   - **Tylko limity** / **Tylko sprzęt**.
 - **Motyw:** Lód, Głębia, Błękit, Noc.
 - **Tło:** animacje Ciecz, Fale, Bąbelki, Zorza, Obieg albo brak. Przyspieszają razem z obciążeniem GPU.
+- **Płynność tła:** 10, 20 albo 30 kl/s.
+
+  CAM renderuje stronę bez GPU i każdą zmienioną klatkę przechwytuje i wysyła na wyświetlacz, co kosztuje ok. 2–3% jednego rdzenia na każdą klatkę na sekundę. Dlatego tło jest rysowane na małym canvasie, a domyślnie 10 kl/s.
 - **Pobieranie limitów:** co 1, 2 albo 5 min.
 
   Gdy serwer odpowiada „za często”, usługa sama wydłuża odstęp, a po serii udanych zapytań znowu go skraca.

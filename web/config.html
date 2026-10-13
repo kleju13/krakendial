@@ -25,7 +25,7 @@
     background: radial-gradient(circle at 32% 24%, #ffffff 0%, #e9edf3 45%, #c9d1dc 100%);
     box-shadow: 0 30px 60px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.06), inset 0 -3px 6px rgba(0, 0, 0, 0.12);
   }
-  .cap > div { width: 100%; height: 100%; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 4px #0b0f16; }
+  .cap > div { width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 0 0 4px #0b0f16; }
   .status { width: 100%; display: grid; gap: 8px; font-size: 14px; color: var(--muted); }
   .status div { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
   .status b { font-weight: 500; color: var(--text); text-align: right; }
@@ -46,7 +46,7 @@
   .opt:hover { transform: translateY(-2px); background: #12213c; }
   .opt:focus-visible { border-color: var(--dim); }
   .opt[aria-pressed="true"] { border-color: var(--accent); background: #112347; }
-  .thumb { width: 100%; max-width: 132px; aspect-ratio: 1; border-radius: 50%; overflow: hidden; box-shadow: 0 0 0 3px #060a12; }
+  .thumb { width: 100%; max-width: 132px; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #060a12; }
   .bgs .thumb { max-width: 64px; }
   .opt b { font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
   .opt small { font-size: 12.5px; line-height: 1.35; color: var(--muted); text-align: center; }
@@ -72,7 +72,9 @@
     <section><h2>UKŁAD</h2><div class="grid layouts" id="layouts"></div></section>
     <section><h2>MOTYW</h2><div class="grid themes" id="themes"></div></section>
     <section><h2>TŁO</h2><div class="grid bgs" id="bgs"></div>
-      <div class="hint">Tło przyspiesza, gdy karta graficzna pracuje.</div></section>
+      <div class="hint">Najedź, żeby zobaczyć ruch. Tło przyspiesza, gdy karta graficzna pracuje.</div></section>
+    <section><h2>PŁYNNOŚĆ TŁA</h2><div class="chips" id="fps"></div>
+      <div class="hint">CAM przechwytuje każdą klatkę i przesyła ją na wyświetlacz, a to kosztuje procesor. Wolne tło wygląda dobrze już przy 10 kl/s.</div></section>
     <section><h2>POBIERANIE LIMITÓW</h2><div class="chips" id="intervals"></div>
       <div class="hint">Co ile usługa pyta Claude i Codexa o limity. Odczyt sprzętu z CAM jest co sekundę.</div></section>
   </div>
@@ -82,8 +84,9 @@
 (() => {
   const K = KrakenDial;
   const INTERVALS = [[60, "1 min"], [120, "2 min"], [300, "5 min"]];
+  const FPS = [[10, "10 kl/s"], [20, "20 kl/s"], [30, "30 kl/s"]];
   let state = { limits: {}, interval: 60e3, config: {}, hw: null };
-  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, ...(state.config || {}) });
+  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, fps: 10, ...(state.config || {}) });
 
   const preview = K.create(document.getElementById("preview"), cfg());
 
@@ -98,16 +101,22 @@
 
   const layoutOpts = K.LAYOUTS.map((l) => {
     const b = option(document.getElementById("layouts"), "opt", `<div class="thumb"></div><b>${l.name}</b><small>${l.desc}</small>`, () => save({ layout: l.id }));
-    return { id: l.id, b, dial: K.create(b.querySelector(".thumb"), { layout: l.id, theme: cfg().theme, bg: "brak" }) };
+    return { id: l.id, b, dial: K.create(b.querySelector(".thumb"), { layout: l.id, theme: cfg().theme, bg: "brak", animate: false }) };
   });
   const themeOpts = K.THEMES.map((t) => {
     const b = option(document.getElementById("themes"), "opt", `<div class="thumb"></div><b>${t.name}</b>`, () => save({ theme: t.id }));
-    return { id: t.id, b, dial: K.create(b.querySelector(".thumb"), { layout: cfg().layout, theme: t.id, bg: "brak" }) };
+    return { id: t.id, b, dial: K.create(b.querySelector(".thumb"), { layout: cfg().layout, theme: t.id, bg: "brak", animate: false }) };
   });
   const bgOpts = K.BGS.map((g) => {
     const b = option(document.getElementById("bgs"), "opt", `<div class="thumb"></div><b>${g.name}</b>`, () => save({ bg: g.id }));
-    return { id: g.id, b, el: b.querySelector(".thumb"), theme: null };
+    const o = { id: g.id, b, el: b.querySelector(".thumb"), theme: null, back: null };
+    b.onmouseenter = () => o.back && o.back.play();
+    b.onmouseleave = () => o.back && o.back.pause();
+    return o;
   });
+  const fpsOpts = FPS.map(([n, label]) => ({
+    n, b: option(document.getElementById("fps"), "chip", label, () => save({ fps: n })),
+  }));
   const intervalOpts = INTERVALS.map(([s, label]) => ({
     s, b: option(document.getElementById("intervals"), "chip", label, () => save({ interval: s })),
   }));
@@ -122,9 +131,16 @@
     render();
   }
 
+  let minisAt = 0, minisKey = "";
   function render() {
     const c = cfg();
     const now = Date.now();
+    const key = `${c.layout}|${c.theme}|${c.bg}`;
+    const minis = key !== minisKey || now - minisAt > 5e3;
+    if (minis) {
+      minisKey = key;
+      minisAt = now;
+    }
     const live = state.hw && state.hw.at && now - state.hw.at < 15e3;
     const data = { now, hw: live ? state.hw : K.emptyHw(), limits: state.limits, interval: state.interval, mode: live ? state.hw.mode : "work" };
 
@@ -132,21 +148,24 @@
     preview.update(data);
     for (const o of layoutOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.layout));
+      if (!minis) continue;
       o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak" });
       o.dial.update(data);
     }
     for (const o of themeOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.theme));
+      if (!minis) continue;
       o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak" });
       o.dial.update(data);
     }
     for (const o of bgOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.bg));
       if (o.theme !== c.theme) {
-        K.background(o.el, { theme: c.theme, bg: o.id });
+        o.back = K.background(o.el, { theme: c.theme, bg: o.id });
         o.theme = c.theme;
       }
     }
+    for (const o of fpsOpts) o.b.setAttribute("aria-pressed", String(o.n === c.fps));
     for (const o of intervalOpts) o.b.setAttribute("aria-pressed", String(o.s === c.interval));
 
     const lcd = document.getElementById("s-lcd");
