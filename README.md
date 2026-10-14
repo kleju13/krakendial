@@ -5,9 +5,10 @@
 Tarcza na LCD Krakena Elite (640×640) przez Web Integration w NZXT CAM. Pokazuje:
 
 - temperatury CPU, GPU i cieczy, moc CPU+GPU, RAM i zegar;
-- limity Claude (5h, 7d) i Codexa (7d) z cienką kreską tempa.
+- limity Claude (5h, 7d) i Codexa (7d) z cienką kreską tempa;
+- ile Claude i Codex kosztowały na wszystkich maszynach: w 24 h, dziś, w 7 dni albo w miesiącu.
 
-Mała usługa w Ruście (`krakenlcd.exe`, bez okna, ~14 MB RAM) serwuje stronę na `http://127.0.0.1:30640/` i pobiera limity. Używa tokenów, które Claude Code i Codex CLI trzymają lokalnie (`~/.claude/.credentials.json`, `~/.codex/auth.json`), i tylko je odczytuje.
+Mała usługa w Ruście (`krakenlcd.exe`, bez okna, ~14 MB RAM) serwuje stronę na `http://127.0.0.1:30640/`. Limity i koszty bierze z podsumowania ledgera (`GET https://usage.example.invalid/api/summary`, tylko w tailnecie; inny adres ustawia zmienna `KRAKENLCD_LEDGER`). Sama nigdy nie pyta Claude'a ani Codexa i nie czyta ich tokenów.
 
 ## Instalacja
 
@@ -66,17 +67,23 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
 - **Background frame rate:** 10, 20 albo 30 kl/s.
 
   CAM renderuje stronę bez GPU i każdą zmienioną klatkę przechwytuje i wysyła na wyświetlacz, co kosztuje ok. 2–3% jednego rdzenia na każdą klatkę na sekundę. Przy 10 kl/s cały CAM zużywa ok. 55–65% jednego rdzenia z animowanym tłem albo filmem i ok. 20–25% bez tła.
-- **Limit refresh:** co 1, 2 albo 5 min.
+- **Cost:** Last 24 h (domyślnie), Today, Last 7 days, This month albo Off.
 
-  Gdy serwer odpowiada „za często”, usługa sama wydłuża odstęp, a po serii udanych zapytań znowu go skraca.
+  Koszt jest w każdym układzie:
+  - w zwykłych tarczach na dolnej linijce obok godziny synchronizacji;
+  - w **One number** jako osobna karta z dwoma pozostałymi okresami pod spodem;
+  - w terminalu, htop i btop jako `cost`, `Cost:` albo w rogu ramki `sys`;
+  - w rodzinie fetch jako osobna linijka, a w cpufetch zamiast łącznej mocy.
 
-Na dole tarczy jest godzina ostatniego pobrania i realny odstęp, a obok kółko, które wypełnia się do następnego pobrania. Przy błędzie tekst i kółko robią się czerwone, a nieaktualne limity przygasają.
+Usługa czyta podsumowanie ledgera co minutę i dodatkowo 15 s po jego własnym odświeżeniu (`nextAt`), więc nowe limity widać zaraz po tym, jak ledger je pobierze, a sam ledger pyta Claude'a raz na 5 min. Tempo zużycia (`burnAt`) liczy z kolejnych próbek ledgera.
+
+Na dole tarczy jest godzina, o której ledger ostatnio pobrał limity, i jego odstęp, a obok kółko, które wypełnia się do następnego pobrania. Gdy ledgera nie da się odpytać (np. poza tailnetem), tekst i kółko robią się czerwone („ledger offline”), a nieaktualne limity i koszt przygasają. Panel pokazuje też, które maszyny ledgera są offline.
 
 ## Rozwój
 
 - `http://127.0.0.1:30640/lcd?mock` to sama tarcza ze sztucznymi danymi sprzętu.
 
-  Parametry `layout`, `theme`, `bg`, `units`, `look` (`plain`, `raw`, `ascii`), `mascot` i `fps` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost` albo `/lcd?mock&layout=btop&theme=deep&bg=media:runa.mp4&look=ascii`. Identyfikatory układów i teł są stałe (np. `kokpit`, `gwiazdy`), choć nazwy w panelu są po angielsku.
+  Parametry `layout`, `theme`, `bg`, `units`, `look` (`plain`, `raw`, `ascii`), `mascot`, `cost` (`last24h`, `today`, `last7d`, `month`, `off`) i `fps` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost` albo `/lcd?mock&layout=btop&theme=deep&bg=media:runa.mp4&look=ascii`. Identyfikatory układów i teł są stałe (np. `kokpit`, `gwiazdy`), choć nazwy w panelu są po angielsku.
 - `KRAKENLCD_WEB=<repo>\web` przy uruchomieniu exe serwuje pliki z dysku bez przebudowy.
 
   Otwarte strony same się przeładowują po restarcie usługi.

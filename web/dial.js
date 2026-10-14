@@ -2,8 +2,8 @@
 // CAM renders web integrations without a GPU, so everything here keeps the CPU idle: scenes are
 // separate layers so fades are composited, and the DOM is only touched when a value really changes.
 //   const dial = KrakenDial.create(container, { layout, theme, bg, fps, units, look });
-//   dial.update({ now, hw, limits, interval, mode });        // call about once a second
-//   dial.configure({ layout, theme, bg, fps, units, look }); // switch variant live
+//   dial.update({ now, hw, limits, costs, interval, mode }); // call about once a second
+//   dial.configure({ layout, theme, bg, fps, units, look, mascot, cost }); // switch variant live
 //   dial.setActivity(gpuLoad);                               // 0..1, speeds the background up under load
 (function () {
   const NS = "http://www.w3.org/2000/svg";
@@ -64,6 +64,14 @@
     { key: "claude5h", label: "CLAUDE · 5H", short: "CLAUDE 5H", tiny: "5H", cmd: "claude 5h" },
     { key: "claude7d", label: "CLAUDE · 7D", short: "CLAUDE 7D", tiny: "7D", cmd: "claude 7d" },
     { key: "codex7d", label: "CODEX · 7D", short: "CODEX 7D", tiny: "CODEX", cmd: "codex  7d" },
+  ];
+  // What Claude and Codex cost across all machines, as the ledger counts it; the period is a setting.
+  const COSTS = [
+    { id: "last24h", name: "Last 24 h", short: "24h" },
+    { id: "today", name: "Today", short: "today" },
+    { id: "last7d", name: "Last 7 days", short: "7d" },
+    { id: "month", name: "This month", short: "month" },
+    { id: "off", name: "Off" },
   ];
 
   // ---------- helpers ----------
@@ -178,23 +186,32 @@
     return { f: v.pct, notch: v.pace == null ? null : 100 - v.pace, over: null };
   }
 
-  // The quiet status line: when limits were last fetched and how often, or what is failing.
+  // The quiet status line: when the ledger last fetched the limits and how often, or that it
+  // can't be reached. `short` leaves the cadence out, for when the cost shares the line.
   function metaView(limits, now, interval) {
     const entries = Object.entries(limits || {}).filter(([, l]) => l);
     const failing = entries.find(([, l]) => l.error);
     const last = Math.max(0, ...entries.map(([, l]) => l.fetchedAt || 0));
-    if (failing) {
-      const who = failing[0].startsWith("claude") ? "Claude" : "Codex";
-      const retry = failing[1].nextAt > now ? ` · retry ${hhmm(failing[1].nextAt)}` : "";
-      return { state: "error", frac: 1, last, text: `${who}: ${failing[1].error}${retry}` };
-    }
-    if (!last) return { state: "stale", frac: 0, last, text: "waiting for data" };
-    // The real cadence: the service stretches it when a provider asks us to slow down.
+    if (failing) return { state: "error", frac: 1, last, text: failing[1].error, short: failing[1].error };
+    if (!last) return { state: "stale", frac: 0, last, text: "waiting for data", short: "waiting for data" };
+    // The ledger's cadence, from when it fetched last and when it fetches next.
     const cadence = Math.max(interval, ...entries.map(([, l]) => (l.fetchedAt && l.nextAt > l.fetchedAt ? l.nextAt - l.fetchedAt : 0)));
     const age = now - last;
     const stale = age > Math.max(STALE_MS, 3 * cadence);
-    return { state: stale ? "stale" : "ok", frac: clamp(age / cadence, 0, 1), last, text: `synced ${hhmmss(last)} · every ${every(cadence)}` };
+    const text = `synced ${hhmmss(last)}`;
+    return { state: stale ? "stale" : "ok", frac: clamp(age / cadence, 0, 1), last, text: `${text} · every ${every(cadence)}`, short: text };
   }
+
+  const money = (v) => (v == null ? "—" : v < 1000 ? `$${v.toFixed(2)}` : `$${Math.round(v).toLocaleString("en-US")}`);
+  // null when switched off; dim when the ledger has nothing or hasn't been reached for a while.
+  function costView(costs, id, now) {
+    const def = COSTS.find((c) => c.id === id) || COSTS[0];
+    if (def.id === "off") return null;
+    const v = costs && typeof costs[def.id] === "number" ? costs[def.id] : null;
+    return { value: money(v), short: def.short, dim: v == null || !(now - costs.polledAt < 3 * STALE_MS) };
+  }
+  // The cost as terminal text: amount, then the period, quieter.
+  const costSpans = (c) => [[c.dim ? "tm-d" : "", c.value], ["tm-d", ` ${c.short}`]];
 
   // ---------- primitives ----------
 
@@ -297,17 +314,19 @@
     return (d) => setText(t, hhmm(d.now));
   }
 
+  // When the limits were synced, with a pie filling until the next sync, then the cost.
   function meta(p, y) {
     const t = el(p, "text", { x: C + 10, y, "text-anchor": "middle", class: "t-meta" });
     const pi = pie(p);
-    let lastText = null;
+    let lastKey = null;
     return (d) => {
-      const m = d.meta;
-      if (m.text !== lastText) {
-        t.textContent = m.text;
+      const m = d.meta, c = d.cost;
+      const key = `${m.text}|${c ? c.value + c.dim : ""}`;
+      if (key !== lastKey) {
+        setSpans(t, c ? [["", `${m.short} · `], [c.dim ? "" : "t-cost", c.value], ["", ` ${c.short}`]] : [["", m.text]]);
         t.classList.toggle("is-warn", m.state === "error");
         pi.move(C + 10 - t.getComputedTextLength() / 2 - 14, y - 5.5);
-        lastText = m.text;
+        lastKey = key;
       }
       pi.set(m);
     };
@@ -616,7 +635,11 @@
         }
         setSpans(L[7], [["tm-k", "liquid "], ["", `${dec(d.hw.liquid)}°`.padEnd(8)], ["tm-k", "power "], ["", `${int(power(d.hw))} W`]]);
         const r = ram(d.hw);
-        setSpans(L[8], [["tm-k", "ram    "], ["", `${r.used == null ? "—" : dec(r.used / 1024)} / ${r.total == null ? "—" : Math.round(r.total / 1024)} GB`]]);
+        setSpans(L[8], [
+          ["tm-k", "ram    "],
+          ["", `${r.used == null ? "—" : dec(r.used / 1024)} / ${r.total == null ? "—" : Math.round(r.total / 1024)} GB`],
+          ...(d.cost ? [["tm-k", "   cost "], ...costSpans(d.cost)] : []),
+        ]);
         setSpans(L[9], [[d.meta.state === "error" ? "tm-w" : "tm-d", `# ${d.meta.text}`]]);
         setSpans(L[10], [["tm-d", `[${hhmmss(d.now)}] `], ["tm-p", "~ $ "], ["tm-c", Math.floor(d.now / 1000) % 2 ? " " : "▌"]]);
       },
@@ -663,7 +686,7 @@
         setSpans(meters[2], meter("Liq", hw.liquid == null ? null : (hw.liquid - 20) / 30, `${dec(hw.liquid)}°C`));
         setSpans(meters[3], meter("Mem", r.used != null && r.total ? r.used / r.total : null, `${r.used == null ? "—" : dec(r.used / 1024)}G/${r.total == null ? "—" : dec(r.total / 1024)}G`));
         setSpans(meters[4], meter("Pwr", pw == null ? null : pw / 600, `${int(pw)}W`));
-        setSpans(clockLine, [["tm-k", " Time: "], ["", hhmmss(d.now)]]);
+        setSpans(clockLine, [["tm-k", " Time: "], ["", hhmmss(d.now)], ...(d.cost ? [["tm-k", "  Cost: "], ...costSpans(d.cost)] : [])]);
         setSpans(head, [["tm-inv", ` ${"LIMIT".padEnd(10)}${(d.left ? "LEFT" : "USED").padStart(4)} ${"PACE".padEnd(10)} ${"RESET".padStart(8)} `]]);
         let worst = 0, behind = -Infinity;
         LIMITS.forEach((def, i) => {
@@ -715,7 +738,7 @@
 
   // btop: rounded boxes with their titles set into the border, temperature graphs of the last
   // two minutes, the clock in the corner. Boxes are as wide as the round screen allows at their height.
-  function sceneBtop(p) {
+  function sceneBtop(p, layer, env) {
     const S = 20, cw = advance(p, S);
     const f = (v) => v.toFixed(1);
     // A box from x0 to x1: the title gap at the left, an optional label gap of `right` characters at the right.
@@ -748,13 +771,17 @@
     }));
 
     const [sx0, sx1] = span(40);
-    box(sx0, sx1, 408, 490, "⁴", "sys");
+    const costText = box(sx0, sx1, 408, 490, "⁴", "sys", env.cost ? 13 : 0);
     const sys = [442, 474].map((y) => term(p, sx0 + cw, y, S));
     const note = term(p, C, 528, 16, "middle");
     let sampledAt = -Infinity;
     return [
       (d) => {
         setText(clockText, hhmmss(d.now));
+        if (costText) {
+          const c = costSpans(d.cost);
+          setSpans(costText, [["", " ".repeat(Math.max(0, 13 - d.cost.value.length - c[1][1].length))], ...c]);
+        }
         LIMITS.forEach((def, i) => {
           const v = d.views[def.key];
           setSpans(rows[i], [
@@ -1049,6 +1076,7 @@
     const Y = [170, 201, 232, 263, 294, 325, 362, 393, 424];
     const L = Y.map((y) => term(p, x, y, S));
     const pace = LIMITS.map((_, i) => paceLine(p, x, Y[6 + i], S, 16, 10));
+    const cost = env.cost ? term(p, x, 455, S) : null;
     const m = mascotById(env.mascot);
     walker(sprite(p, m), m, 206, 434, 560, env.animate);
     const kv = (k, v, cls = "") => [["tm-p", `${k}: `], [cls, v]];
@@ -1069,12 +1097,14 @@
           setSpans(L[6 + i], [["tm-p", `${names[i]} `], [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v).trim().padEnd(5)], ...cells(v, 10)]);
           pace[i](v);
         });
+        if (cost) setSpans(cost, [["tm-p", "Cost: "], ...costSpans(d.cost)]);
         setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
       },
     ];
   }
 
-  // Aligned key, then a bar: the hardware and limit rows of fastfetch and macchina.
+  // Aligned key, then a bar: the hardware and limit rows of fastfetch and macchina, and the cost
+  // when Y has a ninth row for it.
   function fetchRows(p, x, Y, S, n, full, empty) {
     const L = Y.map((y) => term(p, x, y, S));
     const pace = LIMITS.map((_, i) => paceLine(p, x, Y[5 + i], S, 10, n));
@@ -1094,6 +1124,7 @@
         setSpans(L[5 + i], [key(names[i]), ...cells(v, n, full, empty), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
         pace[i](v);
       });
+      if (L[8]) setSpans(L[8], [key("Cost"), ...costSpans(d.cost)]);
     };
   }
 
@@ -1104,10 +1135,12 @@
     const logo = asciiSprite(p, m, 10);
     walker(logo, m, 164, 164, 314 + logo.height / 2, env.animate);
     const note = term(p, C, 92, 15, "middle");
-    setSpans(term(p, x, 150, S), host());
-    setSpans(term(p, x, 174, S), [["", "-".repeat(10)]]);
-    const rows = fetchRows(p, x, [210, 242, 274, 306, 338, 412, 444, 476], S, 7, "■", "■");
-    const clock = term(p, x, 370, S);
+    // a cost row makes it one line taller: tighter, and a little higher
+    const Y = env.cost ? [204, 234, 264, 294, 324, 392, 422, 452, 482] : [210, 242, 274, 306, 338, 412, 444, 476];
+    setSpans(term(p, x, Y[0] - 60, S), host());
+    setSpans(term(p, x, Y[0] - 36, S), [["", "-".repeat(10)]]);
+    const rows = fetchRows(p, x, Y, S, 7, "■", "■");
+    const clock = term(p, x, (Y[4] + Y[5]) / 2, S);
     return [
       (d) => {
         rows(d);
@@ -1125,7 +1158,7 @@
     walker(sprite(p, m, 5), m, 229, 229, 188, env.animate);
     setSpans(term(p, 287, 164, 28), host());
     const clock = term(p, 288, 192, 18);
-    const Y = [248, 290, 332, 374, 416, 458, 500];
+    const Y = env.cost ? [240, 278, 316, 354, 392, 430, 468, 506] : [248, 290, 332, 374, 416, 458, 500];
     const L = Y.map((y) => term(p, x, y, S));
     const pace = LIMITS.map((_, i) => paceLine(p, x, Y[4 + i], S, 12, n));
     const note = term(p, C, 546, 15, "middle");
@@ -1145,6 +1178,7 @@
           setSpans(L[4 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], ...cells(v, n, "■", "■")]);
           pace[i](v);
         });
+        if (L[7]) setSpans(L[7], [key("cost"), ...costSpans(d.cost)]);
         setSpans(clock, [["tm-d", hhmmss(d.now)]]);
         setSpans(note, noteSpans(d));
       },
@@ -1155,18 +1189,20 @@
   // bottom edge; the mascot walks along the top edge.
   function sceneMacchina(p, layer, env) {
     const S = 20, cw = advance(p, S), f = (v) => v.toFixed(1);
-    const x0 = 108, x1 = 532, y0 = 212, y1 = 486, r = 12, gap = (23 * cw) / 2 + 4;
+    // with the cost the frame is a row taller and starts higher
+    const Y = env.cost ? [231, 260, 289, 318, 347, 395, 424, 453, 482] : [243, 272, 301, 330, 359, 407, 436, 465];
+    const x0 = 108, x1 = 532, y0 = Y[0] - 31, y1 = Y[Y.length - 1] + 21, r = 12, gap = (23 * cw) / 2 + 4;
     el(p, "path", {
       class: "tm-box",
       d: `M${f(C - gap)} ${y1}H${x0 + r}Q${x0} ${y1} ${x0} ${y1 - r}V${y0 + r}Q${x0} ${y0} ${x0 + r} ${y0}` +
         `H${x1 - r}Q${x1} ${y0} ${x1} ${y0 + r}V${y1 - r}Q${x1} ${y1} ${x1 - r} ${y1}H${f(C + gap)}`,
     });
-    el(p, "path", { class: "tm-box", d: `M${x0} 380H${x1}` });
+    el(p, "path", { class: "tm-box", d: `M${x0} ${Y[5] - 27}H${x1}` });
     const m = mascotById(env.mascot);
     walker(sprite(p, m), m, 190, 450, y0 - 1, env.animate);
-    const rows = fetchRows(p, x0 + 1.5 * cw, [243, 272, 301, 330, 359, 407, 436, 465], S, 12, "●", "○");
+    const rows = fetchRows(p, x0 + 1.5 * cw, Y, S, 12, "●", "○");
     const title = term(p, C, y1 + S * 0.32, S, "middle");
-    const note = term(p, C, 530, 15, "middle");
+    const note = term(p, C, y1 + 44, 15, "middle");
     return [
       (d) => {
         rows(d);
@@ -1217,7 +1253,8 @@
           setSpans(L[i], [["tm-p", names[i].padEnd(10)], ...cells(v, 10, "■", "■"), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
           pace[i](v);
         });
-        setSpans(sys, [["tm-k", "liquid "], ["", `${dec(hw.liquid)}°C`], ["tm-k", "  mem "], ["", memText(ram(hw))], ["tm-k", "  power "], ["", `${int(power(hw))} W`]]);
+        const last = d.cost ? [["tm-k", `  ${d.cost.short} `], [d.cost.dim ? "tm-d" : "", d.cost.value]] : [["tm-k", "  power "], ["", `${int(power(hw))} W`]];
+        setSpans(sys, [["tm-k", "liquid "], ["", `${dec(hw.liquid)}°C`], ["tm-k", "  mem "], ["", memText(ram(hw))], ...last]);
         setSpans(note, noteSpans(d));
       },
     ];
@@ -1257,23 +1294,25 @@
   }
 
   // One huge value at a time; the rim gauge and the dots follow the carousel.
-  function sceneJedna(p, layer) {
+  function sceneJedna(p, layer, env) {
     const items = [
       ...LIMITS.map((def) => ({ label: def.label, limit: def.key })),
       { label: "CPU", temp: "cpu" },
       { label: "GPU", temp: "gpu" },
       { label: "LIQUID", read: readLiquid, gauge: (d) => scale(d.hw.liquid, 20, 50) },
       { label: "POWER", read: readPower, gauge: (d) => scale(power(d.hw), 0, 600), sub: (d) => `CPU ${int(d.hw.cpu.power)} W · GPU ${int(d.hw.gpu.power)} W` },
+      ...(env.cost ? [{ label: "COST", cost: true }] : []),
     ];
     const up = [clock(p, 108)];
     const groups = items.map((it) => {
       const g = layer();
       g.classList.add("is-off");
-      const arc = arcGauge(g, 284, -135, 135, 14);
+      // the cost has no scale to fill, so no gauge either
+      const arc = it.cost ? null : arcGauge(g, 284, -135, 135, 14);
       if (it.temp) arc.notch.classList.add("is-peak");
       const lbl = el(g, "text", { x: C, y: 196, "text-anchor": "middle", class: "t-lbl" }, it.label);
-      const unit = it.limit ? el(lbl, "tspan", { class: "t-unit" }) : null;
-      const val = num(g, it.temp || it.read === readLiquid ? C + 16 : C, 384, 196);
+      const unit = it.limit || it.cost ? el(lbl, "tspan", { class: "t-unit" }) : null;
+      const val = num(g, it.temp || it.read === readLiquid ? C + 16 : C, it.cost ? 366 : 384, it.cost ? 140 : 196);
       const sub = el(g, "text", { x: C, y: 438, "text-anchor": "middle", class: "t-sub" });
       up.push((d) => {
         if (it.limit) {
@@ -1289,6 +1328,13 @@
           setNum(val, int(h.temp), "°", 98, 196);
           val.classList.toggle("is-warn", isHot(h, it.temp));
           setText(sub, `load ${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
+        } else if (it.cost) {
+          // the amount for the chosen period, two of the others under it
+          setText(unit, ` · ${d.cost.short.toUpperCase()}`);
+          setText(val, d.cost.value);
+          val.classList.toggle("is-dim", d.cost.dim);
+          const others = COSTS.filter((c) => c.id !== "off" && c.short !== d.cost.short).slice(0, 2);
+          setText(sub, others.map((c) => `${c.short} ${money(d.costs && d.costs[c.id])}`).join(" · "));
         } else {
           const [n, u, us] = it.read(d);
           arc.set(it.gauge(d), null, null);
@@ -1350,7 +1396,7 @@
     const back = window.KrakenBg.backdrop(canvas, root);
     const animate = cfg.animate !== false;
 
-    let layout = null, theme = null, bgType = null, left = true, mascot = null;
+    let layout = null, theme = null, bgType = null, left = true, mascot = null, cost = null;
     let scenes = {}, updaters = [];
     // Every scene is its own <svg>, so switching between them is a composited fade, not a repaint.
     const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: "scene" });
@@ -1362,7 +1408,7 @@
       updaters = [];
       for (const name of names) {
         scenes[name] = layer();
-        updaters = updaters.concat(SCENES[name](scenes[name], layer, { animate, mascot }));
+        updaters = updaters.concat(SCENES[name](scenes[name], layer, { animate, mascot, cost: cost !== "off" }));
       }
     }
 
@@ -1374,6 +1420,7 @@
       back.fps(next.fps);
       back.look(next.look);
       const m = mascotById(next.mascot).id;
+      const c = COSTS.some((x) => x.id === next.cost) ? next.cost : COSTS[0].id;
       const themed = t !== theme;
       if (themed) {
         root.className = `kd th-${(theme = t)}`;
@@ -1385,12 +1432,12 @@
       if (themed || b !== bgType) back.set((bgType = b), animate);
       // untouched media gets a halo behind the text instead of a dimmed picture
       root.classList.toggle("is-raw", next.look === "raw" && /^media:/.test(b));
-      if (l !== layout || (m !== mascot && LAYOUTS.find((x) => x.id === l).mascot)) {
-        layout = l;
-        mascot = m;
+      // switching the cost on or off adds or removes a line, so the layout is laid out again
+      if (l !== layout || (m !== mascot && LAYOUTS.find((x) => x.id === l).mascot) || (c === "off") !== (cost === "off")) {
+        [layout, mascot, cost] = [l, m, c];
         buildLayout();
       }
-      mascot = m;
+      [mascot, cost] = [m, c];
     }
 
     configure(cfg);
@@ -1405,7 +1452,8 @@
         const interval = data.interval ?? 60e3;
         const views = {};
         for (const def of LIMITS) views[def.key] = limitView((data.limits || {})[def.key], now, interval, left);
-        const d = { now, hw: data.hw || emptyHw(), views, left, unitWord: left ? "LEFT" : "USED", meta: metaView(data.limits, now, interval) };
+        const cv = costView(data.costs, cost, now);
+        const d = { now, hw: data.hw || emptyHw(), views, left, unitWord: left ? "LEFT" : "USED", meta: metaView(data.limits, now, interval), cost: cv, costs: data.costs };
         let active = Object.keys(scenes);
         if (layout === "rotacja") active = [Math.floor(now / ROTATE_MS) % 2 ? "sprzet" : "limity"];
         if (layout === "adaptacyjny") active = [data.mode === "game" ? "sprzet" : "limity"];
@@ -1436,5 +1484,5 @@
     return back;
   }
 
-  window.KrakenDial = { create, background, mascotIcon, LAYOUTS, THEMES, BGS, MASCOTS, emptyHw };
+  window.KrakenDial = { create, background, mascotIcon, money, LAYOUTS, THEMES, BGS, MASCOTS, COSTS, emptyHw };
 })();

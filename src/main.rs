@@ -1,5 +1,5 @@
 // Background service for the Kraken Elite LCD: serves the dial to NZXT CAM's Web Integration
-// and keeps Claude / Codex usage limits fresh. Runs windowless in release builds.
+// and keeps the Claude / Codex limits and costs from the ledger fresh. Runs windowless in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod limits;
@@ -31,7 +31,8 @@ const LOOKS: [&str; 3] = ["plain", "raw", "ascii"];
 const MASCOTS: [&str; 5] = ["kraken", "crab", "ghost", "cat", "robot"];
 /// Whether limits read as what is left or what is used.
 const UNITS: [&str; 2] = ["left", "used"];
-const INTERVALS: [i64; 3] = [60, 120, 300];
+/// Which of the ledger's costs the dial shows.
+const COSTS: [&str; 5] = ["last24h", "today", "last7d", "month", "off"];
 /// Background frame rates. CAM spends CPU on every frame it captures, so the default is low.
 const FPS: [i64; 3] = [10, 20, 30];
 
@@ -71,16 +72,12 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     if let Some(m) = patch["mascot"].as_str().filter(|m| MASCOTS.contains(m)) {
         cfg["mascot"] = json!(m);
     }
-    if let Some(i) = patch["interval"].as_i64().filter(|i| INTERVALS.contains(i)) {
-        cfg["interval"] = json!(i);
+    if let Some(c) = patch["cost"].as_str().filter(|c| COSTS.contains(c)) {
+        cfg["cost"] = json!(c);
     }
     if let Some(f) = patch["fps"].as_i64().filter(|f| FPS.contains(f)) {
         cfg["fps"] = json!(f);
     }
-}
-
-fn interval_ms(cfg: &Value) -> i64 {
-    cfg["interval"].as_i64().unwrap_or(60) * 1000
 }
 
 fn log(msg: &str) {
@@ -150,12 +147,17 @@ fn handle(app: &App, mut req: Request) {
     match (req.method(), path.as_str()) {
         (Method::Get, "/api/state") => {
             let cfg = app.config.lock().unwrap().clone();
+            let (limits, costs) = {
+                let store = app.store.lock().unwrap();
+                (store.limits_json(), store.costs_json())
+            };
             let v = json!({
                 "now": limits::now_ms(),
                 "build": app.build,
-                "interval": interval_ms(&cfg),
+                "interval": limits::POLL_MS,
                 "config": cfg,
-                "limits": app.store.lock().unwrap().to_json(),
+                "limits": limits,
+                "costs": costs,
                 "hw": *app.hw.lock().unwrap(),
             });
             reply_json(req, &v);
@@ -233,7 +235,7 @@ fn main() {
     };
     let state_path = data_dir().join("state.json");
     let mut config =
-        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "interval": 60, "fps": 10, "units": "left", "look": "plain", "mascot": "kraken" });
+        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "fps": 10, "units": "left", "look": "plain", "mascot": "kraken", "cost": "last24h" });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
     }
@@ -247,23 +249,16 @@ fn main() {
 
     let poller = Arc::clone(&app);
     std::thread::spawn(move || {
-        let fetcher = limits::Fetcher::new();
-        let mut sources = limits::sources();
+        let ledger = limits::Ledger::new();
+        let mut last_err = None;
         loop {
-            let mut polled = false;
-            let interval = interval_ms(&poller.config.lock().unwrap());
-            for s in sources.iter_mut() {
-                match s.tick(&fetcher, &poller.store, interval) {
-                    Some(Err(e)) => log(&e),
-                    Some(Ok(())) => {}
-                    None => continue,
-                }
-                polled = true;
+            let (next, err) = ledger.poll(&poller.store);
+            if err != last_err {
+                log(&format!("ledger: {}", err.as_deref().unwrap_or("ok")));
+                last_err = err;
             }
-            if polled {
-                poller.store.lock().unwrap().save(&state_path);
-            }
-            std::thread::sleep(Duration::from_secs(5));
+            poller.store.lock().unwrap().save(&state_path);
+            std::thread::sleep(Duration::from_millis((next - limits::now_ms()).clamp(1_000, limits::POLL_MS) as u64));
         }
     });
 

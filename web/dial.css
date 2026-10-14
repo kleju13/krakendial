@@ -187,6 +187,7 @@
 .kd .t-lbl-s { font-size: 17px; font-weight: 600; letter-spacing: 0.16em; fill: var(--ink-2); }
 .kd .t-sub { font-size: 19px; fill: var(--ink-2); }
 .kd .t-meta { font-size: 16px; fill: var(--ink-3); letter-spacing: 0.03em; }
+.kd .t-cost { fill: var(--ink-2); font-weight: 600; }
 .kd .t-head { font-size: 14px; font-weight: 600; letter-spacing: 0.22em; fill: var(--ink-3); }
 .kd .t-lbl-xs { font-size: 14px; font-weight: 600; letter-spacing: 0.12em; fill: var(--ink-2); }
 .kd .t-lbl-xxs { font-size: 12.5px; font-weight: 600; letter-spacing: 0.1em; fill: var(--ink-2); }

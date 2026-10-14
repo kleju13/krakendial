@@ -31,7 +31,7 @@
   const mock = params.has("mock");
   // URL parameters override the saved choice, e.g. /lcd?layout=jedna&theme=deep&bg=fale
   const forced = {};
-  for (const k of ["layout", "theme", "bg", "units", "look", "mascot"]) if (params.get(k)) forced[k] = params.get(k);
+  for (const k of ["layout", "theme", "bg", "units", "look", "mascot", "cost"]) if (params.get(k)) forced[k] = params.get(k);
   if (params.get("fps")) forced.fps = Number(params.get("fps"));
 
   // Adaptive switching: game after 20 s of a busy GPU, back to work after 60 s of calm.
@@ -83,7 +83,7 @@
 
   function render() {
     dial.configure({ ...(state.config || {}), ...forced });
-    dial.update({ now: Date.now(), hw, limits: state.limits, interval: state.interval, mode });
+    dial.update({ now: Date.now(), hw, limits: state.limits, costs: state.costs, interval: state.interval, mode });
   }
 
   let build = null;

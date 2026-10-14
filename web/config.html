@@ -80,8 +80,8 @@
     <div class="cap"><div id="preview"></div></div>
     <div class="status">
       <div>Cooler <b id="s-lcd">…</b></div>
-      <div>Claude <b id="s-claude">…</b></div>
-      <div>Codex <b id="s-codex">…</b></div>
+      <div>Ledger <b id="s-ledger">…</b></div>
+      <div>Machines <b id="s-machines">…</b></div>
     </div>
   </aside>
   <div>
@@ -98,8 +98,8 @@
       <div class="hint" id="media-hint">A video, GIF or picture. Moving ones are cropped square and shrunk to 640×640. Theme tint dims and recolours the picture so the numbers stay readable; Original leaves it alone and puts a soft halo behind the text instead; ASCII redraws it as characters in the theme’s colours. Video costs more CPU than a drawn background.</div></section>
     <section><h2>BACKGROUND FRAME RATE</h2><div class="chips" id="fps"></div>
       <div class="hint">CAM captures every changed frame and sends it to the display, which costs CPU. A slow background already looks smooth at 10 fps.</div></section>
-    <section><h2>LIMIT REFRESH</h2><div class="chips" id="intervals"></div>
-      <div class="hint">How often the service asks Claude and Codex for limits. Hardware readings come from CAM every second.</div></section>
+    <section><h2>COST</h2><div class="chips" id="costs"></div>
+      <div class="hint">What Claude and Codex cost on all your machines, as the ledger counts it. The limits come from the ledger too: this service never asks Claude or Codex itself, it reads the ledger’s summary once a minute.</div></section>
   </div>
 </main>
 <script src="bg.js"></script>
@@ -107,13 +107,12 @@
 <script>
 (() => {
   const K = KrakenDial;
-  const INTERVALS = [[60, "1 min"], [120, "2 min"], [300, "5 min"]];
   const FPS = [[10, "10 fps"], [20, "20 fps"], [30, "30 fps"]];
   const UNITS = [["left", "What’s left"], ["used", "What’s used"]];
   const LOOKS = [["plain", "Theme tint"], ["raw", "Original"], ["ascii", "ASCII"]];
   const MEDIA_HINT = document.getElementById("media-hint").textContent;
-  let state = { limits: {}, interval: 60e3, config: {}, hw: null };
-  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", interval: 60, fps: 10, units: "left", look: "plain", mascot: "kraken", ...(state.config || {}) });
+  let state = { limits: {}, costs: null, interval: 60e3, config: {}, hw: null };
+  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h", ...(state.config || {}) });
 
   const preview = K.create(document.getElementById("preview"), cfg());
 
@@ -156,8 +155,8 @@
   const fpsOpts = FPS.map(([n, label]) => ({
     n, b: option(document.getElementById("fps"), "chip", label, () => save({ fps: n })),
   }));
-  const intervalOpts = INTERVALS.map(([s, label]) => ({
-    s, b: option(document.getElementById("intervals"), "chip", label, () => save({ interval: s })),
+  const costOpts = K.COSTS.map((c) => ({
+    id: c.id, b: option(document.getElementById("costs"), "chip", c.name, () => save({ cost: c.id })),
   }));
 
   async function save(patch) {
@@ -261,27 +260,27 @@
   function render() {
     const c = cfg();
     const now = Date.now();
-    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}`;
+    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}`;
     const minis = key !== minisKey || now - minisAt > 5e3;
     if (minis) {
       minisKey = key;
       minisAt = now;
     }
     const live = state.hw && state.hw.at && now - state.hw.at < 15e3;
-    const data = { now, hw: live ? state.hw : K.emptyHw(), limits: state.limits, interval: state.interval, mode: live ? state.hw.mode : "work" };
+    const data = { now, hw: live ? state.hw : K.emptyHw(), limits: state.limits, costs: state.costs, interval: state.interval, mode: live ? state.hw.mode : "work" };
 
     preview.configure(c);
     preview.update(data);
     for (const o of layoutOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.layout));
       if (!minis) continue;
-      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak", units: c.units, mascot: c.mascot });
+      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak", units: c.units, mascot: c.mascot, cost: c.cost });
       o.dial.update(data);
     }
     for (const o of themeOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.theme));
       if (!minis) continue;
-      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak", units: c.units, mascot: c.mascot });
+      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak", units: c.units, mascot: c.mascot, cost: c.cost });
       o.dial.update(data);
     }
     for (const o of bgOpts.concat(mediaOpts)) {
@@ -297,18 +296,25 @@
     for (const o of lookOpts) o.b.setAttribute("aria-pressed", String(o.l === c.look));
     for (const o of mascotOpts) o.b.setAttribute("aria-pressed", String(o.id === c.mascot));
     for (const o of fpsOpts) o.b.setAttribute("aria-pressed", String(o.n === c.fps));
-    for (const o of intervalOpts) o.b.setAttribute("aria-pressed", String(o.s === c.interval));
+    for (const o of costOpts) o.b.setAttribute("aria-pressed", String(o.id === c.cost));
 
     const lcd = document.getElementById("s-lcd");
     lcd.textContent = live ? "live" : "no signal from CAM";
     lcd.className = live ? "" : "bad";
-    for (const [id, key] of [["s-claude", "claude7d"], ["s-codex", "codex7d"]]) {
-      const l = (state.limits || {})[key] || {};
-      const node = document.getElementById(id);
-      const t = l.fetchedAt ? new Date(l.fetchedAt).toLocaleTimeString("en-GB") : null;
-      node.textContent = l.error ? `${l.error}${t ? ` · last ${t}` : ""}` : t ? `synced ${t}` : "waiting";
-      node.className = l.error ? "bad" : "";
-    }
+    // the ledger: when it last fetched the limits, or why it can't be read
+    const ls = Object.values(state.limits || {}).filter(Boolean);
+    const err = (ls.find((l) => l.error) || {}).error;
+    const last = Math.max(0, ...ls.map((l) => l.fetchedAt || 0));
+    const t = last ? new Date(last).toLocaleTimeString("en-GB") : null;
+    const ledger = document.getElementById("s-ledger");
+    ledger.textContent = err ? `${err.replace(/^ledger /, "")}${t ? ` · last ${t}` : ""}` : t ? `synced ${t}` : "waiting";
+    ledger.className = err ? "bad" : "";
+    // the machines whose costs it adds up, by name when some are offline
+    const ms = (state.costs && state.costs.machines) || [];
+    const off = ms.filter((m) => m.status !== "online");
+    const machines = document.getElementById("s-machines");
+    machines.textContent = !ms.length ? "—" : off.length ? `${off.map((m) => m.name).join(", ")} offline` : `all ${ms.length} online`;
+    machines.className = off.length ? "bad" : "";
   }
 
   let build = null;
