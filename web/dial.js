@@ -109,6 +109,13 @@
     if (h < 24) return `${h}h ${pad(m % 60)}m`;
     return `${Math.floor(h / 24)}d ${h % 24}h`;
   }
+  // The same in as few characters as a terminal column allows: 31m, 2h50, 2d13h.
+  function durShort(ms) {
+    const m = Math.max(0, Math.round(ms / 60e3));
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    return h < 24 ? `${h}h${pad(m % 60)}` : `${Math.floor(h / 24)}d${h % 24}h`;
+  }
   const every = (ms) => (ms < 60e3 ? `${Math.round(ms / 1e3)} s` : `${Math.round(ms / 60e3)} min`);
   const dec = (v, d = 1) => (v == null ? "—" : v.toFixed(d));
   const int = (v) => (v == null ? "—" : `${Math.round(v)}`);
@@ -1153,9 +1160,10 @@
 
   // pfetch: short lines, very large, under a mascot sitting by the name and the time.
   // The bars of CPU and GPU are their temperatures, their power follows the bar; the power
-  // line is the whole set, with a bar to 600 W.
+  // line is the whole set, with a bar to 600 W. The limits have the time to their reset in the
+  // same place; the lines are 25 characters at most and centred so that 2d13h stays off the rim.
   function scenePfetch(p, layer, env) {
-    const S = 32, n = 7, cw = advance(p, S), x = C - 11 * cw;
+    const S = 32, n = 7, cw = advance(p, S), x = C - 12.5 * cw;
     const m = mascotById(env.mascot);
     walker(sprite(p, m, 6), m, 229, 229, 164, env.animate);
     setSpans(term(p, 295, 124, 26), host());
@@ -1185,7 +1193,8 @@
         setSpans(L[4], [key("memory"), ["", memText(ram(hw))]]);
         LIMITS.forEach((def, i) => {
           const v = d.views[def.key];
-          setSpans(L[5 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], ...cells(v, n, "■", "■")]);
+          const until = v.resetsAt > d.now ? ` ${durShort(v.resetsAt - d.now)}` : "";
+          setSpans(L[5 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], ...cells(v, n, "■", "■"), [limitClass(v), until]]);
           pace[i](v);
         });
         if (L[8]) setSpans(L[8], [key("cost"), ...costSpans(d.cost)]);
