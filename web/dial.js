@@ -25,7 +25,11 @@
     { id: "terminal", name: "Terminal", desc: "Everything as console output." },
     { id: "htop", name: "htop", desc: "Meters on top, limits as the process list." },
     { id: "btop", name: "btop", desc: "Boxes and braille graphs of the last minutes." },
-    { id: "neofetch", name: "neofetch", desc: "The system in big type, a mascot wandering below." },
+    { id: "neofetch", name: "neofetch", desc: "The system in big type, a mascot wandering below.", mascot: true },
+    { id: "fastfetch", name: "fastfetch", desc: "The mascot as an ASCII logo, the system beside it with bars.", mascot: true },
+    { id: "pfetch", name: "pfetch", desc: "Seven very large lines under a small mascot.", mascot: true },
+    { id: "macchina", name: "macchina", desc: "Dot bars in a frame the mascot walks along.", mascot: true },
+    { id: "cpufetch", name: "cpufetch", desc: "CPU and GPU as chips, the mascot walking over them.", mascot: true },
     { id: "zegar", name: "Clock", desc: "The time, large; limits and hardware around it." },
     { id: "jedna", name: "One number", desc: "One huge value, the next one every 6 s." },
     { id: "limity", name: "Limits only", desc: "Claude 5h, Claude 7d and Codex." },
@@ -889,9 +893,9 @@
   ];
   const mascotById = (id) => MASCOTS.find((m) => m.id === id) || MASCOTS[0];
 
-  // Draws a mascot into parent; set() moves it, picks the frame, points the eyes, closes them.
-  function sprite(parent, m) {
-    const sq = (x, y, w = 1, h = 1) => `M${x * PX} ${y * PX}h${w * PX}v${h * PX}h${-w * PX}z`;
+  // Draws a mascot into parent, px to a pixel; set() moves it, picks the frame, points the eyes, closes them.
+  function sprite(parent, m, px = PX) {
+    const sq = (x, y, w = 1, h = 1) => `M${x * px} ${y * px}h${w * px}v${h * px}h${-w * px}z`;
     const g = el(parent, "g", { class: "mascot", "shape-rendering": "crispEdges" });
     const body = el(g, "g");
     const frames = [m.a, m.b].map((rows) => {
@@ -905,11 +909,13 @@
     const lids = el(body, "g");
     el(lids, "path", { class: "px-X", d: m.eyes.map(([x, y, w, h]) => sq(x, y, w, h)).join("") });
     el(lids, "path", { class: "px-K", d: m.eyes.map(([x, y, w, h]) => sq(x, y + h - 1, w, 1)).join("") });
-    const width = 16 * PX;
+    const width = 16 * px;
     let key = null;
     return {
+      node: g,
       width,
-      height: m.a.length * PX,
+      height: m.a.length * px,
+      step: px,
       set({ x, y, frame = 0, look = 1, blink = false, flip = false }) {
         const k = `${x}|${y}|${frame}|${look}|${blink}|${flip}`;
         if (k === key) return;
@@ -926,20 +932,61 @@
     };
   }
 
+  // The same mascot as ASCII art for a fetch logo: two characters to a pixel keep the pixels square.
+  const ASCII_PX = { X: "$$", o: "++", W: "██", K: "██" };
+  function asciiSprite(parent, m, size) {
+    const cw = advance(parent, size);
+    const g = el(parent, "g", { class: "mascot", "font-weight": 700 });
+    const rows = m.a.map((_, r) => term(g, 0, ((r + 0.82) * 2 * cw).toFixed(1), size));
+    let key = null;
+    return {
+      node: g,
+      width: 32 * cw,
+      height: m.a.length * 2 * cw,
+      step: 2 * cw,
+      set({ x, y, frame = 0, look = 1, blink = false }) {
+        const k = `${x}|${y}|${frame}|${look}|${blink}`;
+        if (k === key) return;
+        key = k;
+        setAttr(g, "transform", `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+        // eyes as the pixel sprite draws them: a pupil column on the side it looks to, or a closed lid
+        const grid = (frame ? m.b : m.a).map((row) => [...row]);
+        for (const [ex, ey, w, h] of m.eyes)
+          for (let j = 0; j < h; j++)
+            for (let i = 0; i < w; i++)
+              grid[ey + j][ex + i] = blink ? (j === h - 1 ? "K" : "X") : i === (w > 1 && look > 0 ? w - 1 : 0) ? "K" : "W";
+        grid.forEach((row, r) => {
+          const spans = [];
+          for (const c of row) {
+            const cls = c === "." ? "" : `px-${c}`, last = spans[spans.length - 1];
+            if (last && last[0] === cls) last[1] += ASCII_PX[c] || "  ";
+            else spans.push([cls, ASCII_PX[c] || "  "]);
+          }
+          setSpans(rows[r], spans);
+        });
+      },
+    };
+  }
+
   // Wanders along the ground between minX and maxX: walks a stretch, stands, looks around,
   // blinks. Moves at 5 steps a second only while walking, so standing still costs CAM nothing.
-  function walker(parent, m, minX, maxX, ground, animate) {
-    const s = sprite(parent, m);
-    const snap = (v) => Math.round(v / PX) * PX;
-    const st = { x: snap((minX + maxX) / 2 - s.width / 2), frame: 0, look: 1, blink: false, dir: 1, target: null };
+  // With no room to walk it stays where it is and shuffles its feet instead.
+  function walker(s, m, minX, maxX, ground, animate) {
+    const snap = (v) => Math.round(v / s.step) * s.step;
+    const still = maxX - minX < s.width;
+    const st = { x: snap((minX + maxX) / 2 - s.width / 2), frame: 0, look: 1, blink: false, dir: 1, target: null, shuffle: 0 };
     const show = () =>
-      s.set({ x: st.x, y: ground - s.height - (m.float && st.frame ? PX / 2 : 0), frame: st.frame, look: st.look, blink: st.blink, flip: m.flip && st.dir < 0 });
+      s.set({ x: st.x, y: ground - s.height - (m.float && st.frame ? s.step / 2 : 0), frame: st.frame, look: st.look, blink: st.blink, flip: m.flip && st.dir < 0 });
     show();
     if (!animate) return;
     function step() {
-      if (!parent.isConnected) return;
+      if (!s.node.isConnected) return;
       let delay;
-      if (st.target != null) {
+      if (st.shuffle) {
+        st.frame ^= 1;
+        st.shuffle--;
+        delay = 240;
+      } else if (st.target != null) {
         st.x += st.dir * PX;
         st.frame ^= 1;
         if (st.dir * (st.target - st.x) <= 0) [st.target, st.frame] = [null, 0];
@@ -951,6 +998,7 @@
         const r = Math.random();
         if (r < 0.3) [st.blink, delay] = [true, 150];
         else if (r < 0.62) [st.look, delay] = [-st.look, 700 + Math.random() * 1800];
+        else if (still) [st.shuffle, delay] = [6, 240];
         else {
           const lo = minX - s.width / 2, hi = maxX - s.width / 2;
           st.target = snap(clamp(st.x + (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 180), lo, hi));
@@ -973,18 +1021,36 @@
     sprite(svg, m).set({ x: 0, y: 0 });
   }
 
-  // neofetch: the system as key: value lines, large, the theme's colours below and a mascot
-  // wandering along the bottom under the text.
+  // ---------- the fetch family ----------
+  // The system the way neofetch and its descendants print it. The mascot lives in each of them.
+
+  const host = () => [["tm-p", "kraken"], ["", "@"], ["tm-p", "lcd"]];
+  const loadText = (h) => (h.load == null ? "—" : `${Math.round(h.load * 100)}%`);
+  const limitText = (v) => (v.value === "—" ? "—" : `${v.value}%`);
+  const limitClass = (v) => (v.dim ? "tm-d" : v.hot ? "tm-w" : "");
+  const memFrac = (r) => (r.used != null && r.total ? r.used / r.total : null);
+  const memText = (r) => `${r.used == null ? "—" : dec(r.used / 1024)}/${r.total == null ? "—" : Math.round(r.total / 1024)}G`;
+  const noteSpans = (d) => [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]];
+  // "AMD Ryzen 7 5800X3D 8-Core Processor" → "Ryzen 7 5800X3D", "NVIDIA GeForce RTX 4070 SUPER" → "RTX 4070 SUPER"
+  const model = (name, fallback) =>
+    (name || "")
+      .replace(/\((R|TM)\)|[®™]|@.*$/gi, " ")
+      .replace(/\b(AMD|Intel|NVIDIA|GeForce|Core|Processor|CPU|Graphics|\d+(st|nd|rd|th) Gen|\d+-Core)\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .trim() || fallback;
+
+  // neofetch: the system as key: value lines, large, and a mascot wandering along the bottom
+  // under the text.
   function sceneNeofetch(p, layer, env) {
     const S = 26, x = 136;
     const note = term(p, C, 80, 15, "middle");
-    setSpans(term(p, x, 112, S), [["tm-p", "kraken"], ["", "@"], ["tm-p", "lcd"]]);
+    setSpans(term(p, x, 112, S), host());
     setSpans(term(p, x, 136, S), [["", "-".repeat(10)]]);
     const Y = [170, 201, 232, 263, 294, 325, 362, 393, 424];
     const L = Y.map((y) => term(p, x, y, S));
-    setSpans(term(p, x, 458, 20), [0, 1, 2, 3, 4, 5, 6, 7].map((i) => [`nf-${i}`, "███"]));
     const pace = LIMITS.map((_, i) => paceLine(p, x, Y[6 + i], S, 16, 10));
-    walker(p, mascotById(env.mascot), 206, 434, 560, env.animate);
+    const m = mascotById(env.mascot);
+    walker(sprite(p, m), m, 206, 434, 560, env.animate);
     const kv = (k, v, cls = "") => [["tm-p", `${k}: `], [cls, v]];
     const names = ["Claude 5h:", "Claude 7d:", "Codex 7d: "];
     return [
@@ -1004,6 +1070,155 @@
           pace[i](v);
         });
         setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
+      },
+    ];
+  }
+
+  // Aligned key, then a bar: the hardware and limit rows of fastfetch and macchina.
+  function fetchRows(p, x, Y, S, n, full, empty) {
+    const L = Y.map((y) => term(p, x, y, S));
+    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[5 + i], S, 10, n));
+    const key = (k) => ["tm-p", k.padEnd(10)];
+    const names = ["Claude 5h", "Claude 7d", "Codex 7d"];
+    return (d) => {
+      const hw = d.hw, r = ram(hw), pw = power(hw);
+      for (const [i, k] of [[0, "cpu"], [1, "gpu"]]) {
+        const h = hw[k];
+        setSpans(L[i], [key(k.toUpperCase()), ...bar(h.load, n, full, empty), ["", ` ${loadText(h).padStart(4)}`], [isHot(h, k) ? "tm-w" : "", ` ${int(h.temp)}°`]]);
+      }
+      setSpans(L[2], [key("Liquid"), ...bar(hw.liquid == null ? null : (hw.liquid - 20) / 30, n, full, empty), ["", ` ${dec(hw.liquid)}°C`]]);
+      setSpans(L[3], [key("Memory"), ...bar(memFrac(r), n, full, empty), ["", ` ${memText(r)}`]]);
+      setSpans(L[4], [key("Power"),...bar(pw == null ? null : pw / 600, n, full, empty), ["", ` ${int(pw)} W`]]);
+      LIMITS.forEach((def, i) => {
+        const v = d.views[def.key];
+        setSpans(L[5 + i], [key(names[i]), ...cells(v, n, full, empty), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
+        pace[i](v);
+      });
+    };
+  }
+
+  // fastfetch: the mascot as an ASCII-art logo on the left, the system beside it with bars.
+  function sceneFastfetch(p, layer, env) {
+    const S = 20, x = 272;
+    const m = mascotById(env.mascot);
+    const logo = asciiSprite(p, m, 10);
+    walker(logo, m, 164, 164, 314 + logo.height / 2, env.animate);
+    const note = term(p, C, 92, 15, "middle");
+    setSpans(term(p, x, 150, S), host());
+    setSpans(term(p, x, 174, S), [["", "-".repeat(10)]]);
+    const rows = fetchRows(p, x, [210, 242, 274, 306, 338, 412, 444, 476], S, 7, "■", "■");
+    const clock = term(p, x, 370, S);
+    return [
+      (d) => {
+        rows(d);
+        setSpans(clock, [["tm-p", "Time".padEnd(10)], ["", hhmmss(d.now)]]);
+        setSpans(note, noteSpans(d));
+      },
+    ];
+  }
+
+  // pfetch: a few short lines, very large, under a small mascot sitting by the name.
+  // The bars of CPU and GPU are their temperatures.
+  function scenePfetch(p, layer, env) {
+    const S = 32, n = 8, x = C - 10 * advance(p, S);
+    const m = mascotById(env.mascot);
+    walker(sprite(p, m, 5), m, 229, 229, 188, env.animate);
+    setSpans(term(p, 287, 164, 28), host());
+    const clock = term(p, 288, 192, 18);
+    const Y = [248, 290, 332, 374, 416, 458, 500];
+    const L = Y.map((y) => term(p, x, y, S));
+    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[4 + i], S, 12, n));
+    const note = term(p, C, 546, 15, "middle");
+    const key = (k) => ["tm-p", k.padEnd(7)];
+    const names = ["5h", "7d", "codex"];
+    return [
+      (d) => {
+        const hw = d.hw;
+        for (const [i, k] of [[0, "cpu"], [1, "gpu"]]) {
+          const h = hw[k];
+          setSpans(L[i], [key(k), [isHot(h, k) ? "tm-w" : "", `${int(h.temp)}°`.padEnd(5)], ...bar(h.temp == null ? null : tempF(h.temp) / 100, n, "■", "■")]);
+        }
+        setSpans(L[2], [key("liquid"), ["", `${dec(hw.liquid)}°`]]);
+        setSpans(L[3], [key("memory"), ["", memText(ram(hw))]]);
+        LIMITS.forEach((def, i) => {
+          const v = d.views[def.key];
+          setSpans(L[4 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], ...cells(v, n, "■", "■")]);
+          pace[i](v);
+        });
+        setSpans(clock, [["tm-d", hhmmss(d.now)]]);
+        setSpans(note, noteSpans(d));
+      },
+    ];
+  }
+
+  // macchina: dot bars for everything in a rounded frame, its name and the time set into the
+  // bottom edge; the mascot walks along the top edge.
+  function sceneMacchina(p, layer, env) {
+    const S = 20, cw = advance(p, S), f = (v) => v.toFixed(1);
+    const x0 = 108, x1 = 532, y0 = 212, y1 = 486, r = 12, gap = (23 * cw) / 2 + 4;
+    el(p, "path", {
+      class: "tm-box",
+      d: `M${f(C - gap)} ${y1}H${x0 + r}Q${x0} ${y1} ${x0} ${y1 - r}V${y0 + r}Q${x0} ${y0} ${x0 + r} ${y0}` +
+        `H${x1 - r}Q${x1} ${y0} ${x1} ${y0 + r}V${y1 - r}Q${x1} ${y1} ${x1 - r} ${y1}H${f(C + gap)}`,
+    });
+    el(p, "path", { class: "tm-box", d: `M${x0} 380H${x1}` });
+    const m = mascotById(env.mascot);
+    walker(sprite(p, m), m, 190, 450, y0 - 1, env.animate);
+    const rows = fetchRows(p, x0 + 1.5 * cw, [243, 272, 301, 330, 359, 407, 436, 465], S, 12, "●", "○");
+    const title = term(p, C, y1 + S * 0.32, S, "middle");
+    const note = term(p, C, 530, 15, "middle");
+    return [
+      (d) => {
+        rows(d);
+        setSpans(title, [["", " "], ...host(), ["tm-d", ` · ${hhmmss(d.now)} `]]);
+        setSpans(note, noteSpans(d));
+      },
+    ];
+  }
+
+  // cpufetch: CPU and GPU as chips with the temperature on the die and the model, load and power
+  // below; the limits under them. The mascot walks across the tips of the pins.
+  function sceneCpufetch(p, layer, env) {
+    const W = 128, H = 118, top = 226, bottom = top + H, f = (v) => v.toFixed(1);
+    const m = mascotById(env.mascot);
+    walker(sprite(p, m), m, 196, 444, top - 12, env.animate);
+    const note = term(p, C, 94, 14, "middle");
+    const chips = ["cpu", "gpu"].map((k, i) => {
+      const cx = C + (i ? 1 : -1) * (W / 2 + 20), x0 = cx - W / 2, x1 = cx + W / 2;
+      let pins = "";
+      for (let j = 0; j < 7; j++) {
+        const px = f(x0 + 16 + (j * (W - 32)) / 6), py = f(top + 14 + (j * (H - 28)) / 6);
+        pins += `M${px} ${top - 12}V${top}M${px} ${bottom}v12M${x0 - 10} ${py}H${x0}M${x1} ${py}h10`;
+      }
+      el(p, "path", { d: pins, class: "nf-pin" });
+      el(p, "rect", { x: x0, y: top, width: W, height: H, rx: 8, class: "nf-chip" });
+      const die = el(p, "rect", { x: x0 + 16, y: top + 16, width: W - 32, height: H - 32, rx: 4, class: "nf-die" });
+      el(p, "circle", { cx: x0 + 9, cy: top + 9, r: 2.5, class: "nf-dot" });
+      setSpans(term(p, cx, top + 37, 14, "middle"), [["tm-k", k.toUpperCase()]]);
+      return { k, die, temp: term(p, cx, top + 82, 38, "middle"), name: term(p, cx, bottom + 38, 15, "middle"), load: term(p, cx, bottom + 63, 15, "middle") };
+    });
+    const S = 20, x = C - 12.5 * advance(p, S), Y = [450, 479, 508];
+    const L = Y.map((y) => term(p, x, y, S));
+    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[i], S, 10, 10));
+    const names = ["Claude 5h", "Claude 7d", "Codex 7d"];
+    const sys = term(p, C, 544, 15, "middle");
+    return [
+      (d) => {
+        const hw = d.hw;
+        for (const c of chips) {
+          const h = hw[c.k], hot = isHot(h, c.k);
+          c.die.classList.toggle("is-hot", hot);
+          setSpans(c.temp, [[hot ? "tm-w" : "tm-t", `${int(h.temp)}°`]]);
+          setSpans(c.name, [["tm-k", fit(model(h.name, c.k.toUpperCase()), 17)]]);
+          setSpans(c.load, [...bar(h.load, 7, "■", "■"), ["", ` ${loadText(h).padStart(4)}`], ["tm-d", ` ${int(h.power)} W`]]);
+        }
+        LIMITS.forEach((def, i) => {
+          const v = d.views[def.key];
+          setSpans(L[i], [["tm-p", names[i].padEnd(10)], ...cells(v, 10, "■", "■"), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
+          pace[i](v);
+        });
+        setSpans(sys, [["tm-k", "liquid "], ["", `${dec(hw.liquid)}°C`], ["tm-k", "  mem "], ["", memText(ram(hw))], ["tm-k", "  power "], ["", `${int(power(hw))} W`]]);
+        setSpans(note, noteSpans(d));
       },
     ];
   }
@@ -1103,6 +1318,10 @@
     htop: sceneHtop,
     btop: sceneBtop,
     neofetch: sceneNeofetch,
+    fastfetch: sceneFastfetch,
+    pfetch: scenePfetch,
+    macchina: sceneMacchina,
+    cpufetch: sceneCpufetch,
     zegar: sceneZegar,
     jedna: sceneJedna,
   };
@@ -1166,7 +1385,7 @@
       if (themed || b !== bgType) back.set((bgType = b), animate);
       // untouched media gets a halo behind the text instead of a dimmed picture
       root.classList.toggle("is-raw", next.look === "raw" && /^media:/.test(b));
-      if (l !== layout || (l === "neofetch" && m !== mascot)) {
+      if (l !== layout || (m !== mascot && LAYOUTS.find((x) => x.id === l).mascot)) {
         layout = l;
         mascot = m;
         buildLayout();

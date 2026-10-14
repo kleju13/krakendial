@@ -13,9 +13,9 @@ use std::time::Duration;
 use tiny_http::{Header, Method, Request, Response, Server};
 
 const ADDR: &str = "127.0.0.1:30640";
-const LAYOUTS: [&str; 13] = [
-    "rotacja", "adaptacyjny", "kokpit", "chronograf", "slupki", "terminal", "htop", "btop", "neofetch", "zegar", "jedna",
-    "limity", "sprzet",
+const LAYOUTS: [&str; 17] = [
+    "rotacja", "adaptacyjny", "kokpit", "chronograf", "slupki", "terminal", "htop", "btop", "neofetch", "fastfetch",
+    "pfetch", "macchina", "cpufetch", "zegar", "jedna", "limity", "sprzet",
 ];
 const THEMES: [&str; 22] = [
     "ice", "porcelana", "mroz", "blue", "deep", "ocean", "indygo", "grafit", "night", "neon", "nord", "tokyo",
@@ -27,7 +27,7 @@ const BGS: [&str; 19] = [
 ];
 /// How the user's own media is drawn: tinted towards the theme, untouched, or as characters.
 const LOOKS: [&str; 3] = ["plain", "raw", "ascii"];
-/// Who walks along the bottom of the neofetch layout.
+/// Who lives in the neofetch layouts.
 const MASCOTS: [&str; 5] = ["kraken", "crab", "ghost", "cat", "robot"];
 /// Whether limits read as what is left or what is used.
 const UNITS: [&str; 2] = ["left", "used"];

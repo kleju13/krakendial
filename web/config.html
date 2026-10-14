@@ -86,8 +86,8 @@
   </aside>
   <div>
     <section><h2>LAYOUT</h2><div class="grid layouts" id="layouts"></div></section>
-    <section><h2>NEOFETCH MASCOT</h2><div class="chips" id="mascots"></div>
-      <div class="hint">Wanders under the neofetch text, looks around and blinks. It only moves now and then, so standing still costs nothing.</div></section>
+    <section><h2>MASCOT</h2><div class="chips" id="mascots"></div>
+      <div class="hint">Lives in the fetch layouts: walks under the neofetch text, along the macchina frame and over the cpufetch chips, sits by the pfetch name, and is the fastfetch logo. It looks around and blinks, and only moves now and then, so standing still costs nothing.</div></section>
     <section><h2>LIMITS SHOW</h2><div class="chips" id="units"></div>
       <div class="hint">The thin line on each limit is where it would be at an even pace through the window: with “left”, how much should still be there now.</div></section>
     <section><h2>THEME</h2><div class="grid themes" id="themes"></div></section>
@@ -145,7 +145,8 @@
     u, b: option(document.getElementById("units"), "chip", label, () => save({ units: u })),
   }));
   const mascotOpts = K.MASCOTS.map((m) => {
-    const b = option(document.getElementById("mascots"), "chip pet", `<svg></svg>${m.name}`, () => save({ mascot: m.id, layout: "neofetch" }));
+    const b = option(document.getElementById("mascots"), "chip pet", `<svg></svg>${m.name}`, () =>
+      save({ mascot: m.id, ...(K.LAYOUTS.find((l) => l.id === cfg().layout)?.mascot ? {} : { layout: "neofetch" }) }));
     K.mascotIcon(b.querySelector("svg"), m.id);
     return { id: m.id, b };
   });

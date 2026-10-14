@@ -63,8 +63,8 @@
     const cpu = (data.cpus || [])[0] || {};
     const gpu = pickGpu(data.gpus) || {};
     hw = {
-      cpu: { temp: cpu.temperature, load: cpu.load, power: cpu.power, peak: peak("cpu", cpu.temperature, now) },
-      gpu: { temp: gpu.temperature, load: gpu.load, power: gpu.power, peak: peak("gpu", gpu.temperature, now) },
+      cpu: { name: cpu.name, temp: cpu.temperature, load: cpu.load, power: cpu.power, peak: peak("cpu", cpu.temperature, now) },
+      gpu: { name: gpu.name, temp: gpu.temperature, load: gpu.load, power: gpu.power, peak: peak("gpu", gpu.temperature, now) },
       liquid: data.kraken ? data.kraken.liquidTemperature : null,
       ram: { used: data.ram ? data.ram.inUse : null, total: data.ram ? data.ram.totalSize : null },
     };
@@ -109,8 +109,8 @@
       t++;
       const busy = Math.floor(t / 40) % 2 === 1;
       onHw({
-        cpus: [{ temperature: 52 + Math.sin(t / 9) * 6 + (busy ? 14 : 0), load: busy ? 0.45 : 0.15, power: busy ? 105 : 42 }],
-        gpus: [{ name: "Mock RTX", temperature: busy ? 76 : 44, load: busy ? 0.97 : 0.05, power: busy ? 285 : 22 }],
+        cpus: [{ name: "AMD Ryzen 7 5800X3D 8-Core Processor", temperature: 52 + Math.sin(t / 9) * 6 + (busy ? 14 : 0), load: busy ? 0.45 : 0.15, power: busy ? 105 : 42 }],
+        gpus: [{ name: "NVIDIA GeForce RTX 4070 SUPER", temperature: busy ? 76 : 44, load: busy ? 0.97 : 0.05, power: busy ? 285 : 22 }],
         kraken: { liquidTemperature: busy ? 36.5 : 31.2 },
         ram: { inUse: 21900, totalSize: 32768 },
       });

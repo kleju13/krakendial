@@ -35,9 +35,14 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
     - **Terminal:** wszystko jako wynik poleceń w konsoli.
     - **htop:** mierniki `CPU[|||   55°C 15%]` u góry, limity jako lista procesów pod odwróconym nagłówkiem. Zaznaczony jest limit, który zużywa się najszybciej względem tempa.
     - **btop:** zaokrąglone ramki na całą tarczę, zegar w ramce. Wykresy temperatur CPU i GPU z ostatnich 2 min są pisane brajlem i same dopasowują skalę (zakres w rogu ramki), więc sięgają do jej górnej krawędzi.
-    - **neofetch:** sprzęt i limity dużym tekstem jako `klucz: wartość`, paleta kolorów motywu, a pod spodem chodzi maskotka.
+    - Rodzina fetch, każdy układ z maskotką:
+      - **neofetch:** sprzęt i limity dużym tekstem jako `klucz: wartość`, a pod spodem chodzi maskotka.
+      - **fastfetch:** maskotka jako logo z ASCII (`$$`) po lewej, obok wyrównana tabela z paskami `■■■□□□□` dla CPU i GPU (obciążenie), cieczy, pamięci, mocy i limitów.
+      - **pfetch:** mała maskotka obok nazwy, pod nią siedem bardzo dużych linijek. Paski CPU i GPU pokazują temperaturę.
+      - **macchina:** paski z kropek `●●●○○○` w zaokrąglonej ramce, nazwa i godzina wpisane w dolną krawędź. Maskotka chodzi po górnej krawędzi ramki.
+      - **cpufetch:** CPU i GPU jako układy scalone z nóżkami, temperatura na rdzeniu (czerwienieje, gdy jest gorąco), pod spodem model, obciążenie i moc. Maskotka chodzi po nóżkach obu układów.
 
-      Maskotkę wybiera się w panelu: Kraken, Crab, Ghost, Cat albo Robot. Co parę sekund mruga, rozgląda się albo przechodzi kawałek, nie wchodząc na tekst. Między ruchami nic się nie zmienia, więc neofetch bez tła kosztuje CAM-a tyle co btop: ok. 20–35% jednego rdzenia.
+      Maskotkę wybiera się w panelu: Kraken, Crab, Ghost, Cat albo Robot. Co parę sekund mruga, rozgląda się albo przechodzi kawałek, nie wchodząc na tekst; tam, gdzie nie ma gdzie chodzić (logo fastfetch, pfetch), przebiera nogami w miejscu. Między ruchami nic się nie zmienia, więc te układy bez tła kosztują CAM-a tyle co btop: ok. 20–35% jednego rdzenia.
 - **Limits show:** ile zostało (domyślnie) albo ile zużyte.
 
   Cienka kreska na każdym limicie to miejsce, w którym byłby przy równym tempie przez całe okno. Przy „ile zostało” mówi, ile powinno jeszcze zostać teraz. W układach terminalowych leży nad znakami paska w dokładnym miejscu, a nie zaokrąglona do całej komórki.

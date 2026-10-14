@@ -274,8 +274,12 @@
 .kd.is-dark .px-K { fill: var(--bg-lo); }
 /* untouched media behind the dial: a soft halo keeps the text readable without dimming the picture */
 .kd.is-raw .scene text { paint-order: stroke; stroke: var(--bg-lo); stroke-width: 3.5px; stroke-opacity: 0.75; stroke-linejoin: round; }
-.kd .nf-0 { fill: var(--bg-lo); } .kd .nf-1 { fill: var(--warn); } .kd .nf-2 { fill: var(--track); } .kd .nf-3 { fill: var(--ink-3); }
-.kd .nf-4 { fill: var(--fill); } .kd .nf-5 { fill: var(--fill-2); } .kd .nf-6 { fill: var(--ink-2); } .kd .nf-7 { fill: var(--ink); }
+/* cpufetch chips: the die turns warning red when the part runs hot */
+.kd .nf-chip { fill: var(--track); fill-opacity: 0.45; stroke: var(--ink-3); stroke-width: 1.5; }
+.kd .nf-die { fill: var(--fill); fill-opacity: 0.12; stroke: var(--fill); stroke-width: 1.5; }
+.kd .nf-die.is-hot { fill: var(--warn); stroke: var(--warn); }
+.kd .nf-pin { stroke: var(--ink-3); stroke-width: 3; }
+.kd .nf-dot { fill: var(--ink-3); }
 
 /* ---------- scenes ---------- */
 
