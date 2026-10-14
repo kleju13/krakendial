@@ -39,7 +39,7 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
     - Rodzina fetch, każdy układ z maskotką:
       - **neofetch:** sprzęt i limity dużym tekstem jako `klucz: wartość`, a pod spodem chodzi maskotka.
       - **fastfetch:** maskotka jako logo z ASCII (`$$`) po lewej, obok wyrównana tabela z paskami `■■■□□□□` dla CPU i GPU (obciążenie), cieczy, pamięci, mocy i limitów.
-      - **pfetch:** mała maskotka obok nazwy, pod nią siedem bardzo dużych linijek. Paski CPU i GPU pokazują temperaturę.
+      - **pfetch:** maskotka obok nazwy i dużej godziny, pod nimi bardzo duże linijki. Paski CPU i GPU pokazują temperaturę, za nimi jest ich moc, a linijka `power` to moc całego zestawu z paskiem do 600 W.
       - **macchina:** paski z kropek `●●●○○○` w zaokrąglonej ramce, nazwa i godzina wpisane w dolną krawędź. Maskotka chodzi po górnej krawędzi ramki.
       - **cpufetch:** CPU i GPU jako układy scalone z nóżkami, temperatura na rdzeniu (czerwienieje, gdy jest gorąco), pod spodem model, obciążenie i moc. Maskotka chodzi po nóżkach obu układów.
 

@@ -27,7 +27,7 @@
     { id: "btop", name: "btop", desc: "Boxes and braille graphs of the last minutes." },
     { id: "neofetch", name: "neofetch", desc: "The system in big type, a mascot wandering below.", mascot: true },
     { id: "fastfetch", name: "fastfetch", desc: "The mascot as an ASCII logo, the system beside it with bars.", mascot: true },
-    { id: "pfetch", name: "pfetch", desc: "Seven very large lines under a small mascot.", mascot: true },
+    { id: "pfetch", name: "pfetch", desc: "Very large lines under a mascot, the name and the time.", mascot: true },
     { id: "macchina", name: "macchina", desc: "Dot bars in a frame the mascot walks along.", mascot: true },
     { id: "cpufetch", name: "cpufetch", desc: "CPU and GPU as chips, the mascot walking over them.", mascot: true },
     { id: "zegar", name: "Clock", desc: "The time, large; limits and hardware around it." },
@@ -156,6 +156,7 @@
 
   // `left`: show what remains of the limit instead of what has been used.
   function limitView(l, now, interval, left) {
+    if (l && l.nextAt > l.fetchedAt) interval = Math.max(interval, l.nextAt - l.fetchedAt);
     const staleAfter = Math.max(STALE_MS, 3 * interval);
     if (!l || l.pct == null) {
       const sub = l && l.error ? [{ t: l.error, warn: true }] : [{ t: "waiting for data" }];
@@ -1150,36 +1151,45 @@
     ];
   }
 
-  // pfetch: a few short lines, very large, under a small mascot sitting by the name.
-  // The bars of CPU and GPU are their temperatures.
+  // pfetch: short lines, very large, under a mascot sitting by the name and the time.
+  // The bars of CPU and GPU are their temperatures, their power follows the bar; the power
+  // line is the whole set, with a bar to 600 W.
   function scenePfetch(p, layer, env) {
-    const S = 32, n = 8, x = C - 10 * advance(p, S);
+    const S = 32, n = 7, cw = advance(p, S), x = C - 11 * cw;
     const m = mascotById(env.mascot);
-    walker(sprite(p, m, 5), m, 229, 229, 188, env.animate);
-    setSpans(term(p, 287, 164, 28), host());
-    const clock = term(p, 288, 192, 18);
-    const Y = env.cost ? [240, 278, 316, 354, 392, 430, 468, 506] : [248, 290, 332, 374, 416, 458, 500];
+    walker(sprite(p, m, 6), m, 229, 229, 164, env.animate);
+    setSpans(term(p, 295, 124, 26), host());
+    const clock = term(p, 295, 162, S);
+    // nine lines with the cost, eight without, centred below the middle, clear of the header
+    const rows = env.cost ? 9 : 8;
+    const Y = Array.from({ length: rows }, (_, i) => Math.round(372 - (rows - 1) * 18.5 + i * 37));
     const L = Y.map((y) => term(p, x, y, S));
-    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[4 + i], S, 12, n));
-    const note = term(p, C, 546, 15, "middle");
+    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[5 + i], S, 12, n));
+    const note = term(p, C, Y[rows - 1] + 42, 15, "middle");
     const key = (k) => ["tm-p", k.padEnd(7)];
     const names = ["5h", "7d", "codex"];
     return [
       (d) => {
-        const hw = d.hw;
+        const hw = d.hw, pw = power(hw);
         for (const [i, k] of [[0, "cpu"], [1, "gpu"]]) {
           const h = hw[k];
-          setSpans(L[i], [key(k), [isHot(h, k) ? "tm-w" : "", `${int(h.temp)}°`.padEnd(5)], ...bar(h.temp == null ? null : tempF(h.temp) / 100, n, "■", "■")]);
+          setSpans(L[i], [
+            key(k),
+            [isHot(h, k) ? "tm-w" : "", `${int(h.temp)}°`.padEnd(5)],
+            ...bar(h.temp == null ? null : tempF(h.temp) / 100, n, "■", "■"),
+            ["", ` ${int(h.power)}W`],
+          ]);
         }
-        setSpans(L[2], [key("liquid"), ["", `${dec(hw.liquid)}°`]]);
-        setSpans(L[3], [key("memory"), ["", memText(ram(hw))]]);
+        setSpans(L[2], [key("power"), ["", `${int(pw)}W`.padEnd(5)], ...bar(pw == null ? null : pw / 600, n, "■", "■")]);
+        setSpans(L[3], [key("liquid"), ["", `${dec(hw.liquid)}°`]]);
+        setSpans(L[4], [key("memory"), ["", memText(ram(hw))]]);
         LIMITS.forEach((def, i) => {
           const v = d.views[def.key];
-          setSpans(L[4 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], ...cells(v, n, "■", "■")]);
+          setSpans(L[5 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], ...cells(v, n, "■", "■")]);
           pace[i](v);
         });
-        if (L[7]) setSpans(L[7], [key("cost"), ...costSpans(d.cost)]);
-        setSpans(clock, [["tm-d", hhmmss(d.now)]]);
+        if (L[8]) setSpans(L[8], [key("cost"), ...costSpans(d.cost)]);
+        setSpans(clock, [["tm-t", hhmmss(d.now)]]);
         setSpans(note, noteSpans(d));
       },
     ];
