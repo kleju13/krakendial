@@ -259,6 +259,11 @@
 .kd .tm-f { fill: var(--fill); }
 .kd .tm-o { fill: var(--fill-2); }
 .kd .tm-e { fill: var(--ink-2); opacity: 0.45; }
+/* a bar's fill over its empty cells: the stops of its gradient (fill, past the pace, used up, clear) */
+.kd .bs-f { stop-color: var(--fill); }
+.kd .bs-o { stop-color: var(--fill-2); }
+.kd .bs-w { stop-color: var(--warn); }
+.kd .bs-x { stop-opacity: 0; }
 .kd .tm-c { fill: var(--fill); }
 .kd .tm-t { fill: var(--ink); font-weight: 600; }
 .kd .tm-b { fill: var(--ink); font-weight: 700; }
@@ -275,6 +280,8 @@
 .kd.is-dark .px-K { fill: var(--bg-lo); }
 /* untouched media behind the dial: a soft halo keeps the text readable without dimming the picture */
 .kd.is-raw .scene text { paint-order: stroke; stroke: var(--bg-lo); stroke-width: 3.5px; stroke-opacity: 0.75; stroke-linejoin: round; }
+/* a bar's fill lies on its empty cells, which already carry the halo */
+.kd.is-raw .scene .t-bar { stroke: none; }
 /* cpufetch chips: the die turns warning red when the part runs hot */
 .kd .nf-chip { fill: var(--track); fill-opacity: 0.45; stroke: var(--ink-3); stroke-width: 1.5; }
 .kd .nf-die { fill: var(--fill); fill-opacity: 0.12; stroke: var(--fill); stroke-width: 1.5; }

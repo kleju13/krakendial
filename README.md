@@ -46,7 +46,7 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
       Maskotkę wybiera się w panelu: Kraken, Crab, Ghost, Cat albo Robot. Co parę sekund mruga, rozgląda się albo przechodzi kawałek, nie wchodząc na tekst; tam, gdzie nie ma gdzie chodzić (logo fastfetch, pfetch), przebiera nogami w miejscu. Między ruchami nic się nie zmienia, więc te układy bez tła kosztują CAM-a tyle co btop: ok. 20–35% jednego rdzenia.
 - **Limits show:** ile zostało (domyślnie) albo ile zużyte.
 
-  Cienka kreska na każdym limicie to miejsce, w którym byłby przy równym tempie przez całe okno. Przy „ile zostało” mówi, ile powinno jeszcze zostać teraz. W układach terminalowych leży nad znakami paska w dokładnym miejscu, a nie zaokrąglona do całej komórki.
+  Cienka kreska na każdym limicie to miejsce, w którym byłby przy równym tempie przez całe okno. Przy „ile zostało” mówi, ile powinno jeszcze zostać teraz. W układach terminalowych leży nad znakami paska w dokładnym miejscu, a sam pasek też kończy się tam, gdzie wypada wartość, w razie potrzeby w połowie kwadratu czy kropki, a nie na całej komórce. Dzięki temu przy tygodniowym limicie widać, czy jest przed kreską, czy za nią. Tak samo wypełniają się paski temperatur, obciążenia, pamięci i mocy.
 - **Theme:** Ice, Porcelain, Frost, Blue, Ocean, Deep, Indigo, Graphite, Night, Neon, a w stylu motywów terminala: Nord, Tokyo Night, Catppuccin, Latte, Dracula, Solarized, Gruvbox, Synthwave, Phosphor, Amber, Mono, Paper.
 - **Background:** rysowane animacje albo brak. Przyspieszają razem z obciążeniem GPU.
   - Liquid, Ripples, Bubbles, Aurora, Flow, Nebula, Stars, Bokeh.

@@ -562,8 +562,9 @@
   }
 
   // ---------- the terminal family ----------
-  // Monospace output. Bars are character cells; the pace is the same thin line as on the other
-  // layouts, laid over the cells at its exact position rather than rounded to a whole cell.
+  // Monospace output. Bars are character cells, but they fill to their exact place, partway
+  // through a cell when that is where the value is; the pace is the same thin line as on the
+  // other layouts, laid over the cells at its exact position too.
 
   const term = (p, x, y, size, anchor = "start") =>
     el(p, "text", { x: x.toFixed(1), y, "text-anchor": anchor, class: "t-term", style: `font-size:${size}px` });
@@ -579,16 +580,39 @@
     return w > 0 ? w : size * 0.586;
   }
 
-  // ██████░░░░ : a limit in n cells; what was used past the pace is in the lighter colour.
-  function cells(v, n, full = "█", empty = "░") {
-    const s = limitSpan(v);
-    const end = Math.round((s.f / 100) * n);
-    const cut = s.over == null ? end : Math.min(end, Math.round((s.over / 100) * n));
-    return [["tm-f", full.repeat(cut)], [v.hot ? "tm-w" : "tm-o", full.repeat(end - cut)], ["tm-e", empty.repeat(n - end)]];
+  // ░░░░░░░░░░ : the empty cells of a bar, part of its line. barFill draws the full ones over them.
+  const track = (n, empty = "░") => ["tm-e", empty.repeat(n)];
+  let barIds = 0;
+  // ███▌░░░░░░ : the full glyphs of the n cells from column col, over the track, coloured by a
+  // gradient with hard stops: the fill up to a, the second colour from a to b, clear from b on
+  // (fractions of the bar). So a bar ends inside a cell, where the pace line would meet it.
+  function barFill(p, x, y, size, col, n, full = "█") {
+    const cw = advance(p, size), x0 = x + col * cw, id = `bar${++barIds}`;
+    const grad = el(p, "linearGradient", { id, gradientUnits: "userSpaceOnUse", x1: x0.toFixed(1), y1: 0, x2: (x0 + n * cw).toFixed(1), y2: 0 });
+    const stops = ["bs-f", "bs-f", "bs-o", "bs-o", "bs-x", "bs-x"].map((c, i) => el(grad, "stop", { offset: i < 5 ? 0 : 1, class: c }));
+    el(p, "text", { x: x0.toFixed(1), y, class: "t-term t-bar", style: `font-size:${size}px;fill:url(#${id})` }, full.repeat(n));
+    return (a, b = a, second = "bs-o") => {
+      const at = [a, a, b, b].map((f) => clamp(f, 0, 1).toFixed(4));
+      for (let i = 0; i < 4; i++) setAttr(stops[1 + i], "offset", at[i]);
+      setAttr(stops[2], "class", second);
+      setAttr(stops[3], "class", second);
+    };
   }
-  function bar(frac, n, full = "█", empty = "░") {
-    const k = frac == null ? 0 : Math.round(clamp(frac, 0, 1) * n);
-    return [["tm-f", full.repeat(k)], ["tm-e", empty.repeat(n - k)]];
+  // A limit's bar: what was used past the pace is in the lighter colour (red once the limit is
+  // used up), and the pace line lies over it.
+  function limitBar(p, x, y, size, col, n, full) {
+    const fill = barFill(p, x, y, size, col, n, full);
+    const pace = paceLine(p, x, y, size, col, n);
+    return (v) => {
+      const s = limitSpan(v), end = s.f / 100;
+      fill(s.over == null ? end : Math.min(end, s.over / 100), end, v.hot ? "bs-w" : "bs-o");
+      pace(v);
+    };
+  }
+  // A bar of a fraction from 0 to 1; empty when there is none.
+  function fracBar(p, x, y, size, col, n, full) {
+    const fill = barFill(p, x, y, size, col, n, full);
+    return (frac) => fill(frac == null ? 0 : frac);
   }
   const fit = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
   const pctText = (v) => (v.value === "—" ? "   —" : `${v.value.padStart(3)}%`);
@@ -614,7 +638,8 @@
   function sceneTerminal(p) {
     const Y = [128, 168, 204, 240, 284, 320, 356, 392, 428, 472, 510];
     const L = Y.map((y) => term(p, 78, y, 20));
-    const pace = LIMITS.map((_, i) => paceLine(p, 78, Y[1 + i], 20, 10, 10));
+    const gauges = LIMITS.map((_, i) => limitBar(p, 78, Y[1 + i], 20, 10, 10));
+    const loads = { cpu: fracBar(p, 78, Y[5], 20, 13, 10), gpu: fracBar(p, 78, Y[6], 20, 13, 10) };
     const prompt = (cmd) => [["tm-p", "kraken"], ["tm-d", "@lcd ~ $ "], ["", cmd]];
     return [
       (d) => {
@@ -623,11 +648,11 @@
           const v = d.views[def.key];
           setSpans(L[1 + i], [
             ["tm-k", `${def.cmd} `],
-            ...cells(v, 10),
+            track(10),
             [v.dim ? "tm-d" : v.hot ? "tm-w" : "", ` ${pctText(v)}`],
             [subClass(v), `  ${fit(v.sub.map((x) => x.t).join(" "), 16)}`],
           ]);
-          pace[i](v);
+          gauges[i](v);
         });
         setSpans(L[4], prompt("hw"));
         for (const [i, key] of [[5, "cpu"], [6, "gpu"]]) {
@@ -636,10 +661,11 @@
             ["tm-k", key.padEnd(7)],
             [isHot(h, key) ? "tm-w" : "", `${int(h.temp)}°`.padStart(4)],
             ["", "  "],
-            ...bar(h.load, 10),
+            track(10),
             ["", ` ${h.load == null ? "  —" : String(Math.round(h.load * 100)).padStart(3)}%`],
             ["tm-d", `  ${int(h.power).padStart(3)} W`],
           ]);
+          loads[key](h.load);
         }
         setSpans(L[7], [["tm-k", "liquid "], ["", `${dec(d.hw.liquid)}°`.padEnd(8)], ["tm-k", "power "], ["", `${int(power(d.hw))} W`]]);
         const r = ram(d.hw);
@@ -668,7 +694,7 @@
     const head = line(330);
     const ROWS = [362, 394, 426];
     const rows = ROWS.map(line);
-    const pace = ROWS.map((y) => paceLine(p, x, y, S, 16, 10));
+    const gauges = ROWS.map((y) => limitBar(p, x, y, S, 16, 10, "|"));
     const note = line(464);
     // F-keys: the number plain, its label inverse
     const keys = [["F1", "Help"], ["F2", "Setup"], ["F3", "Theme"], ["F10", "Quit"]];
@@ -703,10 +729,10 @@
             ["tm-k", ` ${def.cmd} `],
             [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v)],
             ["", " "],
-            ...cells(v, 10, "|", " "),
+            track(10, " "),
             [subClass(v), ` ${fit(resetIn(v, d.now), 8).padStart(8)}`],
           ]);
-          pace[i](v);
+          gauges[i](v);
           // how far the limit is behind an even pace
           const gap = s.notch == null || v.dim ? -Infinity : d.left ? s.notch - s.f : s.f - s.notch;
           if (gap > behind) [worst, behind] = [i, gap];
@@ -766,7 +792,7 @@
     const clockText = box(lx0, lx1, 116, 228, "¹", "limits", 8);
     const LY = [150, 181, 212];
     const rows = LY.map((y) => term(p, lx0 + cw, y, S));
-    const pace = LY.map((y) => paceLine(p, lx0 + cw, y, S, 10, 10));
+    const gauges = LY.map((y) => limitBar(p, lx0 + cw, y, S, 10, 10, "■"));
 
     const [gx0, gx1] = span(45);
     const GY = [270, 293, 316, 339];
@@ -781,6 +807,7 @@
     const [sx0, sx1] = span(40);
     const costText = box(sx0, sx1, 408, 490, "⁴", "sys", env.cost ? 13 : 0);
     const sys = [442, 474].map((y) => term(p, sx0 + cw, y, S));
+    const mem = fracBar(p, sx0 + cw, 474, S, 4, 25, "■");
     const note = term(p, C, 528, 16, "middle");
     let sampledAt = -Infinity;
     return [
@@ -794,11 +821,11 @@
           const v = d.views[def.key];
           setSpans(rows[i], [
             ["tm-k", `${def.cmd} `],
-            ...cells(v, 10, "■", "■"),
+            track(10, "■"),
             [v.dim ? "tm-d" : v.hot ? "tm-w" : "", ` ${pctText(v)}`],
             [subClass(v), `  ${fit(resetIn(v, d.now), 6).padStart(6)}`],
           ]);
-          pace[i](v);
+          gauges[i](v);
         });
         const sample = d.now - sampledAt >= 3000;
         if (sample) sampledAt = d.now;
@@ -822,9 +849,10 @@
         setSpans(sys[0], [["tm-k", "liquid "], ["tm-t", `${dec(d.hw.liquid)}°C`.padEnd(13)], ["tm-k", "power "], ["tm-t", `${int(power(d.hw))} W`]]);
         setSpans(sys[1], [
           ["tm-k", "mem "],
-          ...bar(r.used != null && r.total ? r.used / r.total : null, 25, "■", "■"),
+          track(25, "■"),
           ["", ` ${r.used == null ? "—" : dec(r.used / 1024)}/${r.total == null ? "—" : Math.round(r.total / 1024)}G`],
         ]);
+        mem(memFrac(r));
         setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
       },
     ];
@@ -1083,7 +1111,7 @@
     setSpans(term(p, x, 136, S), [["", "-".repeat(10)]]);
     const Y = [170, 201, 232, 263, 294, 325, 362, 393, 424];
     const L = Y.map((y) => term(p, x, y, S));
-    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[6 + i], S, 16, 10));
+    const gauges = LIMITS.map((_, i) => limitBar(p, x, Y[6 + i], S, 16, 10));
     const cost = env.cost ? term(p, x, 455, S) : null;
     const m = mascotById(env.mascot);
     walker(sprite(p, m), m, 206, 434, 560, env.animate);
@@ -1102,8 +1130,8 @@
         setSpans(L[5], kv("Time", hhmmss(d.now)));
         LIMITS.forEach((def, i) => {
           const v = d.views[def.key];
-          setSpans(L[6 + i], [["tm-p", `${names[i]} `], [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v).trim().padEnd(5)], ...cells(v, 10)]);
-          pace[i](v);
+          setSpans(L[6 + i], [["tm-p", `${names[i]} `], [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v).trim().padEnd(5)], track(10)]);
+          gauges[i](v);
         });
         if (cost) setSpans(cost, [["tm-p", "Cost: "], ...costSpans(d.cost)]);
         setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
@@ -1115,22 +1143,27 @@
   // when Y has a ninth row for it.
   function fetchRows(p, x, Y, S, n, full, empty) {
     const L = Y.map((y) => term(p, x, y, S));
-    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[5 + i], S, 10, n));
+    const bars = Y.slice(0, 5).map((y) => fracBar(p, x, y, S, 10, n, full));
+    const gauges = LIMITS.map((_, i) => limitBar(p, x, Y[5 + i], S, 10, n, full));
     const key = (k) => ["tm-p", k.padEnd(10)];
     const names = ["Claude 5h", "Claude 7d", "Codex 7d"];
     return (d) => {
       const hw = d.hw, r = ram(hw), pw = power(hw);
       for (const [i, k] of [[0, "cpu"], [1, "gpu"]]) {
         const h = hw[k];
-        setSpans(L[i], [key(k.toUpperCase()), ...bar(h.load, n, full, empty), ["", ` ${loadText(h).padStart(4)}`], [isHot(h, k) ? "tm-w" : "", ` ${int(h.temp)}°`]]);
+        setSpans(L[i], [key(k.toUpperCase()), track(n, empty), ["", ` ${loadText(h).padStart(4)}`], [isHot(h, k) ? "tm-w" : "", ` ${int(h.temp)}°`]]);
+        bars[i](h.load);
       }
-      setSpans(L[2], [key("Liquid"), ...bar(hw.liquid == null ? null : (hw.liquid - 20) / 30, n, full, empty), ["", ` ${dec(hw.liquid)}°C`]]);
-      setSpans(L[3], [key("Memory"), ...bar(memFrac(r), n, full, empty), ["", ` ${memText(r)}`]]);
-      setSpans(L[4], [key("Power"),...bar(pw == null ? null : pw / 600, n, full, empty), ["", ` ${int(pw)} W`]]);
+      setSpans(L[2], [key("Liquid"), track(n, empty), ["", ` ${dec(hw.liquid)}°C`]]);
+      bars[2](hw.liquid == null ? null : (hw.liquid - 20) / 30);
+      setSpans(L[3], [key("Memory"), track(n, empty), ["", ` ${memText(r)}`]]);
+      bars[3](memFrac(r));
+      setSpans(L[4], [key("Power"), track(n, empty), ["", ` ${int(pw)} W`]]);
+      bars[4](pw == null ? null : pw / 600);
       LIMITS.forEach((def, i) => {
         const v = d.views[def.key];
-        setSpans(L[5 + i], [key(names[i]), ...cells(v, n, full, empty), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
-        pace[i](v);
+        setSpans(L[5 + i], [key(names[i]), track(n, empty), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
+        gauges[i](v);
       });
       if (L[8]) setSpans(L[8], [key("Cost"), ...costSpans(d.cost)]);
     };
@@ -1172,7 +1205,8 @@
     const rows = env.cost ? 9 : 8;
     const Y = Array.from({ length: rows }, (_, i) => Math.round(372 - (rows - 1) * 18.5 + i * 37));
     const L = Y.map((y) => term(p, x, y, S));
-    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[5 + i], S, 12, n));
+    const bars = Y.slice(0, 3).map((y) => fracBar(p, x, y, S, 12, n, "■"));
+    const gauges = LIMITS.map((_, i) => limitBar(p, x, Y[5 + i], S, 12, n, "■"));
     const note = term(p, C, Y[rows - 1] + 42, 15, "middle");
     const key = (k) => ["tm-p", k.padEnd(7)];
     const names = ["5h", "7d", "codex"];
@@ -1181,21 +1215,18 @@
         const hw = d.hw, pw = power(hw);
         for (const [i, k] of [[0, "cpu"], [1, "gpu"]]) {
           const h = hw[k];
-          setSpans(L[i], [
-            key(k),
-            [isHot(h, k) ? "tm-w" : "", `${int(h.temp)}°`.padEnd(5)],
-            ...bar(h.temp == null ? null : tempF(h.temp) / 100, n, "■", "■"),
-            ["", ` ${int(h.power)}W`],
-          ]);
+          setSpans(L[i], [key(k), [isHot(h, k) ? "tm-w" : "", `${int(h.temp)}°`.padEnd(5)], track(n, "■"), ["", ` ${int(h.power)}W`]]);
+          bars[i](h.temp == null ? null : tempF(h.temp) / 100);
         }
-        setSpans(L[2], [key("power"), ["", `${int(pw)}W`.padEnd(5)], ...bar(pw == null ? null : pw / 600, n, "■", "■")]);
+        setSpans(L[2], [key("power"), ["", `${int(pw)}W`.padEnd(5)], track(n, "■")]);
+        bars[2](pw == null ? null : pw / 600);
         setSpans(L[3], [key("liquid"), ["", `${dec(hw.liquid)}°`]]);
         setSpans(L[4], [key("memory"), ["", memText(ram(hw))]]);
         LIMITS.forEach((def, i) => {
           const v = d.views[def.key];
           const until = v.resetsAt > d.now ? ` ${durShort(v.resetsAt - d.now)}` : "";
-          setSpans(L[5 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], ...cells(v, n, "■", "■"), [limitClass(v), until]]);
-          pace[i](v);
+          setSpans(L[5 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], track(n, "■"), [limitClass(v), until]]);
+          gauges[i](v);
         });
         if (L[8]) setSpans(L[8], [key("cost"), ...costSpans(d.cost)]);
         setSpans(clock, [["tm-t", hhmmss(d.now)]]);
@@ -1250,11 +1281,13 @@
       const die = el(p, "rect", { x: x0 + 16, y: top + 16, width: W - 32, height: H - 32, rx: 4, class: "nf-die" });
       el(p, "circle", { cx: x0 + 9, cy: top + 9, r: 2.5, class: "nf-dot" });
       setSpans(term(p, cx, top + 37, 14, "middle"), [["tm-k", k.toUpperCase()]]);
-      return { k, die, temp: term(p, cx, top + 82, 38, "middle"), name: term(p, cx, bottom + 38, 15, "middle"), load: term(p, cx, bottom + 63, 15, "middle") };
+      // the load line is 18 characters, centred under the chip
+      const lx = cx - 9 * advance(p, 15), load = term(p, lx, bottom + 63, 15);
+      return { k, die, temp: term(p, cx, top + 82, 38, "middle"), name: term(p, cx, bottom + 38, 15, "middle"), load, bar: fracBar(p, lx, bottom + 63, 15, 0, 7, "■") };
     });
     const S = 20, x = C - 12.5 * advance(p, S), Y = [450, 479, 508];
     const L = Y.map((y) => term(p, x, y, S));
-    const pace = LIMITS.map((_, i) => paceLine(p, x, Y[i], S, 10, 10));
+    const gauges = LIMITS.map((_, i) => limitBar(p, x, Y[i], S, 10, 10, "■"));
     const names = ["Claude 5h", "Claude 7d", "Codex 7d"];
     const sys = term(p, C, 544, 15, "middle");
     return [
@@ -1265,12 +1298,13 @@
           c.die.classList.toggle("is-hot", hot);
           setSpans(c.temp, [[hot ? "tm-w" : "tm-t", `${int(h.temp)}°`]]);
           setSpans(c.name, [["tm-k", fit(model(h.name, c.k.toUpperCase()), 17)]]);
-          setSpans(c.load, [...bar(h.load, 7, "■", "■"), ["", ` ${loadText(h).padStart(4)}`], ["tm-d", ` ${int(h.power)} W`]]);
+          setSpans(c.load, [track(7, "■"), ["", ` ${loadText(h).padStart(4)}`], ["tm-d", ` ${int(h.power)} W`.padEnd(6)]]);
+          c.bar(h.load);
         }
         LIMITS.forEach((def, i) => {
           const v = d.views[def.key];
-          setSpans(L[i], [["tm-p", names[i].padEnd(10)], ...cells(v, 10, "■", "■"), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
-          pace[i](v);
+          setSpans(L[i], [["tm-p", names[i].padEnd(10)], track(10, "■"), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
+          gauges[i](v);
         });
         const last = d.cost ? [["tm-k", `  ${d.cost.short} `], [d.cost.dim ? "tm-d" : "", d.cost.value]] : [["tm-k", "  power "], ["", `${int(power(hw))} W`]];
         setSpans(sys, [["tm-k", "liquid "], ["", `${dec(hw.liquid)}°C`], ["tm-k", "  mem "], ["", memText(ram(hw))], ...last]);
