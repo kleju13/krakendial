@@ -90,6 +90,8 @@
       <div class="hint">Lives in the fetch layouts: walks under the neofetch text, along the macchina frame and over the cpufetch chips, sits by the pfetch name, and is the fastfetch logo. It looks around and blinks, and only moves now and then, so standing still costs nothing.</div></section>
     <section><h2>LIMITS SHOW</h2><div class="chips" id="units"></div>
       <div class="hint">The thin line on each limit is where it would be at an even pace through the window: with “left”, how much should still be there now.</div></section>
+    <section><h2>CPU AND GPU BARS</h2><div class="chips" id="hwbars"></div>
+      <div class="hint">What the CPU and GPU bars fill with in the terminal layouts; their value is next to the bar. btop’s graphs and the round layouts always show temperatures.</div></section>
     <section><h2>THEME</h2><div class="grid themes" id="themes"></div></section>
     <section><h2>BACKGROUND</h2><div class="grid bgs" id="bgs"></div>
       <div class="hint">Hover to see it move. Backgrounds speed up while the graphics card is busy.</div></section>
@@ -109,10 +111,11 @@
   const K = KrakenDial;
   const FPS = [[10, "10 fps"], [20, "20 fps"], [30, "30 fps"]];
   const UNITS = [["left", "What’s left"], ["used", "What’s used"]];
+  const BARS = [["load", "Usage"], ["temp", "Temperature"]];
   const LOOKS = [["plain", "Theme tint"], ["raw", "Original"], ["ascii", "ASCII"]];
   const MEDIA_HINT = document.getElementById("media-hint").textContent;
   let state = { limits: {}, costs: null, interval: 60e3, config: {}, hw: null };
-  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h", ...(state.config || {}) });
+  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h", bars: "load", ...(state.config || {}) });
 
   const preview = K.create(document.getElementById("preview"), cfg());
 
@@ -142,6 +145,9 @@
   });
   const unitOpts = UNITS.map(([u, label]) => ({
     u, b: option(document.getElementById("units"), "chip", label, () => save({ units: u })),
+  }));
+  const barOpts = BARS.map(([v, label]) => ({
+    v, b: option(document.getElementById("hwbars"), "chip", label, () => save({ bars: v })),
   }));
   const mascotOpts = K.MASCOTS.map((m) => {
     const b = option(document.getElementById("mascots"), "chip pet", `<svg></svg>${m.name}`, () =>
@@ -260,7 +266,7 @@
   function render() {
     const c = cfg();
     const now = Date.now();
-    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}`;
+    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}|${c.bars}`;
     const minis = key !== minisKey || now - minisAt > 5e3;
     if (minis) {
       minisKey = key;
@@ -274,13 +280,13 @@
     for (const o of layoutOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.layout));
       if (!minis) continue;
-      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak", units: c.units, mascot: c.mascot, cost: c.cost });
+      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak", units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars });
       o.dial.update(data);
     }
     for (const o of themeOpts) {
       o.b.setAttribute("aria-pressed", String(o.id === c.theme));
       if (!minis) continue;
-      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak", units: c.units, mascot: c.mascot, cost: c.cost });
+      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak", units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars });
       o.dial.update(data);
     }
     for (const o of bgOpts.concat(mediaOpts)) {
@@ -293,6 +299,7 @@
       }
     }
     for (const o of unitOpts) o.b.setAttribute("aria-pressed", String(o.u === c.units));
+    for (const o of barOpts) o.b.setAttribute("aria-pressed", String(o.v === c.bars));
     for (const o of lookOpts) o.b.setAttribute("aria-pressed", String(o.l === c.look));
     for (const o of mascotOpts) o.b.setAttribute("aria-pressed", String(o.id === c.mascot));
     for (const o of fpsOpts) o.b.setAttribute("aria-pressed", String(o.n === c.fps));

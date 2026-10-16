@@ -31,6 +31,8 @@ const LOOKS: [&str; 3] = ["plain", "raw", "ascii"];
 const MASCOTS: [&str; 5] = ["kraken", "crab", "ghost", "cat", "robot"];
 /// Whether limits read as what is left or what is used.
 const UNITS: [&str; 2] = ["left", "used"];
+/// What the CPU and GPU bars of the terminal layouts fill with.
+const BARS: [&str; 2] = ["load", "temp"];
 /// Which of the ledger's costs the dial shows.
 const COSTS: [&str; 5] = ["last24h", "today", "last7d", "month", "off"];
 /// Background frame rates. CAM spends CPU on every frame it captures, so the default is low.
@@ -74,6 +76,9 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     }
     if let Some(c) = patch["cost"].as_str().filter(|c| COSTS.contains(c)) {
         cfg["cost"] = json!(c);
+    }
+    if let Some(b) = patch["bars"].as_str().filter(|b| BARS.contains(b)) {
+        cfg["bars"] = json!(b);
     }
     if let Some(f) = patch["fps"].as_i64().filter(|f| FPS.contains(f)) {
         cfg["fps"] = json!(f);
@@ -235,7 +240,7 @@ fn main() {
     };
     let state_path = data_dir().join("state.json");
     let mut config =
-        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "fps": 10, "units": "left", "look": "plain", "mascot": "kraken", "cost": "last24h" });
+        json!({ "layout": "rotacja", "theme": "ice", "bg": "ciecz", "fps": 10, "units": "left", "look": "plain", "mascot": "kraken", "cost": "last24h", "bars": "load" });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
     }

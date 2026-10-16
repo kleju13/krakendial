@@ -3,7 +3,7 @@
 // separate layers so fades are composited, and the DOM is only touched when a value really changes.
 //   const dial = KrakenDial.create(container, { layout, theme, bg, fps, units, look });
 //   dial.update({ now, hw, limits, costs, interval, mode }); // call about once a second
-//   dial.configure({ layout, theme, bg, fps, units, look, mascot, cost }); // switch variant live
+//   dial.configure({ layout, theme, bg, fps, units, look, mascot, cost, bars }); // switch variant live
 //   dial.setActivity(gpuLoad);                               // 0..1, speeds the background up under load
 (function () {
   const NS = "http://www.w3.org/2000/svg";
@@ -620,6 +620,10 @@
   const resetIn = (v, now) => (v.state === "ok" && v.resetsAt ? dur(v.resetsAt - now) : v.sub.map((x) => x.t).join(" "));
   const subClass = (v) => (v.sub.some((x) => x.warn) ? "tm-w" : "tm-d");
   const ram = (hw) => hw.ram || {};
+  const loadText = (h) => (h.load == null ? "—" : `${Math.round(h.load * 100)}%`);
+  // What the CPU and GPU bars of the terminal layouts fill with, as set in the settings: the
+  // load, or the temperature on the 20–100° scale of the gauges.
+  const hwFrac = (h, d) => (d.bars === "temp" ? (h.temp == null ? null : tempF(h.temp) / 100) : h.load);
 
   // The pace line over the n cells that start at column col of a line of text.
   function paceLine(p, x, y, size, col, n) {
@@ -639,7 +643,7 @@
     const Y = [128, 168, 204, 240, 284, 320, 356, 392, 428, 472, 510];
     const L = Y.map((y) => term(p, 78, y, 20));
     const gauges = LIMITS.map((_, i) => limitBar(p, 78, Y[1 + i], 20, 10, 10));
-    const loads = { cpu: fracBar(p, 78, Y[5], 20, 13, 10), gpu: fracBar(p, 78, Y[6], 20, 13, 10) };
+    const bars = { cpu: fracBar(p, 78, Y[5], 20, 13, 10), gpu: fracBar(p, 78, Y[6], 20, 13, 10) };
     const prompt = (cmd) => [["tm-p", "kraken"], ["tm-d", "@lcd ~ $ "], ["", cmd]];
     return [
       (d) => {
@@ -657,15 +661,11 @@
         setSpans(L[4], prompt("hw"));
         for (const [i, key] of [[5, "cpu"], [6, "gpu"]]) {
           const h = d.hw[key];
-          setSpans(L[i], [
-            ["tm-k", key.padEnd(7)],
-            [isHot(h, key) ? "tm-w" : "", `${int(h.temp)}°`.padStart(4)],
-            ["", "  "],
-            track(10),
-            ["", ` ${h.load == null ? "  —" : String(Math.round(h.load * 100)).padStart(3)}%`],
-            ["tm-d", `  ${int(h.power).padStart(3)} W`],
-          ]);
-          loads[key](h.load);
+          // the bar's own value follows it
+          const temp = [isHot(h, key) ? "tm-w" : "", `${int(h.temp)}°`.padStart(4)], load = ["", loadText(h).padStart(4)];
+          const [before, after] = d.bars === "temp" ? [load, temp] : [temp, load];
+          setSpans(L[i], [["tm-k", key.padEnd(7)], before, ["", "  "], track(10), ["", " "], after, ["tm-d", `  ${int(h.power).padStart(3)} W`]]);
+          bars[key](hwFrac(h, d));
         }
         setSpans(L[7], [["tm-k", "liquid "], ["", `${dec(d.hw.liquid)}°`.padEnd(8)], ["tm-k", "power "], ["", `${int(power(d.hw))} W`]]);
         const r = ram(d.hw);
@@ -715,7 +715,8 @@
         const hw = d.hw, r = ram(hw), pw = power(hw);
         for (const [i, key, label] of [[0, "cpu", "CPU"], [1, "gpu", "GPU"]]) {
           const h = hw[key];
-          setSpans(meters[i], meter(label, h.load, `${int(h.temp)}°C ${h.load == null ? "—" : Math.round(h.load * 100)}%`, isHot(h, key)));
+          const temp = `${int(h.temp)}°C`, load = loadText(h);
+          setSpans(meters[i], meter(label, hwFrac(h, d), d.bars === "temp" ? `${load} ${temp}` : `${temp} ${load}`, isHot(h, key)));
         }
         setSpans(meters[2], meter("Liq", hw.liquid == null ? null : (hw.liquid - 20) / 30, `${dec(hw.liquid)}°C`));
         setSpans(meters[3], meter("Mem", r.used != null && r.total ? r.used / r.total : null, `${r.used == null ? "—" : dec(r.used / 1024)}G/${r.total == null ? "—" : dec(r.total / 1024)}G`));
@@ -1088,7 +1089,6 @@
   // The system the way neofetch and its descendants print it. The mascot lives in each of them.
 
   const host = () => [["tm-p", "kraken"], ["", "@"], ["tm-p", "lcd"]];
-  const loadText = (h) => (h.load == null ? "—" : `${Math.round(h.load * 100)}%`);
   const limitText = (v) => (v.value === "—" ? "—" : `${v.value}%`);
   const limitClass = (v) => (v.dim ? "tm-d" : v.hot ? "tm-w" : "");
   const memFrac = (r) => (r.used != null && r.total ? r.used / r.total : null);
@@ -1150,9 +1150,11 @@
     return (d) => {
       const hw = d.hw, r = ram(hw), pw = power(hw);
       for (const [i, k] of [[0, "cpu"], [1, "gpu"]]) {
-        const h = hw[k];
-        setSpans(L[i], [key(k.toUpperCase()), track(n, empty), ["", ` ${loadText(h).padStart(4)}`], [isHot(h, k) ? "tm-w" : "", ` ${int(h.temp)}°`]]);
-        bars[i](h.load);
+        const h = hw[k], temp = `${int(h.temp)}°`, hot = isHot(h, k) ? "tm-w" : "";
+        // the bar's own value follows it, then the other one
+        const values = d.bars === "temp" ? [[hot, ` ${temp.padStart(4)}`], ["", ` ${loadText(h)}`]] : [["", ` ${loadText(h).padStart(4)}`], [hot, ` ${temp}`]];
+        setSpans(L[i], [key(k.toUpperCase()), track(n, empty), ...values]);
+        bars[i](hwFrac(h, d));
       }
       setSpans(L[2], [key("Liquid"), track(n, empty), ["", ` ${dec(hw.liquid)}°C`]]);
       bars[2](hw.liquid == null ? null : (hw.liquid - 20) / 30);
@@ -1192,7 +1194,8 @@
   }
 
   // pfetch: short lines, very large, under a mascot sitting by the name and the time.
-  // The bars of CPU and GPU are their temperatures, their power follows the bar; the power
+  // The bars of CPU and GPU are their load or temperature, as set, with its value before the bar
+  // and their power after it (with the load, the name turns red when it runs hot); the power
   // line is the whole set, with a bar to 600 W. The limits have the time to their reset in the
   // same place; the lines are 25 characters at most and centred so that 2d13h stays off the rim.
   function scenePfetch(p, layer, env) {
@@ -1214,9 +1217,10 @@
       (d) => {
         const hw = d.hw, pw = power(hw);
         for (const [i, k] of [[0, "cpu"], [1, "gpu"]]) {
-          const h = hw[k];
-          setSpans(L[i], [key(k), [isHot(h, k) ? "tm-w" : "", `${int(h.temp)}°`.padEnd(5)], track(n, "■"), ["", ` ${int(h.power)}W`]]);
-          bars[i](h.temp == null ? null : tempF(h.temp) / 100);
+          const h = hw[k], hot = isHot(h, k) ? "tm-w" : "", temp = d.bars === "temp";
+          const value = temp ? [hot, `${int(h.temp)}°`.padEnd(5)] : ["", loadText(h).padEnd(5)];
+          setSpans(L[i], [temp || !hot ? key(k) : [hot, k.padEnd(7)], value, track(n, "■"), ["", ` ${int(h.power)}W`]]);
+          bars[i](hwFrac(h, d));
         }
         setSpans(L[2], [key("power"), ["", `${int(pw)}W`.padEnd(5)], track(n, "■")]);
         bars[2](pw == null ? null : pw / 600);
@@ -1262,8 +1266,8 @@
     ];
   }
 
-  // cpufetch: CPU and GPU as chips with the temperature on the die and the model, load and power
-  // below; the limits under them. The mascot walks across the tips of the pins.
+  // cpufetch: CPU and GPU as chips with the temperature on the die and the model, a bar of the
+  // load or the temperature (as set) and the power below; the limits under them. The mascot walks across the tips of the pins.
   function sceneCpufetch(p, layer, env) {
     const W = 128, H = 118, top = 226, bottom = top + H, f = (v) => v.toFixed(1);
     const m = mascotById(env.mascot);
@@ -1298,8 +1302,9 @@
           c.die.classList.toggle("is-hot", hot);
           setSpans(c.temp, [[hot ? "tm-w" : "tm-t", `${int(h.temp)}°`]]);
           setSpans(c.name, [["tm-k", fit(model(h.name, c.k.toUpperCase()), 17)]]);
-          setSpans(c.load, [track(7, "■"), ["", ` ${loadText(h).padStart(4)}`], ["tm-d", ` ${int(h.power)} W`.padEnd(6)]]);
-          c.bar(h.load);
+          const value = d.bars === "temp" ? [hot ? "tm-w" : "", ` ${`${int(h.temp)}°`.padStart(4)}`] : ["", ` ${loadText(h).padStart(4)}`];
+          setSpans(c.load, [track(7, "■"), value, ["tm-d", ` ${int(h.power)} W`.padEnd(6)]]);
+          c.bar(hwFrac(h, d));
         }
         LIMITS.forEach((def, i) => {
           const v = d.views[def.key];
@@ -1449,7 +1454,7 @@
     const back = window.KrakenBg.backdrop(canvas, root);
     const animate = cfg.animate !== false;
 
-    let layout = null, theme = null, bgType = null, left = true, mascot = null, cost = null;
+    let layout = null, theme = null, bgType = null, left = true, mascot = null, cost = null, bars = "load";
     let scenes = {}, updaters = [];
     // Every scene is its own <svg>, so switching between them is a composited fade, not a repaint.
     const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: "scene" });
@@ -1470,6 +1475,7 @@
       const t = THEMES.some((x) => x.id === next.theme) ? next.theme : "ice";
       const b = validBg(next.bg) ? next.bg : "ciecz";
       left = next.units !== "used";
+      bars = next.bars === "temp" ? "temp" : "load";
       back.fps(next.fps);
       back.look(next.look);
       const m = mascotById(next.mascot).id;
@@ -1506,7 +1512,7 @@
         const views = {};
         for (const def of LIMITS) views[def.key] = limitView((data.limits || {})[def.key], now, interval, left);
         const cv = costView(data.costs, cost, now);
-        const d = { now, hw: data.hw || emptyHw(), views, left, unitWord: left ? "LEFT" : "USED", meta: metaView(data.limits, now, interval), cost: cv, costs: data.costs };
+        const d = { now, hw: data.hw || emptyHw(), views, left, bars, unitWord: left ? "LEFT" : "USED", meta: metaView(data.limits, now, interval), cost: cv, costs: data.costs };
         let active = Object.keys(scenes);
         if (layout === "rotacja") active = [Math.floor(now / ROTATE_MS) % 2 ? "sprzet" : "limity"];
         if (layout === "adaptacyjny") active = [data.mode === "game" ? "sprzet" : "limity"];

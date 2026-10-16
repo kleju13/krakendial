@@ -38,15 +38,16 @@ Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) ot
     - **btop:** zaokrąglone ramki na całą tarczę, zegar w ramce. Wykresy temperatur CPU i GPU z ostatnich 2 min są pisane brajlem i same dopasowują skalę (zakres w rogu ramki), więc sięgają do jej górnej krawędzi.
     - Rodzina fetch, każdy układ z maskotką:
       - **neofetch:** sprzęt i limity dużym tekstem jako `klucz: wartość`, a pod spodem chodzi maskotka.
-      - **fastfetch:** maskotka jako logo z ASCII (`$$`) po lewej, obok wyrównana tabela z paskami `■■■□□□□` dla CPU i GPU (obciążenie), cieczy, pamięci, mocy i limitów.
-      - **pfetch:** maskotka obok nazwy i dużej godziny, pod nimi bardzo duże linijki. Paski CPU i GPU pokazują temperaturę, za nimi jest ich moc, a linijka `power` to moc całego zestawu z paskiem do 600 W. Za paskami limitów jest czas do ich resetu (`2h50`, `2d13h`), czerwony, gdy limit już się skończył.
+      - **fastfetch:** maskotka jako logo z ASCII (`$$`) po lewej, obok wyrównana tabela z paskami `■■■□□□□` dla CPU i GPU, cieczy, pamięci, mocy i limitów.
+      - **pfetch:** maskotka obok nazwy i dużej godziny, pod nimi bardzo duże linijki. Przed paskami CPU i GPU jest ich obciążenie albo temperatura, za nimi ich moc. Przy obciążeniu nazwa czerwienieje, gdy układ jest gorący. Linijka `power` to moc całego zestawu z paskiem do 600 W. Za paskami limitów jest czas do ich resetu (`2h50`, `2d13h`), czerwony, gdy limit już się skończył.
       - **macchina:** paski z kropek `●●●○○○` w zaokrąglonej ramce, nazwa i godzina wpisane w dolną krawędź. Maskotka chodzi po górnej krawędzi ramki.
-      - **cpufetch:** CPU i GPU jako układy scalone z nóżkami, temperatura na rdzeniu (czerwienieje, gdy jest gorąco), pod spodem model, obciążenie i moc. Maskotka chodzi po nóżkach obu układów.
+      - **cpufetch:** CPU i GPU jako układy scalone z nóżkami, temperatura na rdzeniu (czerwienieje, gdy jest gorąco), pod spodem model, pasek i moc. Maskotka chodzi po nóżkach obu układów.
 
       Maskotkę wybiera się w panelu: Kraken, Crab, Ghost, Cat albo Robot. Co parę sekund mruga, rozgląda się albo przechodzi kawałek, nie wchodząc na tekst; tam, gdzie nie ma gdzie chodzić (logo fastfetch, pfetch), przebiera nogami w miejscu. Między ruchami nic się nie zmienia, więc te układy bez tła kosztują CAM-a tyle co btop: ok. 20–35% jednego rdzenia.
 - **Limits show:** ile zostało (domyślnie) albo ile zużyte.
 
   Cienka kreska na każdym limicie to miejsce, w którym byłby przy równym tempie przez całe okno. Przy „ile zostało” mówi, ile powinno jeszcze zostać teraz. W układach terminalowych leży nad znakami paska w dokładnym miejscu, a sam pasek też kończy się tam, gdzie wypada wartość, w razie potrzeby w połowie kwadratu czy kropki, a nie na całej komórce. Dzięki temu przy tygodniowym limicie widać, czy jest przed kreską, czy za nią. Tak samo wypełniają się paski temperatur, obciążenia, pamięci i mocy.
+- **CPU and GPU bars:** obciążenie (domyślnie) albo temperatura. Dotyczy pasków CPU i GPU w układach terminalowych (terminal, htop, fastfetch, pfetch, macchina, cpufetch). Wartość paska stoi tuż przy nim. Wykresy btop i okrągłe tarcze zawsze pokazują temperatury.
 - **Theme:** Ice, Porcelain, Frost, Blue, Ocean, Deep, Indigo, Graphite, Night, Neon, a w stylu motywów terminala: Nord, Tokyo Night, Catppuccin, Latte, Dracula, Solarized, Gruvbox, Synthwave, Phosphor, Amber, Mono, Paper.
 - **Background:** rysowane animacje albo brak. Przyspieszają razem z obciążeniem GPU.
   - Liquid, Ripples, Bubbles, Aurora, Flow, Nebula, Stars, Bokeh.
@@ -83,7 +84,7 @@ Na dole tarczy jest godzina, o której ledger ostatnio pobrał limity, i jego od
 
 - `http://127.0.0.1:30640/lcd?mock` to sama tarcza ze sztucznymi danymi sprzętu.
 
-  Parametry `layout`, `theme`, `bg`, `units`, `look` (`plain`, `raw`, `ascii`), `mascot`, `cost` (`last24h`, `today`, `last7d`, `month`, `off`) i `fps` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost` albo `/lcd?mock&layout=btop&theme=deep&bg=media:runa.mp4&look=ascii`. Identyfikatory układów i teł są stałe (np. `kokpit`, `gwiazdy`), choć nazwy w panelu są po angielsku.
+  Parametry `layout`, `theme`, `bg`, `units`, `look` (`plain`, `raw`, `ascii`), `mascot`, `bars` (`load`, `temp`), `cost` (`last24h`, `today`, `last7d`, `month`, `off`) i `fps` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost` albo `/lcd?mock&layout=btop&theme=deep&bg=media:runa.mp4&look=ascii`. Identyfikatory układów i teł są stałe (np. `kokpit`, `gwiazdy`), choć nazwy w panelu są po angielsku.
 - `KRAKENLCD_WEB=<repo>\web` przy uruchomieniu exe serwuje pliki z dysku bez przebudowy.
 
   Otwarte strony same się przeładowują po restarcie usługi.
