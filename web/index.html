@@ -34,8 +34,9 @@
   const params = new URLSearchParams(location.search);
   const mock = params.has("mock");
   // URL parameters override the saved choice, e.g. /lcd?layout=one&theme=deep&bg=ripples&lang=pl
+  // (limits=claude5h,codex7d picks limits; limits=none switches them off)
   const forced = {};
-  for (const k of ["layout", "theme", "bg", "units", "look", "mascot", "cost", "bars", "lang"]) if (params.get(k)) forced[k] = params.get(k);
+  for (const k of ["layout", "theme", "bg", "units", "look", "mascot", "cost", "bars", "lang", "limits"]) if (params.get(k)) forced[k] = params.get(k);
   if (params.get("fps")) forced.fps = Number(params.get("fps"));
 
   // Adaptive switching: game after 20 s of a busy GPU, back to work after 60 s of calm.
@@ -92,7 +93,11 @@
     render();
   }
 
+  // Nothing is drawn before the first answer from the service, which says what there is to show,
+  // so a dial with limits doesn't start as one without.
+  let polled = false;
   function render() {
+    if (!polled) return;
     const cfg = { ...(state.config || {}), ...forced };
     dial.configure({ ...cfg, face: forced.layout ? forcedFace : state.face });
     dial.update({ now: Date.now(), hw, limits: state.limits, costs: state.costs, interval: state.interval, mode });
@@ -106,6 +111,7 @@
       if (build && state.build !== build) return location.reload();
       build = state.build;
     } catch (_) { /* service down: limits simply age into "stale" */ }
+    polled = true;
     render();
   }
 

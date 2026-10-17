@@ -39,6 +39,8 @@ const UNITS: [&str; 2] = ["left", "used"];
 const BARS: [&str; 2] = ["load", "temp"];
 /// Which of the usage source's costs the dial shows.
 const COSTS: [&str; 5] = ["last24h", "today", "last7d", "month", "off"];
+/// The limits the dial can show, in the order it shows them; each one is switched on or off.
+const LIMITS: [&str; 3] = ["claude5h", "claude7d", "codex7d"];
 /// Background frame rates. CAM spends CPU on every frame it captures, so the default is low.
 const FPS: [i64; 3] = [10, 20, 30];
 /// The language of the dial and the settings; "auto" follows the browser.
@@ -146,6 +148,10 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     }
     if let Some(f) = patch["fps"].as_i64().filter(|f| FPS.contains(f)) {
         cfg["fps"] = json!(f);
+    }
+    if let Some(ls) = patch["limits"].as_array() {
+        let on: Vec<&str> = ls.iter().filter_map(Value::as_str).collect();
+        cfg["limits"] = json!(LIMITS.into_iter().filter(|l| on.contains(l)).collect::<Vec<_>>());
     }
 }
 
@@ -290,7 +296,7 @@ fn handle(app: &App, mut req: Request) {
                 // a deleted face can't stay on the dial
                 let mut cfg = app.config.lock().unwrap();
                 if cfg["layout"].as_str() == Some(&format!("face:{id}")) {
-                    cfg["layout"] = json!("rotation");
+                    cfg["layout"] = json!("cockpit");
                     save_config(&cfg);
                 }
             }
@@ -364,8 +370,8 @@ fn main() {
     // KRAKENDIAL_USAGE sets the usage source until one is saved in the settings
     let usage = std::env::var("KRAKENDIAL_USAGE").ok().filter(|u| valid_url(u)).unwrap_or_default();
     let mut config = json!({
-        "layout": "rotation", "theme": "ice", "bg": "liquid", "fps": 10, "units": "left", "look": "plain", "mascot": "kraken",
-        "cost": "last24h", "bars": "load", "lang": "auto", "usage": usage,
+        "layout": "cockpit", "theme": "ice", "bg": "liquid", "fps": 10, "units": "left", "look": "plain", "mascot": "kraken",
+        "cost": "last24h", "bars": "load", "lang": "auto", "usage": usage, "limits": LIMITS,
     });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
@@ -435,6 +441,19 @@ mod tests {
         merge_config(&mut cfg, &json!({ "usage": "  ", "lang": "pl" }));
         assert_eq!(cfg["usage"], "");
         assert_eq!(cfg["lang"], "pl");
+    }
+
+    #[test]
+    fn limits_keep_their_order_and_only_known_ones() {
+        let mut cfg = json!({ "limits": LIMITS });
+        merge_config(&mut cfg, &json!({ "theme": "ice" }));
+        assert_eq!(cfg["limits"], json!(LIMITS));
+        merge_config(&mut cfg, &json!({ "limits": ["codex7d", "nope", 5, "claude5h"] }));
+        assert_eq!(cfg["limits"], json!(["claude5h", "codex7d"]));
+        merge_config(&mut cfg, &json!({ "limits": "claude7d" }));
+        assert_eq!(cfg["limits"], json!(["claude5h", "codex7d"]));
+        merge_config(&mut cfg, &json!({ "limits": [] }));
+        assert_eq!(cfg["limits"], json!([]));
     }
 
     #[test]

@@ -52,6 +52,7 @@
   .opt:hover { transform: translateY(-2px); background: #12213c; }
   .opt:focus-visible { border-color: var(--dim); }
   .opt[aria-pressed="true"] { border-color: var(--accent); background: #112347; }
+  .opt[hidden] { display: none; }
   .thumb { width: 100%; max-width: 132px; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #060a12; }
   .bgs .thumb { max-width: 76px; }
   .media { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
@@ -104,8 +105,6 @@
       <div class="hint" data-t="cfg.facesHint"></div></section>
     <section><h2 data-t="cfg.mascot"></h2><div class="chips" id="mascots"></div>
       <div class="hint" data-t="cfg.mascotHint"></div></section>
-    <section><h2 data-t="cfg.units"></h2><div class="chips" id="units"></div>
-      <div class="hint" data-t="cfg.unitsHint"></div></section>
     <section><h2 data-t="cfg.bars"></h2><div class="chips" id="hwbars"></div>
       <div class="hint" data-t="cfg.barsHint"></div></section>
     <section><h2 data-t="cfg.theme"></h2><div class="grid themes" id="themes"></div></section>
@@ -116,12 +115,17 @@
       <div class="hint" id="media-hint" data-t="cfg.mediaHint"></div></section>
     <section><h2 data-t="cfg.fps"></h2><div class="chips" id="fps"></div>
       <div class="hint" data-t="cfg.fpsHint"></div></section>
-    <section><h2 data-t="cfg.cost"></h2><div class="chips" id="costs"></div>
-      <div class="hint" data-t="cfg.costHint"></div></section>
     <section><h2 data-t="cfg.source"></h2>
       <form class="row" id="usage-form"><input class="field" id="usage" type="url" placeholder="https://…/api/summary" spellcheck="false" autocomplete="off">
         <button class="chip" data-t="cfg.sourceSave"></button></form>
       <div class="hint" id="usage-hint" data-t="cfg.sourceHint"></div></section>
+    <!-- what to show of the usage source; hidden while there is none -->
+    <section class="sourced"><h2 data-t="cfg.limits"></h2><div class="chips" id="limits"></div>
+      <div class="hint" data-t="cfg.limitsHint"></div></section>
+    <section class="sourced"><h2 data-t="cfg.units"></h2><div class="chips" id="units"></div>
+      <div class="hint" data-t="cfg.unitsHint"></div></section>
+    <section class="sourced"><h2 data-t="cfg.cost"></h2><div class="chips" id="costs"></div>
+      <div class="hint" data-t="cfg.costHint"></div></section>
   </div>
 </main>
 <script src="bg.js"></script>
@@ -136,9 +140,10 @@
   const BARS = [["load", "cfg.barsLoad"], ["temp", "cfg.barsTemp"]];
   const LOOKS = [["plain", "cfg.lookPlain"], ["raw", "cfg.lookRaw"], ["ascii", "cfg.lookAscii"]];
   let state = { limits: {}, costs: null, interval: 60e3, config: null, hw: null };
+  const ALL_LIMITS = K.LIMITS.map((def) => def.key);
   const cfg = () => ({
-    layout: "rotation", theme: "ice", bg: "liquid", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h",
-    bars: "load", lang: "auto", usage: "", ...(state.config || {}),
+    layout: "cockpit", theme: "ice", bg: "liquid", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h",
+    bars: "load", lang: "auto", usage: "", limits: ALL_LIMITS, ...(state.config || {}),
   });
   const byId = (id) => document.getElementById(id);
 
@@ -173,8 +178,9 @@
 
   // ---------- the lists, in the current language ----------
 
-  // opts[setting]: its options; `key` is the value each one sets, so the saved one is pressed
-  let opts = {}, builtLang = null;
+  // opts[setting]: its options; `key` is the value each one sets, so the saved one is pressed.
+  // limitOpts: the limits, each switched on or off on its own.
+  let opts = {}, limitOpts = [], builtLang = null;
   function build() {
     builtLang = I.lang;
     document.documentElement.lang = I.lang;
@@ -185,7 +191,7 @@
     const layouts = host("layouts");
     opts.layout = K.LAYOUTS.map((l) => {
       const b = card(layouts, l.name, l.desc, () => save({ layout: l.id }));
-      return { key: l.id, b, dial: K.create(b.querySelector(".thumb"), { layout: l.id, theme: c.theme, bg: "none", animate: false }) };
+      return { key: l.id, l, b, dial: K.create(b.querySelector(".thumb"), { layout: l.id, theme: c.theme, bg: "none", animate: false }) };
     });
     const themes = host("themes");
     opts.theme = K.THEMES.map((th) => {
@@ -194,6 +200,14 @@
     });
     const bgs = host("bgs");
     bgOpts = K.BGS.map((g) => swatch(card(bgs, g.name, null, () => save({ bg: g.id })), g.id));
+    const limits = host("limits");
+    limitOpts = K.LIMITS.map((def) => ({
+      key: def.key,
+      b: chip(limits, def.name, () => {
+        const on = K.limitIds(cfg().limits);
+        save({ limits: ALL_LIMITS.filter((k) => (k === def.key) !== on.includes(k)) });
+      }),
+    }));
     const units = host("units");
     opts.units = UNITS.map(([key, label]) => ({ key, b: chip(units, t(label), () => save({ units: key })) }));
     const bars = host("hwbars");
@@ -395,7 +409,7 @@
     const c = cfg();
     const now = Date.now();
     const face = faceOf(c.layout);
-    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}|${c.bars}|${c.lang}|${face ? JSON.stringify(face) : ""}`;
+    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}|${c.bars}|${c.lang}|${c.limits}|${face ? JSON.stringify(face) : ""}`;
     const minis = key !== minisKey || now - minisAt > 5e3;
     if (minis) {
       minisKey = key;
@@ -406,7 +420,7 @@
 
     preview.configure({ ...c, face });
     preview.update(data);
-    const same = { units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars };
+    const same = { units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars, limits: c.limits };
     if (minis) {
       for (const o of opts.layout || []) {
         o.dial.configure({ layout: o.key, theme: c.theme, bg: "none", ...same });
@@ -433,6 +447,17 @@
       }
     }
     for (const [setting, list] of Object.entries(opts)) for (const o of list) o.b.setAttribute("aria-pressed", String(o.key === c[setting]));
+    const on = K.limitIds(c.limits);
+    for (const o of limitOpts) o.b.setAttribute("aria-pressed", String(on.includes(o.key)));
+    // Without limits to show, the layouts made of them are only the hardware one again, so they
+    // are left out (unless picked), and the rest say what they show then.
+    const hwOnly = !K.shownLimits(state.limits, on).length;
+    for (const o of opts.layout || []) {
+      o.b.hidden = hwOnly && !!o.l.needsLimits && o.key !== c.layout;
+      const desc = hwOnly ? o.l.descHw : o.l.desc, small = o.b.querySelector("small");
+      if (small.textContent !== desc) small.textContent = desc;
+    }
+    for (const s of document.querySelectorAll("section.sourced")) s.hidden = !c.usage;
     if (document.activeElement !== usageInput && usageInput.value !== c.usage) usageInput.value = c.usage;
 
     const lcd = byId("s-lcd");

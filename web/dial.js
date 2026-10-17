@@ -20,25 +20,31 @@
   const named = (prefix, items) =>
     items.map((it) => Object.defineProperty({ ...it }, "name", { get: () => t(`${prefix}.${it.id}`), enumerable: true }));
 
+  // needsLimits: the layout is the hardware one while there are no limits to show. hwDesc: it
+  // reads differently without limits, so descHw says what it shows then.
   const LAYOUTS = named("layout", [
-    { id: "rotation" },
-    { id: "adaptive" },
-    { id: "cockpit" },
-    { id: "chronograph" },
+    { id: "rotation", needsLimits: true },
+    { id: "adaptive", needsLimits: true },
+    { id: "cockpit", hwDesc: true },
+    { id: "chronograph", hwDesc: true },
     { id: "columns" },
     { id: "terminal" },
-    { id: "htop" },
+    { id: "htop", hwDesc: true },
     { id: "btop" },
     { id: "neofetch", mascot: true },
     { id: "fastfetch", mascot: true },
     { id: "pfetch", mascot: true },
     { id: "macchina", mascot: true },
     { id: "cpufetch", mascot: true },
-    { id: "clock" },
+    { id: "clock", hwDesc: true },
     { id: "one" },
-    { id: "limits" },
+    { id: "limits", needsLimits: true },
     { id: "hardware" },
-  ]).map((l) => Object.defineProperty(l, "desc", { get: () => t(`layout.${l.id}.desc`), enumerable: true }));
+  ]).map((l) =>
+    Object.defineProperties(l, {
+      desc: { get: () => t(`layout.${l.id}.desc`), enumerable: true },
+      descHw: { get: () => (l.hwDesc ? t(`layout.${l.id}.descHw`) : l.desc), enumerable: true },
+    }));
   const THEMES = named("theme", [
     { id: "ice" },
     { id: "porcelain" },
@@ -65,9 +71,9 @@
   ]);
   const BGS = named("bg", window.KrakenBg.LIST.map(({ id }) => ({ id })));
   const LIMITS = [
-    { key: "claude5h", label: "CLAUDE · 5H", short: "CLAUDE 5H", tiny: "5H", cmd: "claude 5h" },
-    { key: "claude7d", label: "CLAUDE · 7D", short: "CLAUDE 7D", tiny: "7D", cmd: "claude 7d" },
-    { key: "codex7d", label: "CODEX · 7D", short: "CODEX 7D", tiny: "CODEX", cmd: "codex  7d" },
+    { key: "claude5h", label: "CLAUDE · 5H", short: "CLAUDE 5H", tiny: "5H", cmd: "claude 5h", name: "Claude 5h", brief: "5h" },
+    { key: "claude7d", label: "CLAUDE · 7D", short: "CLAUDE 7D", tiny: "7D", cmd: "claude 7d", name: "Claude 7d", brief: "7d" },
+    { key: "codex7d", label: "CODEX · 7D", short: "CODEX 7D", tiny: "CODEX", cmd: "codex  7d", name: "Codex 7d", brief: "codex" },
   ];
   // What Claude and Codex cost, as the usage source counts it; the period is a setting.
   const COSTS = named("cost", [{ id: "last24h" }, { id: "today" }, { id: "last7d" }, { id: "month" }, { id: "off" }]).map((c) =>
@@ -211,13 +217,26 @@
     return http ? t("err.http", { code: http[1] }) : code;
   }
 
+  // Which limits the layouts draw: those switched on in the settings that the usage source sends.
+  // A source that has never answered shows every one switched on, so that its error is seen; with
+  // no source there are none, and the layouts give their room to the hardware.
+  function shownLimits(limits, on) {
+    const ls = Object.values(limits || {}).filter(Boolean);
+    const enabled = LIMITS.filter((def) => on.includes(def.key));
+    if (ls.some((l) => l.fetchedAt)) return enabled.filter((def) => limits[def.key] && limits[def.key].fetchedAt);
+    return ls.some((l) => l.error && l.error !== "unset") ? enabled : [];
+  }
+  // The limits switched on: a list, or ids separated by commas as in a URL; all of them by default.
+  const limitIds = (v) => (Array.isArray(v) ? v : typeof v === "string" ? v.split(",") : LIMITS.map((def) => def.key));
+
   // The quiet status line: when the usage source last fetched the limits and how often, or that
   // it can't be reached. `short` leaves the cadence out, for when the cost shares the line.
-  function metaView(limits, now, interval) {
+  // A source that sends costs and no limits counts from when the costs came.
+  function metaView(limits, now, interval, costs) {
     const entries = Object.entries(limits || {}).filter(([, l]) => l);
     const failing = entries.find(([, l]) => l.error);
-    const last = Math.max(0, ...entries.map(([, l]) => l.fetchedAt || 0));
-    if (failing && failing[1].error === "unset") return { state: "stale", frac: 0, last, text: t("st.noSource"), short: t("st.noSource") };
+    const last = Math.max(0, ...entries.map(([, l]) => l.fetchedAt || 0)) || (costs && costs.polledAt) || 0;
+    if (failing && failing[1].error === "unset") return { state: "stale", none: true, frac: 0, last, text: t("st.noSource"), short: t("st.noSource") };
     if (failing) {
       const e = errText(failing[1].error);
       return { state: "error", frac: 1, last, text: e, short: e };
@@ -317,6 +336,9 @@
       move(x, y) {
         outer.setAttribute("transform", `translate(${x.toFixed(1)} ${y})`);
       },
+      show(on) {
+        setAttr(outer, "visibility", on ? "visible" : "hidden");
+      },
       set(m) {
         setAttr(g, "class", `pie is-${m.state}`);
         const ri = r - 2.4;
@@ -350,15 +372,26 @@
     let lastKey = null;
     return (d) => {
       const m = d.meta, c = d.cost;
-      const key = `${m.text}|${c ? c.value + c.dim : ""}`;
+      // with no usage source there is nothing to report, so the date stands in (in faces; the
+      // layouts don't build this line then)
+      const none = m.none && !c;
+      const key = none ? dateText(d.now, "date") : `${m.text}|${c ? c.value + c.dim : ""}`;
       if (key !== lastKey) {
-        setSpans(line, c ? [["", `${m.short} · `], [c.dim ? "" : "t-cost", c.value], ["", ` ${c.short}`]] : [["", m.text]]);
-        line.classList.toggle("is-warn", m.state === "error");
+        setSpans(line, none ? [["", key]] : c ? [["", `${m.short} · `], [c.dim ? "" : "t-cost", c.value], ["", ` ${c.short}`]] : [["", m.text]]);
+        line.classList.toggle("is-warn", !none && m.state === "error");
         pi.move(x + 10 - line.getComputedTextLength() / 2 - 14, y - 5.5);
+        pi.show(!none);
         lastKey = key;
       }
-      pi.set(m);
+      if (!none) pi.set(m);
     };
+  }
+
+  // The status line when there is a usage source to report on; the date when there isn't.
+  function footer(p, y, env) {
+    if (env.status) return meta(p, y);
+    const line = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-meta" });
+    return (d) => setText(line, dateText(d.now, "date"));
   }
 
   // "LEFT" or "USED": says which way the limit numbers read.
@@ -389,15 +422,16 @@
     };
   }
 
-  function tempBlock(p, key, cx, y, size, withSub) {
+  // The line under it is the load and power, or the model when the load is shown elsewhere.
+  function tempBlock(p, key, cx, y, size, under = "load") {
     el(p, "text", { x: cx, y: y - size * 0.86, "text-anchor": "middle", class: size > 80 ? "t-lbl" : "t-lbl-s" }, key.toUpperCase());
     const val = num(p, cx + size * 0.09, y, size);
-    const sub = withSub ? el(p, "text", { x: cx, y: y + 34, "text-anchor": "middle", class: "t-sub" }) : null;
+    const sub = el(p, "text", { x: cx, y: y + 34, "text-anchor": "middle", class: "t-sub" });
     return (d) => {
       const h = d.hw[key];
       setNum(val, int(h.temp), "°", size * 0.5, size);
       val.classList.toggle("is-warn", isHot(h, key));
-      if (sub) setText(sub, `${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
+      setText(sub, under === "model" ? fit(model(h.name, ""), 18) : `${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
     };
   }
 
@@ -417,14 +451,20 @@
   const readTemp = (key) => (d) => [int(d.hw[key].temp), "°", 0.5, isHot(d.hw[key], key)];
 
   // ---------- scenes ----------
+  // Each gets env.limits, the limits to draw (some of LIMITS, or none), env.cost, whether a cost is
+  // shown, and env.status, whether there is a usage source to report on. A layout lays itself out
+  // for what it gets: the room of limits it doesn't have goes to the hardware.
 
-  // Three limits, one per row: label + reset on the left, big percentage on the right, pace bar below.
-  function sceneLimits(p) {
+  // Where the i-th of n things `step` apart goes, centred on `mid`.
+  const spread = (n, i, mid, step) => Math.round(mid + (i - (n - 1) / 2) * step);
+
+  // A limit per row: label + reset on the left, big percentage on the right, pace bar below.
+  function sceneLimits(p, layer, env) {
     const up = [clock(p, 96)];
-    const x0 = 118, x1 = 522;
-    up.push(unitHead(p, x1, 128, "end"));
-    LIMITS.forEach((def, i) => {
-      const yb = 204 + i * 128;
+    const x0 = 118, x1 = 522, n = env.limits.length;
+    env.limits.forEach((def, i) => {
+      const yb = spread(n, i, 332, 128);
+      if (!i) up.push(unitHead(p, x1, yb - 76, "end"));
       el(p, "text", { x: x0, y: yb - 38, class: "t-lbl" }, def.short);
       const sub = el(p, "text", { x: x0, y: yb - 6, class: "t-sub" });
       const val = num(p, x1, yb, 88, "end");
@@ -437,83 +477,134 @@
         setParts(sub, v.sub);
       });
     });
-    up.push(meta(p, 560));
+    up.push(footer(p, 560, env));
     return up;
   }
 
-  function sceneHardware(p) {
+  function sceneHardware(p, layer, env) {
     const up = [clock(p, 96), tempArcs(p)];
-    up.push(tempBlock(p, "cpu", 226, 270, 106, true));
-    up.push(tempBlock(p, "gpu", 414, 270, 106, true));
+    up.push(tempBlock(p, "cpu", 226, 270, 106));
+    up.push(tempBlock(p, "gpu", 414, 270, 106));
     el(p, "line", { x1: C, x2: C, y1: 160, y2: 300, class: "rule" });
     up.push(statBlock(p, t("lbl.liquid"), 226, 444, 74, readLiquid));
     up.push(statBlock(p, t("lbl.power"), 414, 444, 74, readPower));
     up.push(ramLine(p, 500));
-    up.push(meta(p, 552));
+    up.push(footer(p, 552, env));
     return up;
   }
 
-  // Everything at once, in reading order: three limits with pace bars, then the hardware.
-  function sceneCockpit(p) {
-    const up = [clock(p, 90), tempArcs(p), unitHead(p, C, 126)];
-    LIMITS.forEach((def, i) => {
-      const x = 200 + i * 120;
-      el(p, "text", { x, y: 158, "text-anchor": "middle", class: "t-lbl-xs" }, def.short);
+  // Everything at once, in reading order: the limits with pace bars, then the hardware. With no
+  // limits the top row is how busy the CPU, the GPU and the memory are, so the temperatures
+  // below name the chips instead of repeating the load.
+  function sceneCockpit(p, layer, env) {
+    const n = env.limits.length;
+    const up = [clock(p, 90), tempArcs(p)];
+    // [label, bar's fill 0..100, value, unit, line under it, the limit's view]
+    const cols = n
+      ? env.limits.map((def) => [def.short, (d) => d.views[def.key]])
+      : [
+          ["CPU", (d) => d.hw.cpu.load, (d) => `${int(d.hw.cpu.power)} W`],
+          ["GPU", (d) => d.hw.gpu.load, (d) => `${int(d.hw.gpu.power)} W`],
+          [t("lbl.ram"), (d) => memFrac(ram(d.hw)), (d) => ramText(ram(d.hw))],
+        ];
+    if (n) up.push(unitHead(p, C, 126));
+    else el(p, "text", { x: C, y: 126, "text-anchor": "middle", class: "t-head" }, t("lbl.load"));
+    // fewer limits get more room each
+    const step = cols.length === 3 ? 120 : 150, half = cols.length === 1 ? 80 : cols.length === 2 ? 56 : 46;
+    cols.forEach(([label, read, under], i) => {
+      const x = spread(cols.length, i, C, step);
+      el(p, "text", { x, y: 158, "text-anchor": "middle", class: "t-lbl-xs" }, label);
       const val = num(p, x + 6, 216, 60);
-      const bar = barGauge(p, x - 46, x + 46, 238, 6);
+      const bar = barGauge(p, x - half, x + half, 238, 6);
       const sub = el(p, "text", { x, y: 266, "text-anchor": "middle", class: "t-sub-s" });
       up.push((d) => {
-        const v = d.views[def.key];
-        limitGauge(bar, v);
-        setNum(val, v.value, "%", 26, 60);
-        val.classList.toggle("is-dim", v.dim);
-        setParts(sub, v.sub);
+        if (n) {
+          const v = read(d);
+          limitGauge(bar, v);
+          setNum(val, v.value, "%", 26, 60);
+          val.classList.toggle("is-dim", v.dim);
+          setParts(sub, v.sub);
+          return;
+        }
+        const f = read(d);
+        bar.set(f == null ? 0 : clamp(f, 0, 1) * 100, null, null);
+        setNum(val, f == null ? "—" : `${Math.round(f * 100)}`, "%", 26, 60);
+        setText(sub, under(d));
       });
     });
     el(p, "line", { x1: 170, x2: 470, y1: 292, y2: 292, class: "rule" });
-    up.push(tempBlock(p, "cpu", 226, 398, 92, true));
-    up.push(tempBlock(p, "gpu", 414, 398, 92, true));
-    up.push(statBlock(p, t("lbl.liquid"), 200, 500, 38, readLiquid, "t-lbl-xs"));
-    up.push(statBlock(p, t("lbl.power"), 320, 500, 38, readPower, "t-lbl-xs"));
-    up.push(statBlock(p, t("lbl.ram"), 440, 500, 38, readRam, "t-lbl-xs"));
-    up.push(meta(p, 554));
+    up.push(tempBlock(p, "cpu", 226, 398, 92, n ? "load" : "model"));
+    up.push(tempBlock(p, "gpu", 414, 398, 92, n ? "load" : "model"));
+    // the RAM is in the top row when there are no limits
+    const stats = [[t("lbl.liquid"), readLiquid], [t("lbl.power"), readPower], ...(n ? [[t("lbl.ram"), readRam]] : [])];
+    stats.forEach(([label, read], i) => up.push(statBlock(p, label, spread(stats.length, i, C, 120 + 20 * (3 - stats.length)), 500, 38, read, "t-lbl-xs")));
+    up.push(footer(p, 554, env));
     return up;
   }
 
-  // A watch: hands for the time, a subdial per limit, the hardware in the window at twelve.
-  function sceneChronograph(p) {
+  // A watch: hands for the time, three subdials, the hardware in the window at twelve. The
+  // subdials are the limits, then the temperatures where there are fewer than three limits; the
+  // window and the line under it show what the subdials don't.
+  function sceneChronograph(p, layer, env) {
     const up = [];
     for (let i = 0; i < 12; i++) {
       const [x0, y0] = polar(i % 3 ? 274 : 264, i * 30);
       const [x1, y1] = polar(290, i * 30);
       el(p, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "hour" });
     }
-    for (const [def, cx, cy] of [[LIMITS[0], 182, 322], [LIMITS[1], 458, 322], [LIMITS[2], 320, 452]]) {
+    const dials = [
+      ...env.limits.map((def) => ({ id: def.key, label: def.short, limit: def.key })),
+      { id: "cpu", label: "CPU", temp: "cpu" },
+      { id: "gpu", label: "GPU", temp: "gpu" },
+      { id: "liquid", label: t("lbl.liquid") },
+    ].slice(0, 3);
+    dials.forEach((it, i) => {
+      const [cx, cy] = [[182, 322], [458, 322], [320, 452]][i];
       el(p, "circle", { cx, cy, r: 82, class: "face" });
       ticks(p, 72, 79, -135, 135, 10, cx, cy, 1.4);
       const g = arcGauge(p, 60, -135, 135, 8, cx, cy);
-      el(p, "text", { x: cx, y: cy - 14, "text-anchor": "middle", class: "t-lbl-xxs" }, def.short);
+      if (it.temp) g.notch.classList.add("is-peak");
+      el(p, "text", { x: cx, y: cy - 14, "text-anchor": "middle", class: "t-lbl-xxs" }, it.label);
       const val = num(p, cx + 6, cy + 28, 42);
       const sub = el(p, "text", { x: cx, y: cy + 64, "text-anchor": "middle", class: "t-sub-xs" });
       up.push((d) => {
-        const v = d.views[def.key];
-        limitGauge(g, v);
-        setNum(val, v.value, "%", 20, 42);
-        val.classList.toggle("is-dim", v.dim);
-        val.classList.toggle("is-warn", !!v.hot);
-        setParts(sub, v.sub);
+        if (it.limit) {
+          const v = d.views[it.limit];
+          limitGauge(g, v);
+          setNum(val, v.value, "%", 20, 42);
+          val.classList.toggle("is-dim", v.dim);
+          val.classList.toggle("is-warn", !!v.hot);
+          setParts(sub, v.sub);
+        } else if (it.temp) {
+          const h = d.hw[it.temp];
+          tempGauge(g, h, it.temp);
+          setNum(val, int(h.temp), "°", 21, 42);
+          val.classList.toggle("is-warn", isHot(h, it.temp));
+          setText(sub, `${int(h.power)} W`);
+        } else {
+          g.set(scale(d.hw.liquid, 20, 50), null, null);
+          setNum(val, dec(d.hw.liquid), "°", 21, 42);
+        }
       });
-    }
-    el(p, "rect", { x: 198, y: 128, width: 244, height: 78, rx: 18, class: "window" });
-    [["CPU", 242, readTemp("cpu")], ["GPU", 320, readTemp("gpu")], [t("lbl.liquid"), 398, readLiquid]].forEach(([label, x, read]) => {
-      up.push(statBlock(p, label, x + 3, 192, 32, read, "t-lbl-xxs"));
     });
+    const used = dials.map((it) => it.id);
+    const win = [["cpu", "CPU", readTemp("cpu")], ["gpu", "GPU", readTemp("gpu")], ["liquid", t("lbl.liquid"), readLiquid], ["power", t("lbl.power"), readPower], ["ram", t("lbl.ram"), readRam]]
+      .filter(([id]) => !used.includes(id))
+      .slice(0, 3);
+    // "21.4 GB" is the widest, so the window grows a little around it
+    const ww = win.some(([id]) => id === "ram") ? 268 : 244;
+    el(p, "rect", { x: C - ww / 2, y: 128, width: ww, height: 78, rx: 18, class: "window" });
+    win.forEach(([, label, read], i) => up.push(statBlock(p, label, spread(win.length, i, C, win.length === 3 ? (ww > 244 ? 84 : 78) : 100) + 3, 192, 32, read, "t-lbl-xxs")));
+    const shown = used.concat(win.map(([id]) => id));
+    const extras = [
+      ["power", (d) => `${int(power(d.hw))} W`],
+      ["ram", (d) => `RAM ${ramGb(ram(d.hw))} GB`],
+      ["cpu.load", (d) => `CPU ${loadText(d.hw.cpu)}`],
+      ["gpu.load", (d) => `GPU ${loadText(d.hw.gpu)}`],
+    ].filter(([id]) => !shown.includes(id)).slice(0, 2);
     const extra = el(p, "text", { x: C, y: 232, "text-anchor": "middle", class: "t-sub-s" });
-    up.push((d) => {
-      const r = d.hw.ram || {};
-      setText(extra, `${int(power(d.hw))} W · RAM ${r.used == null ? "—" : dec(r.used / 1024)} GB`);
-    });
-    up.push(meta(p, 566));
+    up.push((d) => setText(extra, extras.map(([, f]) => f(d)).join(" · ")));
+    up.push(footer(p, 566, env));
     // hands last, so they pass over everything
     const hand = (len, tail, cls) => {
       const g = el(p, "g", { class: cls });
@@ -536,22 +627,35 @@
     return up;
   }
 
-  // Seven columns side by side: the three limits, then CPU, GPU, liquid and power.
-  function sceneColumns(p) {
+  // Columns side by side: the limits, or how busy the CPU, the GPU and the memory are when there
+  // are none; then CPU, GPU, liquid and power.
+  function sceneColumns(p, layer, env) {
     const up = [clock(p, 96)];
-    const X = (i) => C + (i - 3) * 58 + (i < 3 ? -14 : 14);
-    const top = 238, bottom = 436;
-    up.push(unitHead(p, X(1), 150));
-    el(p, "text", { x: (X(4) + X(5)) / 2, y: 150, "text-anchor": "middle", class: "t-head" }, t("lbl.hardware"));
+    const pct = (f) => [f == null ? "—" : `${Math.round(f * 100)}`, "%", 13];
+    const left = env.limits.length
+      ? env.limits.map((def) => ({ label: def.tiny, limit: def.key, claude: def.key.startsWith("claude") }))
+      : [
+          { label: "CPU", read: (d) => pct(d.hw.cpu.load), f: (d) => (d.hw.cpu.load ?? 0) * 100 },
+          { label: "GPU", read: (d) => pct(d.hw.gpu.load), f: (d) => (d.hw.gpu.load ?? 0) * 100 },
+          { label: t("lbl.ram"), read: (d) => pct(memFrac(ram(d.hw))), f: (d) => (memFrac(ram(d.hw)) ?? 0) * 100 },
+        ];
     const cols = [
-      ...LIMITS.map((def) => ({ label: def.tiny, limit: def.key })),
+      ...left,
       { label: "CPU", temp: "cpu" },
       { label: "GPU", temp: "gpu" },
       { label: t("lbl.liquid"), read: (d) => [int(d.hw.liquid), "°", 14], f: (d) => scale(d.hw.liquid, 20, 50) },
       { label: t("lbl.power"), read: (d) => [int(power(d.hw)), "W", 12], f: (d) => scale(power(d.hw), 0, 600) },
     ];
+    // 58 apart, the two groups further apart, all of it centred
+    const k = left.length;
+    const X = cols.map((_, i) => C + (i - (cols.length - 1) / 2) * 58 + (i < k ? -14 : 14));
+    const top = 238, bottom = 436;
+    const lx = (X[0] + X[k - 1]) / 2;
+    if (env.limits.length) up.push(unitHead(p, lx, 150));
+    else el(p, "text", { x: lx, y: 150, "text-anchor": "middle", class: "t-head" }, t("lbl.load"));
+    el(p, "text", { x: (X[k + 1] + X[k + 2]) / 2, y: 150, "text-anchor": "middle", class: "t-head" }, t("lbl.hardware"));
     cols.forEach((col, i) => {
-      const x = X(i);
+      const x = X[i];
       const bar = columnGauge(p, x, bottom, top, 30);
       if (col.temp) bar.notch.classList.add("is-peak");
       const val = num(p, x + 3, 214, 28);
@@ -575,10 +679,15 @@
         }
       });
     });
-    el(p, "path", { d: `M${X(0) - 15} 480V486H${X(1) + 15}V480`, class: "bracket" });
-    el(p, "text", { x: (X(0) + X(1)) / 2, y: 506, "text-anchor": "middle", class: "t-head" }, t("lbl.claude"));
+    // Claude's limits are labelled 5H and 7D, so a bracket under them says whose they are
+    const claude = X.filter((_, i) => cols[i].claude);
+    if (claude.length) {
+      const [a, b] = [claude[0], claude[claude.length - 1]];
+      el(p, "path", { d: `M${a - 15} 480V486H${b + 15}V480`, class: "bracket" });
+      el(p, "text", { x: (a + b) / 2, y: 506, "text-anchor": "middle", class: "t-head" }, t("lbl.claude"));
+    }
     up.push(ramLine(p, 534));
-    up.push(meta(p, 568));
+    up.push(footer(p, 568, env));
     return up;
   }
 
@@ -641,6 +750,8 @@
   const resetIn = (v, now) => (v.state === "ok" && v.resetsAt ? dur(v.resetsAt - now) : v.sub.map((x) => x.t).join(" "));
   const subClass = (v) => (v.sub.some((x) => x.warn) ? "tm-w" : "tm-d");
   const ram = (hw) => hw.ram || {};
+  const ramGb = (r) => (r.used == null ? "—" : dec(r.used / 1024));
+  const ramText = (r) => `${ramGb(r)} / ${r.total == null ? "—" : Math.round(r.total / 1024)} GB`;
   const loadText = (h) => (h.load == null ? "—" : `${Math.round(h.load * 100)}%`);
   // What the CPU and GPU bars of the terminal layouts fill with, as set in the settings: the
   // load, or the temperature on the 20–100° scale of the gauges.
@@ -659,19 +770,30 @@
     };
   }
 
-  // Everything as console output, with a blinking cursor.
-  function sceneTerminal(p) {
-    const Y = [128, 168, 204, 240, 284, 320, 356, 392, 428, 472, 510];
-    const L = Y.map((y) => term(p, 78, y, 20));
-    const gauges = LIMITS.map((_, i) => limitBar(p, 78, Y[1 + i], 20, 10, 10));
-    const bars = { cpu: fracBar(p, 78, Y[5], 20, 13, 10), gpu: fracBar(p, 78, Y[6], 20, 13, 10) };
+  // Everything as console output, with a blinking cursor. Lines that have nothing to say are left
+  // out, and the rest stay centred; with no limits to list, `date` fills in.
+  function sceneTerminal(p, layer, env) {
+    // [line, the space above it]
+    const lines = [
+      ...(env.limits.length ? [["limits", 0], ...env.limits.map((def, i) => [def.key, i ? 36 : 40])] : []),
+      ["hw", env.limits.length ? 44 : 0], ["cpu", 36], ["gpu", 36], ["liquid", 36], ["ram", 36],
+      ...(env.limits.length ? [] : [["datecmd", 44], ["date", 36]]),
+      ...(env.status ? [["meta", 44]] : []),
+      ["prompt", 38],
+    ];
+    let h = 0;
+    const at = lines.map(([, dy]) => (h += dy));
+    const Y = Object.fromEntries(lines.map(([k], i) => [k, Math.round(319 - h / 2) + at[i]]));
+    const L = Object.fromEntries(lines.map(([k]) => [k, term(p, 78, Y[k], 20)]));
+    const gauges = env.limits.map((def) => limitBar(p, 78, Y[def.key], 20, 10, 10));
+    const bars = { cpu: fracBar(p, 78, Y.cpu, 20, 13, 10), gpu: fracBar(p, 78, Y.gpu, 20, 13, 10) };
     const prompt = (cmd) => [["tm-p", "kraken"], ["tm-d", "@dial ~ $ "], ["", cmd]];
     return [
       (d) => {
-        setSpans(L[0], prompt(`limits --${d.left ? "left" : "used"}`));
-        LIMITS.forEach((def, i) => {
+        if (L.limits) setSpans(L.limits, prompt(`limits --${d.left ? "left" : "used"}`));
+        env.limits.forEach((def, i) => {
           const v = d.views[def.key];
-          setSpans(L[1 + i], [
+          setSpans(L[def.key], [
             ["tm-k", `${def.cmd} `],
             track(10),
             [v.dim ? "tm-d" : v.hot ? "tm-w" : "", ` ${pctText(v)}`],
@@ -679,52 +801,55 @@
           ]);
           gauges[i](v);
         });
-        setSpans(L[4], prompt("hw"));
-        for (const [i, key] of [[5, "cpu"], [6, "gpu"]]) {
+        setSpans(L.hw, prompt("hw"));
+        for (const key of ["cpu", "gpu"]) {
           const h = d.hw[key];
           // the bar's own value follows it
           const temp = [isHot(h, key) ? "tm-w" : "", `${int(h.temp)}°`.padStart(4)], load = ["", loadText(h).padStart(4)];
           const [before, after] = d.bars === "temp" ? [load, temp] : [temp, load];
-          setSpans(L[i], [["tm-k", key.padEnd(7)], before, ["", "  "], track(10), ["", " "], after, ["tm-d", `  ${int(h.power).padStart(3)} W`]]);
+          setSpans(L[key], [["tm-k", key.padEnd(7)], before, ["", "  "], track(10), ["", " "], after, ["tm-d", `  ${int(h.power).padStart(3)} W`]]);
           bars[key](hwFrac(h, d));
         }
-        setSpans(L[7], [["tm-k", "liquid "], ["", `${dec(d.hw.liquid)}°`.padEnd(8)], ["tm-k", "power "], ["", `${int(power(d.hw))} W`]]);
-        const r = ram(d.hw);
-        setSpans(L[8], [
-          ["tm-k", "ram    "],
-          ["", `${r.used == null ? "—" : dec(r.used / 1024)} / ${r.total == null ? "—" : Math.round(r.total / 1024)} GB`],
-          ...(d.cost ? [["tm-k", "   cost "], ...costSpans(d.cost)] : []),
-        ]);
-        setSpans(L[9], [[d.meta.state === "error" ? "tm-w" : "tm-d", `# ${d.meta.text}`]]);
-        setSpans(L[10], [["tm-d", `[${hhmmss(d.now)}] `], ["tm-p", "~ $ "], ["tm-c", Math.floor(d.now / 1000) % 2 ? " " : "▌"]]);
+        setSpans(L.liquid, [["tm-k", "liquid "], ["", `${dec(d.hw.liquid)}°`.padEnd(8)], ["tm-k", "power "], ["", `${int(power(d.hw))} W`]]);
+        setSpans(L.ram, [["tm-k", "ram    "], ["", ramText(ram(d.hw))], ...(d.cost ? [["tm-k", "   cost "], ...costSpans(d.cost)] : [])]);
+        if (L.date) {
+          setSpans(L.datecmd, prompt("date"));
+          setSpans(L.date, [["", dateText(d.now, "date")]]);
+        }
+        if (L.meta) setSpans(L.meta, [[d.meta.state === "error" ? "tm-w" : "tm-d", `# ${d.meta.text}`]]);
+        setSpans(L.prompt, [["tm-d", `[${hhmmss(d.now)}] `], ["tm-p", "~ $ "], ["tm-c", Math.floor(d.now / 1000) % 2 ? " " : "▌"]]);
       },
     ];
   }
 
   // htop: meters for the hardware up top, the limits as the process list under an inverse
-  // header (the one furthest behind its pace selected), F-keys along the bottom.
-  function sceneHtop(p) {
+  // header (the one furthest behind its pace selected), F-keys along the bottom. With no limits
+  // the processes are the CPU and the GPU: their model, recent peak and power, the hotter one
+  // selected. Fewer rows, or no status line, and the whole screen moves down to stay centred.
+  function sceneHtop(p, layer, env) {
     const S = 19, N = 36, cw = advance(p, S), x = C - (N * cw) / 2;
+    const n = env.limits.length, count = n || 2;
+    const saved = (3 - count) * 32 + (env.status ? 0 : 38), dy = Math.round(saved / 2), up = dy - saved;
     const line = (y) => term(p, x, y, S);
     const band = (col, n, y, cls) =>
       el(p, "rect", { x: (x + col * cw).toFixed(1), y: (y - S * 0.93).toFixed(1), width: (n * cw).toFixed(1), height: (S * 1.17).toFixed(1), class: cls });
-    const meters = [136, 166, 196, 226, 256].map(line);
-    const clockLine = line(290);
+    const meters = [136, 166, 196, 226, 256].map((y) => line(y + dy));
+    const clockLine = line(290 + dy);
     const sel = band(0, N, 0, "tm-sel");
-    band(0, N, 330, "tm-inv-bg");
-    const head = line(330);
-    const ROWS = [362, 394, 426];
+    band(0, N, 330 + dy, "tm-inv-bg");
+    const head = line(330 + dy);
+    const ROWS = Array.from({ length: count }, (_, i) => 362 + dy + i * 32);
     const rows = ROWS.map(line);
-    const gauges = ROWS.map((y) => limitBar(p, x, y, S, 16, 10, "|"));
-    const note = line(464);
+    const gauges = n ? ROWS.map((y) => limitBar(p, x, y, S, 16, 10, "|")) : [];
+    const note = env.status ? line(464 + dy - (3 - count) * 32) : null;
     // F-keys: the number plain, its label inverse
     const keys = [["F1", "Help"], ["F2", "Setup"], ["F3", "Theme"], ["F10", "Quit"]];
     let col = 0;
     for (const [k] of keys) {
-      band(col + k.length, 6, 512, "tm-inv-bg");
+      band(col + k.length, 6, 512 + up, "tm-inv-bg");
       col += k.length + 6;
     }
-    setSpans(line(512), keys.flatMap(([k, label]) => [["", k], ["tm-inv", label.padEnd(6)]]));
+    setSpans(line(512 + up), keys.flatMap(([k, label]) => [["", k], ["tm-inv", label.padEnd(6)]]));
     // CPU[||||||||        52°C 15%] : the value is written over the right end of the bar
     const meter = (label, frac, text, warn) => {
       const n = N - 5, room = n - text.length;
@@ -743,24 +868,40 @@
         setSpans(meters[3], meter("Mem", r.used != null && r.total ? r.used / r.total : null, `${r.used == null ? "—" : dec(r.used / 1024)}G/${r.total == null ? "—" : dec(r.total / 1024)}G`));
         setSpans(meters[4], meter("Pwr", pw == null ? null : pw / 600, `${int(pw)}W`));
         setSpans(clockLine, [["tm-k", " Time: "], ["", hhmmss(d.now)], ...(d.cost ? [["tm-k", "  Cost: "], ...costSpans(d.cost)] : [])]);
-        setSpans(head, [["tm-inv", ` ${"LIMIT".padEnd(10)}${(d.left ? "LEFT" : "USED").padStart(4)} ${"PACE".padEnd(10)} ${"RESET".padStart(8)} `]]);
         let worst = 0, behind = -Infinity;
-        LIMITS.forEach((def, i) => {
-          const v = d.views[def.key], s = limitSpan(v);
-          setSpans(rows[i], [
-            ["tm-k", ` ${def.cmd} `],
-            [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v)],
-            ["", " "],
-            track(10, " "),
-            [subClass(v), ` ${fit(resetIn(v, d.now), 8).padStart(8)}`],
-          ]);
-          gauges[i](v);
-          // how far the limit is behind an even pace
-          const gap = s.notch == null || v.dim ? -Infinity : d.left ? s.notch - s.f : s.f - s.notch;
-          if (gap > behind) [worst, behind] = [i, gap];
-        });
+        if (n) {
+          setSpans(head, [["tm-inv", ` ${"LIMIT".padEnd(10)}${(d.left ? "LEFT" : "USED").padStart(4)} ${"PACE".padEnd(10)} ${"RESET".padStart(8)} `]]);
+          env.limits.forEach((def, i) => {
+            const v = d.views[def.key], s = limitSpan(v);
+            setSpans(rows[i], [
+              ["tm-k", ` ${def.cmd} `],
+              [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v)],
+              ["", " "],
+              track(10, " "),
+              [subClass(v), ` ${fit(resetIn(v, d.now), 8).padStart(8)}`],
+            ]);
+            gauges[i](v);
+            // how far the limit is behind an even pace
+            const gap = s.notch == null || v.dim ? -Infinity : d.left ? s.notch - s.f : s.f - s.notch;
+            if (gap > behind) [worst, behind] = [i, gap];
+          });
+        } else {
+          setSpans(head, [["tm-inv", ` ${"DEV".padEnd(4)}${"MODEL".padEnd(18)} ${"PEAK".padStart(4)} ${"POWER".padStart(6)} `]]);
+          ["cpu", "gpu"].forEach((key, i) => {
+            const h = hw[key];
+            setSpans(rows[i], [
+              ["tm-k", ` ${key.padEnd(4)}`],
+              ["", fit(model(h.name, key.toUpperCase()), 17).padEnd(18)],
+              [h.peak != null && h.peak >= HOT[key] ? "tm-w" : "", ` ${`${int(h.peak)}°`.padStart(4)}`],
+              ["tm-d", ` ${`${int(h.power)} W`.padStart(6)} `],
+            ]);
+            // how close it runs to hot
+            const heat = h.temp == null ? -Infinity : h.temp / HOT[key];
+            if (heat > behind) [worst, behind] = [i, heat];
+          });
+        }
         setAttr(sel, "y", (ROWS[worst] - S * 0.93).toFixed(1));
-        setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", ` ${fit(d.meta.text, N - 1)}`]]);
+        if (note) setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", ` ${fit(d.meta.text, N - 1)}`]]);
       },
     ];
   }
@@ -795,7 +936,7 @@
   // btop: rounded boxes with their titles set into the border, temperature graphs of the last
   // two minutes, the clock in the corner. Boxes are as wide as the round screen allows at their height.
   function sceneBtop(p, layer, env) {
-    const S = 20, cw = advance(p, S);
+    const S = 20, cw = advance(p, S), n = env.limits.length;
     const f = (v) => v.toFixed(1);
     // A box from x0 to x1: the title gap at the left, an optional label gap of `right` characters at the right.
     function box(x0, x1, y0, y1, num, title, right = 0) {
@@ -809,37 +950,46 @@
       return right ? term(p, x1 - cw * (1 + right), y0 + S * 0.32, S) : null;
     }
     const span = (cols) => [C - (cols * cw) / 2, C + (cols * cw) / 2];
+    // The limits box has a row per limit. Without limits it goes, the boxes are numbered from one
+    // and the clock moves to the sys box; whatever is saved, the rest moves down by half of it.
+    const saved = (n ? (3 - n) * 31 : 130) + (env.status ? 0 : 38), dy = Math.round(saved / 2), below = dy - saved + (env.status ? 0 : 38);
+    const nums = (n ? ["¹", "²", "³", "⁴"] : ["", "¹", "²", "³"]);
 
-    const [lx0, lx1] = span(36);
-    const clockText = box(lx0, lx1, 116, 228, "¹", "limits", 8);
-    const LY = [150, 181, 212];
-    const rows = LY.map((y) => term(p, lx0 + cw, y, S));
-    const gauges = LY.map((y) => limitBar(p, lx0 + cw, y, S, 10, 10, "■"));
+    let clockText = null, rows = [], gauges = [];
+    if (n) {
+      const [lx0, lx1] = span(36);
+      clockText = box(lx0, lx1, 116 + dy, 228 - (3 - n) * 31 + dy, nums[0], "limits", 8);
+      const LY = env.limits.map((_, i) => 150 + dy + i * 31);
+      rows = LY.map((y) => term(p, lx0 + cw, y, S));
+      gauges = LY.map((y) => limitBar(p, lx0 + cw, y, S, 10, 10, "■"));
+    }
 
     const [gx0, gx1] = span(45);
-    const GY = [270, 293, 316, 339];
-    const panes = [["cpu", gx0, gx0 + 22 * cw, "²"], ["gpu", gx1 - 22 * cw, gx1, "³"]].map(([key, x0, x1, num]) => ({
+    const GY = [270, 293, 316, 339].map((y) => y + below);
+    const panes = [["cpu", gx0, gx0 + 22 * cw, nums[1]], ["gpu", gx1 - 22 * cw, gx1, nums[2]]].map(([key, x0, x1, num]) => ({
       key,
-      range: box(x0, x1, 246, 388, num, key, 6),
+      range: box(x0, x1, 246 + below, 388 + below, num, key, 6),
       graph: GY.map((y) => term(p, x0 + cw, y, S)),
-      text: term(p, x0 + cw, 372, S),
+      text: term(p, x0 + cw, 372 + below, S),
       hist: [],
     }));
 
     const [sx0, sx1] = span(40);
-    const costText = box(sx0, sx1, 408, 490, "⁴", "sys", env.cost ? 13 : 0);
-    const sys = [442, 474].map((y) => term(p, sx0 + cw, y, S));
-    const mem = fracBar(p, sx0 + cw, 474, S, 4, 25, "■");
-    const note = term(p, C, 528, 16, "middle");
+    // the sys box's label: the cost next to the limits box, the clock without one
+    const label = box(sx0, sx1, 408 + below, 490 + below, nums[3], "sys", n ? (env.cost ? 13 : 0) : 8);
+    const sys = [442, 474].map((y) => term(p, sx0 + cw, y + below, S));
+    const mem = fracBar(p, sx0 + cw, 474 + below, S, 4, 25, "■");
+    const note = env.status ? term(p, C, 528 + below, 16, "middle") : null;
     let sampledAt = -Infinity;
     return [
       (d) => {
-        setText(clockText, hhmmss(d.now));
-        if (costText) {
+        if (clockText) setText(clockText, hhmmss(d.now));
+        if (!n) setText(label, hhmmss(d.now));
+        else if (label) {
           const c = costSpans(d.cost);
-          setSpans(costText, [["", " ".repeat(Math.max(0, 13 - d.cost.value.length - c[1][1].length))], ...c]);
+          setSpans(label, [["", " ".repeat(Math.max(0, 13 - d.cost.value.length - c[1][1].length))], ...c]);
         }
-        LIMITS.forEach((def, i) => {
+        env.limits.forEach((def, i) => {
           const v = d.views[def.key];
           setSpans(rows[i], [
             ["tm-k", `${def.cmd} `],
@@ -875,7 +1025,8 @@
           ["", ` ${r.used == null ? "—" : dec(r.used / 1024)}/${r.total == null ? "—" : Math.round(r.total / 1024)}G`],
         ]);
         mem(memFrac(r));
-        setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
+        // with no limits box the cost, if there is one, goes on the status line
+        if (note) setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", !n && d.cost ? `${d.meta.short} · ${d.cost.value} ${d.cost.short}` : d.meta.text]]);
       },
     ];
   }
@@ -1120,20 +1271,22 @@
       .trim() || fallback;
 
   // neofetch: the system as key: value lines, large, and a mascot wandering along the bottom
-  // under the text.
+  // under the text. The limits and the cost follow the hardware when there are any, and the
+  // block stays centred above the mascot.
   function sceneNeofetch(p, layer, env) {
-    const S = 26, x = 136;
-    const note = term(p, C, 80, 15, "middle");
-    setSpans(term(p, x, 112, S), host());
-    setSpans(term(p, x, 136, S), [["", "-".repeat(10)]]);
-    const Y = [170, 201, 232, 263, 294, 325, 362, 393, 424];
-    const L = Y.map((y) => term(p, x, y, S));
-    const gauges = LIMITS.map((_, i) => limitBar(p, x, Y[6 + i], S, 16, 10));
-    const cost = env.cost ? term(p, x, 455, S) : null;
+    const S = 26, x = 136, n = env.limits.length;
+    const note = env.status ? term(p, C, 80, 15, "middle") : null;
+    // six lines of hardware, the limits after a gap, then the cost
+    const at = [0, 31, 62, 93, 124, 155, ...env.limits.map((_, i) => 192 + i * 31), ...(env.cost ? [n ? 192 + n * 31 : 186] : [])];
+    const y0 = Math.round(283 - (at[at.length - 1] - 58) / 2);
+    setSpans(term(p, x, y0 - 58, S), host());
+    setSpans(term(p, x, y0 - 34, S), [["", "-".repeat(10)]]);
+    const L = at.map((dy) => term(p, x, y0 + dy, S));
+    const gauges = env.limits.map((_, i) => limitBar(p, x, y0 + at[6 + i], S, 16, 10));
+    const cost = env.cost ? L[L.length - 1] : null;
     const m = mascotById(env.mascot);
     walker(sprite(p, m), m, 206, 434, 560, env.animate);
     const kv = (k, v, cls = "") => [["tm-p", `${k}: `], [cls, v]];
-    const names = ["Claude 5h:", "Claude 7d:", "Codex 7d: "];
     return [
       (d) => {
         const hw = d.hw, r = ram(hw);
@@ -1145,67 +1298,86 @@
         setSpans(L[3], kv("Power", `${int(power(hw))} W`));
         setSpans(L[4], kv("Memory", `${r.used == null ? "—" : Math.round(r.used)}MiB / ${r.total == null ? "—" : Math.round(r.total)}MiB`));
         setSpans(L[5], kv("Time", hhmmss(d.now)));
-        LIMITS.forEach((def, i) => {
+        env.limits.forEach((def, i) => {
           const v = d.views[def.key];
-          setSpans(L[6 + i], [["tm-p", `${names[i]} `], [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v).trim().padEnd(5)], track(10)]);
+          setSpans(L[6 + i], [["tm-p", `${`${def.name}:`.padEnd(10)} `], [v.dim ? "tm-d" : v.hot ? "tm-w" : "", pctText(v).trim().padEnd(5)], track(10)]);
           gauges[i](v);
         });
         if (cost) setSpans(cost, [["tm-p", "Cost: "], ...costSpans(d.cost)]);
-        setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
+        if (note) setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
       },
     ];
   }
 
-  // Aligned key, then a bar: the hardware and limit rows of fastfetch and macchina, and the cost
-  // when Y has a ninth row for it.
-  function fetchRows(p, x, Y, S, n, full, empty) {
-    const L = Y.map((y) => term(p, x, y, S));
-    const bars = Y.slice(0, 5).map((y) => fracBar(p, x, y, S, 10, n, full));
-    const gauges = LIMITS.map((_, i) => limitBar(p, x, Y[5 + i], S, 10, n, full));
+  // Aligned key, then a bar: the rows of fastfetch and macchina. rows are [what, y], what being
+  // "cpu", "gpu", "liquid", "memory", "power", a limit or "cost".
+  function fetchRows(p, x, rows, S, n, full, empty) {
     const key = (k) => ["tm-p", k.padEnd(10)];
-    const names = ["Claude 5h", "Claude 7d", "Codex 7d"];
-    return (d) => {
-      const hw = d.hw, r = ram(hw), pw = power(hw);
-      for (const [i, k] of [[0, "cpu"], [1, "gpu"]]) {
-        const h = hw[k], temp = `${int(h.temp)}°`, hot = isHot(h, k) ? "tm-w" : "";
-        // the bar's own value follows it, then the other one
-        const values = d.bars === "temp" ? [[hot, ` ${temp.padStart(4)}`], ["", ` ${loadText(h)}`]] : [["", ` ${loadText(h).padStart(4)}`], [hot, ` ${temp}`]];
-        setSpans(L[i], [key(k.toUpperCase()), track(n, empty), ...values]);
-        bars[i](hwFrac(h, d));
+    const L = rows.map(([, y]) => term(p, x, y, S));
+    const ups = rows.map(([what, y], i) => {
+      const line = L[i];
+      if (what === "cost") return (d) => setSpans(line, [key("Cost"), ...costSpans(d.cost)]);
+      if (typeof what === "object") {
+        const gauge = limitBar(p, x, y, S, 10, n, full);
+        return (d) => {
+          const v = d.views[what.key];
+          setSpans(line, [key(what.name), track(n, empty), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
+          gauge(v);
+        };
       }
-      setSpans(L[2], [key("Liquid"), track(n, empty), ["", ` ${dec(hw.liquid)}°C`]]);
-      bars[2](hw.liquid == null ? null : (hw.liquid - 20) / 30);
-      setSpans(L[3], [key("Memory"), track(n, empty), ["", ` ${memText(r)}`]]);
-      bars[3](memFrac(r));
-      setSpans(L[4], [key("Power"), track(n, empty), ["", ` ${int(pw)} W`]]);
-      bars[4](pw == null ? null : pw / 600);
-      LIMITS.forEach((def, i) => {
-        const v = d.views[def.key];
-        setSpans(L[5 + i], [key(names[i]), track(n, empty), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
-        gauges[i](v);
-      });
-      if (L[8]) setSpans(L[8], [key("Cost"), ...costSpans(d.cost)]);
-    };
+      const bar = fracBar(p, x, y, S, 10, n, full);
+      if (what === "cpu" || what === "gpu")
+        return (d) => {
+          const h = d.hw[what], temp = `${int(h.temp)}°`, hot = isHot(h, what) ? "tm-w" : "";
+          // the bar's own value follows it, then the other one
+          const values = d.bars === "temp" ? [[hot, ` ${temp.padStart(4)}`], ["", ` ${loadText(h)}`]] : [["", ` ${loadText(h).padStart(4)}`], [hot, ` ${temp}`]];
+          setSpans(line, [key(what.toUpperCase()), track(n, empty), ...values]);
+          bar(hwFrac(h, d));
+        };
+      if (what === "liquid")
+        return (d) => {
+          setSpans(line, [key("Liquid"), track(n, empty), ["", ` ${dec(d.hw.liquid)}°C`]]);
+          bar(d.hw.liquid == null ? null : (d.hw.liquid - 20) / 30);
+        };
+      if (what === "memory")
+        return (d) => {
+          setSpans(line, [key("Memory"), track(n, empty), ["", ` ${memText(ram(d.hw))}`]]);
+          bar(memFrac(ram(d.hw)));
+        };
+      return (d) => {
+        const pw = power(d.hw);
+        setSpans(line, [key("Power"), track(n, empty), ["", ` ${int(pw)} W`]]);
+        bar(pw == null ? null : pw / 600);
+      };
+    });
+    return (d) => ups.forEach((u) => u(d));
   }
+  const HW_ROWS = ["cpu", "gpu", "liquid", "memory", "power"];
 
-  // fastfetch: the mascot as an ASCII-art logo on the left, the system beside it with bars.
+  // fastfetch: the mascot as an ASCII-art logo on the left, the system beside it with bars: the
+  // hardware, the time after a gap, the limits after another, then the cost, centred.
   function sceneFastfetch(p, layer, env) {
-    const S = 20, x = 272;
+    const S = 20, x = 272, n = env.limits.length;
     const m = mascotById(env.mascot);
     const logo = asciiSprite(p, m, 10);
     walker(logo, m, 164, 164, 314 + logo.height / 2, env.animate);
-    const note = term(p, C, 92, 15, "middle");
-    // a cost row makes it one line taller: tighter, and a little higher
-    const Y = env.cost ? [204, 234, 264, 294, 324, 392, 422, 452, 482] : [210, 242, 274, 306, 338, 412, 444, 476];
-    setSpans(term(p, x, Y[0] - 60, S), host());
-    setSpans(term(p, x, Y[0] - 36, S), [["", "-".repeat(10)]]);
-    const rows = fetchRows(p, x, Y, S, 7, "■", "■");
-    const clock = term(p, x, (Y[4] + Y[5]) / 2, S);
+    const note = env.status ? term(p, C, 92, 15, "middle") : null;
+    // more rows sit a little tighter
+    const s = 5 + n + (env.cost ? 1 : 0) > 8 ? 30 : 32, g = s === 30 ? 34 : 37;
+    const time = 4 * s + g;
+    const at = [0, s, 2 * s, 3 * s, 4 * s, ...env.limits.map((_, i) => time + g + i * s)];
+    if (env.cost) at.push(n ? at[at.length - 1] + s : time + s);
+    const y0 = Math.round(313 - (Math.max(time, at[at.length - 1]) - 60) / 2);
+    setSpans(term(p, x, y0 - 60, S), host());
+    setSpans(term(p, x, y0 - 36, S), [["", "-".repeat(10)]]);
+    const what = [...HW_ROWS, ...env.limits, ...(env.cost ? ["cost"] : [])];
+    const rows = fetchRows(p, x, what.map((w, i) => [w, y0 + at[i]]), S, 7, "■", "■");
+    const clock = term(p, x, y0 + time, S);
     return [
       (d) => {
         rows(d);
         setSpans(clock, [["tm-p", "Time".padEnd(10)], ["", hhmmss(d.now)]]);
-        setSpans(note, noteSpans(d));
+        if (note) setSpans(note, noteSpans(d));
       },
     ];
   }
@@ -1221,15 +1393,14 @@
     walker(sprite(p, m, 6), m, 229, 229, 164, env.animate);
     setSpans(term(p, 295, 124, 26), host());
     const clock = term(p, 295, 162, S);
-    // nine lines with the cost, eight without, centred below the middle, clear of the header
-    const rows = env.cost ? 9 : 8;
+    // five lines of hardware, a line per limit, the cost; centred below the middle, clear of the header
+    const rows = 5 + env.limits.length + (env.cost ? 1 : 0);
     const Y = Array.from({ length: rows }, (_, i) => Math.round(372 - (rows - 1) * 18.5 + i * 37));
     const L = Y.map((y) => term(p, x, y, S));
     const bars = Y.slice(0, 3).map((y) => fracBar(p, x, y, S, 12, n, "■"));
-    const gauges = LIMITS.map((_, i) => limitBar(p, x, Y[5 + i], S, 12, n, "■"));
-    const note = term(p, C, Y[rows - 1] + 42, 15, "middle");
+    const gauges = env.limits.map((_, i) => limitBar(p, x, Y[5 + i], S, 12, n, "■"));
+    const note = env.status ? term(p, C, Y[rows - 1] + 42, 15, "middle") : null;
     const key = (k) => ["tm-p", k.padEnd(7)];
-    const names = ["5h", "7d", "codex"];
     return [
       (d) => {
         const hw = d.hw, pw = power(hw);
@@ -1243,53 +1414,58 @@
         bars[2](pw == null ? null : pw / 600);
         setSpans(L[3], [key("liquid"), ["", `${dec(hw.liquid)}°`]]);
         setSpans(L[4], [key("memory"), ["", memText(ram(hw))]]);
-        LIMITS.forEach((def, i) => {
+        env.limits.forEach((def, i) => {
           const v = d.views[def.key];
           const until = v.resetsAt > d.now ? ` ${durShort(v.resetsAt - d.now)}` : "";
-          setSpans(L[5 + i], [key(names[i]), [limitClass(v), limitText(v).padEnd(5)], track(n, "■"), [limitClass(v), until]]);
+          setSpans(L[5 + i], [key(def.brief), [limitClass(v), limitText(v).padEnd(5)], track(n, "■"), [limitClass(v), until]]);
           gauges[i](v);
         });
-        if (L[8]) setSpans(L[8], [key("cost"), ...costSpans(d.cost)]);
+        if (env.cost) setSpans(L[rows - 1], [key("cost"), ...costSpans(d.cost)]);
         setSpans(clock, [["tm-t", hhmmss(d.now)]]);
-        setSpans(note, noteSpans(d));
+        if (note) setSpans(note, noteSpans(d));
       },
     ];
   }
 
   // macchina: dot bars for everything in a rounded frame, its name and the time set into the
-  // bottom edge; the mascot walks along the top edge.
+  // bottom edge; the mascot walks along the top edge. The limits and the cost go under a rule,
+  // when there are any, and the frame is as tall as its rows, centred.
   function sceneMacchina(p, layer, env) {
     const S = 20, cw = advance(p, S), f = (v) => v.toFixed(1);
-    // with the cost the frame is a row taller and starts higher
-    const Y = env.cost ? [231, 260, 289, 318, 347, 395, 424, 453, 482] : [243, 272, 301, 330, 359, 407, 436, 465];
+    const what = [...HW_ROWS, ...env.limits, ...(env.cost ? ["cost"] : [])];
+    const at = what.map((_, i) => (i < 5 ? i * 29 : 164 + (i - 5) * 29));
+    const Y = at.map((dy) => Math.round(355 - at[at.length - 1] / 2) + dy);
     const x0 = 108, x1 = 532, y0 = Y[0] - 31, y1 = Y[Y.length - 1] + 21, r = 12, gap = (23 * cw) / 2 + 4;
     el(p, "path", {
       class: "tm-box",
       d: `M${f(C - gap)} ${y1}H${x0 + r}Q${x0} ${y1} ${x0} ${y1 - r}V${y0 + r}Q${x0} ${y0} ${x0 + r} ${y0}` +
         `H${x1 - r}Q${x1} ${y0} ${x1} ${y0 + r}V${y1 - r}Q${x1} ${y1} ${x1 - r} ${y1}H${f(C + gap)}`,
     });
-    el(p, "path", { class: "tm-box", d: `M${x0} ${Y[5] - 27}H${x1}` });
+    if (what.length > 5) el(p, "path", { class: "tm-box", d: `M${x0} ${Y[5] - 27}H${x1}` });
     const m = mascotById(env.mascot);
     walker(sprite(p, m), m, 190, 450, y0 - 1, env.animate);
-    const rows = fetchRows(p, x0 + 1.5 * cw, Y, S, 12, "●", "○");
+    const rows = fetchRows(p, x0 + 1.5 * cw, what.map((w, i) => [w, Y[i]]), S, 12, "●", "○");
     const title = term(p, C, y1 + S * 0.32, S, "middle");
-    const note = term(p, C, y1 + 44, 15, "middle");
+    const note = env.status ? term(p, C, y1 + 44, 15, "middle") : null;
     return [
       (d) => {
         rows(d);
         setSpans(title, [["", " "], ...host(), ["tm-d", ` · ${hhmmss(d.now)} `]]);
-        setSpans(note, noteSpans(d));
+        if (note) setSpans(note, noteSpans(d));
       },
     ];
   }
 
   // cpufetch: CPU and GPU as chips with the temperature on the die and the model, a bar of the
-  // load or the temperature (as set) and the power below; the limits under them. The mascot walks across the tips of the pins.
+  // load or the temperature (as set) and the power below; the limits under them, and with fewer
+  // of them the whole picture moves down to stay centred. The mascot walks across the tips of the pins.
   function sceneCpufetch(p, layer, env) {
-    const W = 128, H = 118, top = 226, bottom = top + H, f = (v) => v.toFixed(1);
+    const n = env.limits.length;
+    const sysAt = n ? 450 + (n - 1) * 29 + 36 : 444, dy = Math.round((544 - sysAt) / 2);
+    const W = 128, H = 118, top = 226 + dy, bottom = top + H, f = (v) => v.toFixed(1);
     const m = mascotById(env.mascot);
     walker(sprite(p, m), m, 196, 444, top - 12, env.animate);
-    const note = term(p, C, 94, 14, "middle");
+    const note = env.status ? term(p, C, 94, 14, "middle") : null;
     const chips = ["cpu", "gpu"].map((k, i) => {
       const cx = C + (i ? 1 : -1) * (W / 2 + 20), x0 = cx - W / 2, x1 = cx + W / 2;
       let pins = "";
@@ -1306,11 +1482,10 @@
       const lx = cx - 9 * advance(p, 15), load = term(p, lx, bottom + 63, 15);
       return { k, die, temp: term(p, cx, top + 82, 38, "middle"), name: term(p, cx, bottom + 38, 15, "middle"), load, bar: fracBar(p, lx, bottom + 63, 15, 0, 7, "■") };
     });
-    const S = 20, x = C - 12.5 * advance(p, S), Y = [450, 479, 508];
+    const S = 20, x = C - 12.5 * advance(p, S), Y = env.limits.map((_, i) => 450 + dy + i * 29);
     const L = Y.map((y) => term(p, x, y, S));
-    const gauges = LIMITS.map((_, i) => limitBar(p, x, Y[i], S, 10, 10, "■"));
-    const names = ["Claude 5h", "Claude 7d", "Codex 7d"];
-    const sys = term(p, C, 544, 15, "middle");
+    const gauges = Y.map((y) => limitBar(p, x, y, S, 10, 10, "■"));
+    const sys = term(p, C, sysAt + dy, 15, "middle");
     return [
       (d) => {
         const hw = d.hw;
@@ -1323,23 +1498,25 @@
           setSpans(c.load, [track(7, "■"), value, ["tm-d", ` ${int(h.power)} W`.padEnd(6)]]);
           c.bar(hwFrac(h, d));
         }
-        LIMITS.forEach((def, i) => {
+        env.limits.forEach((def, i) => {
           const v = d.views[def.key];
-          setSpans(L[i], [["tm-p", names[i].padEnd(10)], track(10, "■"), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
+          setSpans(L[i], [["tm-p", def.name.padEnd(10)], track(10, "■"), [limitClass(v), ` ${limitText(v).padStart(4)}`]]);
           gauges[i](v);
         });
         const last = d.cost ? [["tm-k", `  ${d.cost.short} `], [d.cost.dim ? "tm-d" : "", d.cost.value]] : [["tm-k", "  power "], ["", `${int(power(hw))} W`]];
         setSpans(sys, [["tm-k", "liquid "], ["", `${dec(hw.liquid)}°C`], ["tm-k", "  mem "], ["", memText(ram(hw))], ...last]);
-        setSpans(note, noteSpans(d));
+        if (note) setSpans(note, noteSpans(d));
       },
     ];
   }
 
   // The time, large; limits above it, hardware below, a seconds marker running round the rim.
-  function sceneClock(p) {
-    const up = [unitHead(p, C, 102)];
-    LIMITS.forEach((def, i) => {
-      const x = 216 + i * 104;
+  // With no limits the time moves up into their room.
+  function sceneClock(p, layer, env) {
+    const n = env.limits.length, dy = n ? 0 : -40;
+    const up = n ? [unitHead(p, C, 102)] : [];
+    env.limits.forEach((def, i) => {
+      const x = spread(n, i, C, 104);
       el(p, "text", { x, y: 130, "text-anchor": "middle", class: "t-lbl-xs" }, def.short);
       const val = num(p, x + 5, 170, 36);
       const bar = barGauge(p, x - 34, x + 34, 188, 4);
@@ -1351,8 +1528,8 @@
         val.classList.toggle("is-warn", !!v.hot);
       });
     });
-    const time = el(p, "text", { x: C, y: 348, "text-anchor": "middle", class: "n t-big", "font-size": 164 });
-    const date = el(p, "text", { x: C, y: 400, "text-anchor": "middle", class: "t-date" });
+    const time = el(p, "text", { x: C, y: 348 + dy, "text-anchor": "middle", class: "n t-big", "font-size": 164 });
+    const date = el(p, "text", { x: C, y: 400 + dy, "text-anchor": "middle", class: "t-date" });
     const sec = el(p, "line", { x1: C, y1: C - 298, x2: C, y2: C - 314, class: "sec-now" });
     up.push((d) => {
       const t = new Date(d.now);
@@ -1360,22 +1537,26 @@
       setText(date, dateText(d.now, "date"));
       setAttr(sec, "transform", `rotate(${t.getSeconds() * 6} ${C} ${C})`);
     });
-    up.push(statBlock(p, "CPU", 194, 492, 30, readTemp("cpu"), "t-lbl-xs"));
-    up.push(statBlock(p, "GPU", 278, 492, 30, readTemp("gpu"), "t-lbl-xs"));
-    up.push(statBlock(p, t("lbl.liquid"), 362, 492, 30, readLiquid, "t-lbl-xs"));
-    up.push(statBlock(p, t("lbl.power"), 446, 492, 30, readPower, "t-lbl-xs"));
-    up.push(meta(p, 550));
+    up.push(statBlock(p, "CPU", 194, 492 + dy, 30, readTemp("cpu"), "t-lbl-xs"));
+    up.push(statBlock(p, "GPU", 278, 492 + dy, 30, readTemp("gpu"), "t-lbl-xs"));
+    up.push(statBlock(p, t("lbl.liquid"), 362, 492 + dy, 30, readLiquid, "t-lbl-xs"));
+    up.push(statBlock(p, t("lbl.power"), 446, 492 + dy, 30, readPower, "t-lbl-xs"));
+    // the date is already under the time, so without a source there is no footer
+    if (env.status) up.push(meta(p, 550));
     return up;
   }
 
-  // One huge value at a time; the rim gauge and the dots follow the carousel.
+  // One huge value at a time; the rim gauge and the dots follow the carousel. With no limits the
+  // memory takes a turn too.
   function sceneOne(p, layer, env) {
+    const pct = (f) => [f == null ? "—" : `${Math.round(f * 100)}`, "%", 0.41];
     const items = [
-      ...LIMITS.map((def) => ({ label: def.label, limit: def.key })),
+      ...env.limits.map((def) => ({ label: def.label, limit: def.key })),
       { label: "CPU", temp: "cpu" },
       { label: "GPU", temp: "gpu" },
       { label: t("lbl.liquid"), read: readLiquid, gauge: (d) => scale(d.hw.liquid, 20, 50) },
       { label: t("lbl.power"), read: readPower, gauge: (d) => scale(power(d.hw), 0, 600), sub: (d) => `CPU ${int(d.hw.cpu.power)} W · GPU ${int(d.hw.gpu.power)} W` },
+      ...(env.limits.length ? [] : [{ label: t("lbl.ram"), read: (d) => pct(memFrac(ram(d.hw))), gauge: (d) => (memFrac(ram(d.hw)) ?? 0) * 100, sub: (d) => ramText(ram(d.hw)) }]),
       ...(env.cost ? [{ label: t("lbl.cost"), cost: true }] : []),
     ];
     const up = [clock(p, 108)];
@@ -1425,7 +1606,7 @@
       groups.forEach((g, i) => g.classList.toggle("is-off", i !== active));
       dots.forEach((c, i) => c.classList.toggle("is-on", i === active));
     });
-    up.push(meta(p, 552));
+    up.push(footer(p, 552, env));
     return up;
   }
 
@@ -1460,9 +1641,9 @@
   };
   const isFace = (l) => /^face:[a-z0-9-]+$/.test(l || "");
   function normLayout(l, face) {
-    if (isFace(l) || l === "face") return face ? "face" : "rotation";
+    if (isFace(l) || l === "face") return face ? "face" : "cockpit";
     const id = LEGACY[l] || l;
-    return LAYOUTS.some((x) => x.id === id) ? id : "rotation";
+    return LAYOUTS.some((x) => x.id === id) ? id : "cockpit";
   }
   const validBg = (b) => BGS.some((x) => x.id === b) || /^media:./.test(b || "");
 
@@ -1486,18 +1667,23 @@
 
     let layout = null, theme = null, bgType = null, left = true, mascot = null, cost = null, bars = "load";
     let face = null, faceKey = null, builtLang = null;
+    // the limits switched on, and what of them and of the cost there is to show; see update()
+    let on = limitIds(), shown = { limits: [], cost: false }, shownKey = "";
     let scenes = {}, updaters = [];
     // Every scene is its own <svg>, so switching between them is a composited fade, not a repaint.
     const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: "scene" });
 
     function buildLayout() {
       for (const n of root.querySelectorAll("svg.scene")) n.remove();
-      const names = layout === "rotation" || layout === "adaptive" ? ["limits", "hardware"] : [layout];
+      const both = layout === "rotation" || layout === "adaptive";
+      // the layouts made of limits are the hardware alone while there are none to show
+      const names = !shown.limits.length && LAYOUTS.find((x) => x.id === layout)?.needsLimits ? ["hardware"] : both ? ["limits", "hardware"] : [layout];
+      const env = { animate, mascot, face, limits: shown.limits, cost: shown.cost, status: shown.limits.length > 0 || shown.cost };
       scenes = {};
       updaters = [];
       for (const name of names) {
         scenes[name] = layer();
-        updaters = updaters.concat(SCENES[name](scenes[name], layer, { animate, mascot, cost: cost !== "off", face }));
+        updaters = updaters.concat(SCENES[name](scenes[name], layer, env));
       }
       builtLang = I18N.lang;
     }
@@ -1516,6 +1702,7 @@
       back.look(next.look);
       const m = mascotById(next.mascot).id;
       const c = COSTS.some((x) => x.id === next.cost) ? next.cost : COSTS[0].id;
+      on = limitIds(next.limits);
       const themed = tm !== theme;
       if (themed) {
         root.className = `kd th-${(theme = tm)}`;
@@ -1527,11 +1714,11 @@
       if (themed || b !== bgType) back.set((bgType = b), animate);
       // untouched media gets a halo behind the text instead of a dimmed picture
       root.classList.toggle("is-raw", next.look === "raw" && /^media:/.test(b));
-      // switching the cost on or off adds or removes a line, so the layout is laid out again; so
-      // does another language, for the labels, and any change to a face
+      // another language lays the layout out again, for the labels, and so does any change to a
+      // face; limits and the cost coming or going do too, in update()
       const fk = l === "face" ? JSON.stringify(next.face) : null;
       const withMascot = l === "face" || LAYOUTS.find((x) => x.id === l).mascot;
-      if (l !== layout || (m !== mascot && withMascot) || (c === "off") !== (cost === "off") || fk !== faceKey || builtLang !== I18N.lang) {
+      if (l !== layout || (m !== mascot && withMascot) || fk !== faceKey || builtLang !== I18N.lang) {
         [layout, mascot, cost, faceKey, face] = [l, m, c, fk, l === "face" ? next.face : null];
         buildLayout();
       }
@@ -1550,11 +1737,21 @@
         const interval = data.interval ?? 60e3;
         const views = {};
         for (const def of LIMITS) views[def.key] = limitView((data.limits || {})[def.key], now, interval, left);
-        const cv = costView(data.costs, cost, now);
-        const d = { now, hw: data.hw || emptyHw(), views, left, bars, unitWord: t(left ? "unit.left" : "unit.used"), meta: metaView(data.limits, now, interval), cost: cv, costs: data.costs };
+        // which limits, and whether a cost: what is switched on of what the usage source sends
+        const lim = shownLimits(data.limits, on);
+        const withCost = cost !== "off" && !!data.costs && typeof data.costs === "object";
+        const key = `${lim.map((def) => def.key)}|${withCost}`;
+        if (key !== shownKey) {
+          [shown, shownKey] = [{ limits: lim, cost: withCost }, key];
+          buildLayout();
+        }
+        const cv = withCost ? costView(data.costs, cost, now) : null;
+        const d = { now, hw: data.hw || emptyHw(), views, left, bars, unitWord: t(left ? "unit.left" : "unit.used"), meta: metaView(data.limits, now, interval, data.costs), cost: cv, costs: data.costs };
         let active = Object.keys(scenes);
-        if (layout === "rotation") active = [Math.floor(now / ROTATE_MS) % 2 ? "hardware" : "limits"];
-        if (layout === "adaptive") active = [data.mode === "game" ? "hardware" : "limits"];
+        if (scenes.limits && scenes.hardware) {
+          if (layout === "rotation") active = [Math.floor(now / ROTATE_MS) % 2 ? "hardware" : "limits"];
+          if (layout === "adaptive") active = [data.mode === "game" ? "hardware" : "limits"];
+        }
         for (const k in scenes) scenes[k].classList.toggle("is-off", !active.includes(k));
         for (const u of updaters) u(d);
       },
@@ -1590,5 +1787,5 @@
     mascotById, money, loadText, memFrac, LIMITS, COSTS,
   };
 
-  window.KrakenDial = { create, background, mascotIcon, money, errText, LAYOUTS, THEMES, BGS, MASCOTS, COSTS, LEGACY, isFace, emptyHw, kit };
+  window.KrakenDial = { create, background, mascotIcon, money, errText, shownLimits, limitIds, LAYOUTS, THEMES, BGS, MASCOTS, LIMITS, COSTS, LEGACY, isFace, emptyHw, kit };
 })();

@@ -62,12 +62,16 @@ Ids are short English words, never shown to users. Names and descriptions go in 
 
 1. Write `sceneYourLayout(p, layer, env)` in `web/dial.js`.
    - `p` is the `<svg>` to draw into (640×640 units).
-   - `env` has `animate`, `mascot`, `cost` (whether a cost is shown) and `face`.
+   - `env` has `animate`, `mascot`, `face`, and what there is to show of the usage source:
+     - `limits`: the entries of `LIMITS` to draw, 0 to 3 of them (switched on and sent by the source);
+     - `cost`: whether a cost is shown;
+     - `status`: whether there is a sync status to show (limits or a cost); `footer()` shows the date instead when there isn't.
+   - Lay the layout out for any number of limits, with or without a cost, and give the room to the hardware when there are none. The layout is built again when what there is to show changes. `node tests/web.js` checks that a layout without a source says nothing about AI.
    - Return a list of updaters `(d) => …`. Each is called about once a second with `d = { now, hw, views, left, bars, unitWord, meta, cost, costs }`.
-   - Build with the parts in `dial.js`, e.g. `num`, `arcGauge`, `barGauge`, `limitGauge`, `meta`, `term`.
-2. Register it in `SCENES` and `LAYOUTS` (`mascot: true` if it has a mascot).
+   - Build with the parts in `dial.js`, e.g. `num`, `arcGauge`, `barGauge`, `limitGauge`, `meta`, `footer`, `term`.
+2. Register it in `SCENES` and `LAYOUTS` (`mascot: true` if it has a mascot, `needsLimits: true` if it is made of limits only, `hwDesc: true` if it reads differently without them).
 3. Add its id to `LAYOUTS` in `src/main.rs`.
-4. Add `layout.<id>` and `layout.<id>.desc` to `web/i18n.js`.
+4. Add `layout.<id>` and `layout.<id>.desc` to `web/i18n.js`, and `layout.<id>.descHw` with `hwDesc`.
 
 ### A theme
 

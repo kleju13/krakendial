@@ -44,17 +44,19 @@ Przycisk **Configure** w CAM albo `http://127.0.0.1:30640/` w przeglądarce otwi
 
 - **Układ:** 17 wbudowanych układów i twoje tarcze.
   - Okrągłe: Kokpit, Chronograf, Słupki, Zegar, Jedna liczba, Tylko limity, Tylko sprzęt.
-  - Rotacja (limity i sprzęt na zmianę) i Adaptacyjny (sprzęt, gdy GPU pracuje).
+  - Rotacja (limity i sprzęt na zmianę) i Adaptacyjny (sprzęt, gdy GPU pracuje). Te dwa i Tylko limity potrzebują źródła limitów.
   - Terminalowe: Terminal, htop, btop, neofetch, fastfetch, pfetch, macchina, cpufetch. Układy fetch mają maskotkę (Kraken, Krab, Duch, Kot albo Robot), która mruga, rozgląda się i trochę chodzi.
 - **Motyw:** 22 motywy, m.in. Nord, Tokyo Night, Catppuccin, Dracula, Solarized, Gruvbox i Synthwave.
 - **Tło:** 18 rysowanych animacji, od cieczy i zorzy po `donut.c`, ogień, Grę w życie i rury. Przyspieszają razem z obciążeniem GPU.
 - **Własne tła:** film, GIF albo obrazek. Może być przyciemniony pod motyw, w oryginale albo narysowany znakami ASCII.
 - **Klatki tła na sekundę:** 10, 20 albo 30. CAM renderuje stronę bez GPU i każda klatka na sekundę kosztuje ok. 2–3% jednego rdzenia, więc domyślnie jest 10.
-- **Limity pokazują:** ile zostało albo ile zużyte.
 - **Paski CPU i GPU:** obciążenie albo temperatura, w układach terminalowych.
-- **Koszt:** z 24 h, dziś, z 7 dni, w tym miesiącu albo wyłączony.
 - **Język:** automatycznie (z przeglądarki), English albo Polski.
 - **Źródło limitów:** skąd przychodzą limity i koszty (niżej). Zostaw puste, jeśli chcesz tylko sprzęt.
+- Ze źródłem dochodzą trzy kolejne:
+  - **Limity AI:** Claude 5h, Claude 7d i Codex 7d, każdy włączany osobno.
+  - **Limity pokazują:** ile zostało albo ile zużyte.
+  - **Koszt:** z 24 h, dziś, z 7 dni, w tym miesiącu albo wyłączony.
 
 ## Edytor tarcz
 
@@ -77,13 +79,13 @@ Tarcza nie rozmawia z Claude'em ani Codexem i nigdy nie czyta ich tokenów. Czyt
 
 To podsumowanie musi wystawiać coś, co uruchamiasz sam. Format opisuje [docs/usage-source.md](docs/usage-source.md) (po angielsku).
 
-Bez źródła części z limitami i kosztem po cichu o tym mówią. Cała reszta działa.
+Każdy układ pokazuje te limity, które są włączone i które źródło wysyła, oraz koszt, jeśli źródło go podaje. Resztę pomija i zsuwa się w jej miejscu. Bez źródła układy pokazują sam sprzęt, a tam, gdzie był stan synchronizacji, datę. Rotacja, Adaptacyjny i Tylko limity pokazują wtedy Tylko sprzęt, a ustawienia ich nie wyświetlają.
 
 ## Rozwój
 
 - `http://127.0.0.1:30640/lcd?mock` to sama tarcza ze zmyślonymi odczytami sprzętu.
 
-  Parametry `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `fps` i `lang` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. Tarcza z edytora to `layout=face:<id>`.
+  Parametry `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `limits`, `fps` i `lang` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. Tarcza z edytora to `layout=face:<id>`. `limits=claude5h,codex7d` wybiera limity, `limits=none` wyłącza wszystkie.
 - Exe uruchomione z `KRAKENDIAL_WEB=<repo>\web` serwuje pliki strony z dysku, bez przebudowy. Otwarte strony same się przeładowują po restarcie usługi.
 - `cargo test` testuje usługę. `node tests/web.js` buduje każdy układ, szablon i widżet w obu językach na sztucznym DOM-ie.
 - Logi, ustawienia, tarcze i media są w `%LOCALAPPDATA%\krakendial`.

@@ -57,7 +57,7 @@ A broken file can't break the dial; at worst a widget falls back to its defaults
 | Shape | `shape` | `kind` (`ring` / `circle` / `rect` / `line`, default `"ring"`)<br>`w` (1–640, default `200`)<br>`h` (0–640, default `200`)<br>`stroke` (0–60, default `2`)<br>`color` (color, default `"track"`)<br>`opacity` (0.05–1, default `1`) |
 | Ticks | `ticks` | `r` (10–320, default `300`)<br>`length` (1–80, default `10`)<br>`count` (1–180, default `60`)<br>`start` (-360–360, default `0`)<br>`end` (-360–360, default `360`)<br>`width` (0.5–12, default `1.5`)<br>`color` (color, default `"ink3"`) |
 
-`size` of a value is the height of its digits. `r` is a radius. `w` and `h` are a width and a height. In `cells`, `cells` is the number of characters in the bar. The `mascot` widget's `mascot` is `auto`, which follows the settings, or one of `kraken`, `crab`, `ghost`, `cat` and `robot`. `walk` is how far it may wander sideways. `src` of a picture is `media:<file name>`, a file from **Own backgrounds**.
+`size` of a value is the height of its digits. `r` is a radius. `w` and `h` are a width and a height. In `cells`, `cells` is the number of characters in the bar. The `mascot` widget's `mascot` is `auto`, which follows the settings, or one of `kraken`, `crab`, `ghost`, `cat` and `robot`. `walk` is how far it may wander sideways. `src` of a picture is `media:<file name>`, a file from **Own backgrounds**. The sync status shows the date while there is no usage source.
 
 ## Sources
 

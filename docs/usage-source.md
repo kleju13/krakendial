@@ -46,7 +46,7 @@ All times are Unix milliseconds.
 
 ### `limits`
 
-Keys: `claude5h`, `claude7d`, `codex5h`, `codex7d`. Any of them may be missing or `null`; a limit without a numeric `pct` is skipped. The dial currently draws `claude5h`, `claude7d` and `codex7d`.
+Keys: `claude5h`, `claude7d`, `codex5h`, `codex7d`. Any of them may be missing or `null`; a limit without a numeric `pct` is skipped. The dial currently draws `claude5h`, `claude7d` and `codex7d`: those the source sends and that are switched on under **AI limits** in the settings. The layouts close up around the others, so a source that only knows Claude never shows an empty Codex slot.
 
 | Field | Required | Meaning |
 |---|---|---|
@@ -60,7 +60,7 @@ From consecutive values the service works out when, at the pace of the last 45 m
 
 ### `costs`
 
-Optional. If `costs` is an object, the dial takes the whole object as it is.
+Optional. If `costs` is an object, the dial takes the whole object as it is. Without it the layouts show no cost.
 
 | Field | Meaning |
 |---|---|

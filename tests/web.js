@@ -87,6 +87,8 @@ const limits = {
   codex7d: { pct: null, error: "offline", fetchedAt: now - 10 * H },
 };
 const unset = Object.fromEntries(["claude5h", "claude7d", "codex7d"].map((k) => [k, { pct: null, error: "unset" }]));
+// a source that only knows Claude
+const claude = { claude5h: limits.claude5h, claude7d: limits.claude7d, codex7d: { pct: null } };
 const costs = { last24h: 14.29, today: 0.77, last7d: 1018.66, month: 1418.32, polledAt: now };
 const div = () => new Node("div");
 let built = 0;
@@ -97,7 +99,7 @@ const languages = I.LANGS.map((l) => l.id);
 const need = (k) => I.t(k) !== k || fail(`${I.lang}: no text for ${k}`);
 for (const lang of languages) {
   I.use(lang);
-  for (const l of K.LAYOUTS) need(`layout.${l.id}`), need(`layout.${l.id}.desc`);
+  for (const l of K.LAYOUTS) need(`layout.${l.id}`), need(`layout.${l.id}.desc`), l.hwDesc && need(`layout.${l.id}.descHw`);
   for (const x of K.THEMES) need(`theme.${x.id}`);
   for (const x of K.BGS) need(`bg.${x.id}`);
   for (const x of K.MASCOTS) need(`mascot.${x.id}`);
@@ -125,11 +127,12 @@ for (const f of fs.readdirSync(web).filter((f) => /\.(js|html)$/.test(f))) {
 
 for (const lang of languages) {
   for (const l of K.LAYOUTS) {
-    for (const [units, cost, lim] of [["left", "last24h", limits], ["used", "off", unset], ["left", "month", {}]]) {
-      const d = K.create(div(), { layout: l.id, theme: "ice", bg: "none", animate: false, units, cost, lang });
+    const sets = [["left", "last24h", limits], ["used", "off", unset], ["left", "month", {}], ["used", "today", claude], ["left", "last7d", limits, ["codex7d"]], ["left", "off", limits, "none"]];
+    for (const [units, cost, lim, on] of sets) {
+      const d = K.create(div(), { layout: l.id, theme: "ice", bg: "none", animate: false, units, cost, lang, limits: on });
       d.update({ now, hw, limits: lim, costs, interval: 60e3 });
       d.update({ now, hw: K.emptyHw(), limits: lim, costs: null, interval: 60e3 });
-      d.configure({ layout: l.id, theme: "deep", bg: "none", units, cost: cost === "off" ? "today" : "off", lang });
+      d.configure({ layout: l.id, theme: "deep", bg: "none", units, cost: cost === "off" ? "today" : "off", lang, limits: on ? undefined : ["claude7d"] });
       for (let i = 1; i < 10; i++) d.update({ now: now + i * 7000, hw, limits: lim, costs, interval: 60e3, mode: i > 5 ? "game" : "work" });
       if (d.layout !== l.id) fail(`layout ${l.id} came out as ${d.layout}`);
       built++;
@@ -172,6 +175,38 @@ for (const lang of languages) {
       built++;
     }
   }
+}
+
+// ---------- what the built-in layouts show ----------
+
+// Without a usage source no layout mentions AI or a missing source, and a limit switched off or
+// not sent is left out. Only text written as text is seen, which is all the labels.
+const textOf = (n) => [n.textContent, ...n.children.map(textOf)].join(" ");
+I.use("en");
+const shown = (layout, lim, on, withCosts) => {
+  const box = div();
+  K.create(box, { layout, theme: "ice", bg: "none", animate: false, lang: "en", limits: on }).update({ now, hw, limits: lim, costs: withCosts ? costs : null, interval: 60e3 });
+  return textOf(box);
+};
+const dead = [I.t("st.noSource"), I.t("unit.left"), I.t("unit.used"), I.t("lbl.cost")];
+for (const l of K.LAYOUTS) {
+  // the same walk does see the limits where they are shown (pfetch names them 5h, 7d, codex)
+  if (!["hardware", "one"].includes(l.id) && !/claude|codex/i.test(shown(l.id, limits))) fail(`${l.id}: no limits with limits on`);
+  const none = shown(l.id, unset);
+  if (/claude|codex/i.test(none)) fail(`${l.id}: mentions AI with no usage source`);
+  for (const s of dead) if (none.includes(s)) fail(`${l.id}: shows "${s}" with no usage source`);
+  if (/claude|codex/i.test(shown(l.id, limits, "none", true))) fail(`${l.id}: shows limits switched off`);
+  if (/codex/i.test(shown(l.id, claude, undefined, true))) fail(`${l.id}: shows Codex the source doesn't send`);
+  if (/codex/i.test(shown(l.id, limits, ["claude5h", "claude7d"]))) fail(`${l.id}: shows Codex switched off`);
+}
+// the templates other than the limits one are hardware only, and a face's status line gives way
+// to the date when there is no usage source
+for (const tpl of F.TEMPLATES.filter((x) => x.id !== "limits")) {
+  const box = div();
+  const face = F.normalize({ id: "t", widgets: tpl.widgets() });
+  K.create(box, { layout: "face:t", face, theme: "ice", bg: "none", animate: false, lang: "en" }).update({ now, hw, limits: unset, costs: null, interval: 60e3 });
+  const s = textOf(box);
+  if (/claude|codex/i.test(s) || s.includes(I.t("st.noSource"))) fail(`template ${tpl.id}: mentions AI with no usage source`);
 }
 
 // ---------- bad faces ----------

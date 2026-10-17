@@ -44,17 +44,19 @@ CAM's **Configure** button, or `http://127.0.0.1:30640/` in a browser, opens the
 
 - **Layout:** 17 built-in layouts, plus your own faces.
   - Round dials: Cockpit, Chronograph, Columns, Clock, One number, Limits only, Hardware only.
-  - Rotation (limits and hardware in turns) and Adaptive (hardware while the GPU is busy).
+  - Rotation (limits and hardware in turns) and Adaptive (hardware while the GPU is busy). These two and Limits only need a usage source.
   - Terminal-style: Terminal, htop, btop, neofetch, fastfetch, pfetch, macchina, cpufetch. The fetch layouts have a mascot (Kraken, Crab, Ghost, Cat or Robot) that blinks, looks around and walks a little.
 - **Theme:** 22 themes, among them Nord, Tokyo Night, Catppuccin, Dracula, Solarized, Gruvbox and Synthwave.
 - **Background:** 18 drawn animations, from liquid and aurora to `donut.c`, fire, Game of Life and pipes. They speed up with GPU load.
 - **Own backgrounds:** a video, GIF or picture of your own. It can be drawn tinted to the theme, as it is, or as ASCII characters.
 - **Frame rate:** 10, 20 or 30 fps. CAM renders the page without the GPU and spends about 2–3% of one core per frame per second, so 10 is the default.
-- **Limits show:** what is left, or what is used.
 - **CPU and GPU bars:** load or temperature, in the terminal layouts.
-- **Cost:** last 24 h, today, last 7 days, this month, or off.
 - **Language:** automatic (from the browser), English or Polski.
 - **Usage source:** where the limits and costs come from (see below). Leave it empty if you only want hardware.
+- With a usage source, three more:
+  - **AI limits:** Claude 5h, Claude 7d and Codex 7d, each on or off.
+  - **Limits show:** what is left, or what is used.
+  - **Cost:** last 24 h, today, last 7 days, this month, or off.
 
 ## Face editor
 
@@ -77,13 +79,13 @@ The dial does not talk to Claude or Codex and never reads their tokens. Instead 
 
 You need to run something that produces that summary. The format is in [docs/usage-source.md](docs/usage-source.md).
 
-Without a source, the limit and cost parts of the layouts say so quietly. Everything else works.
+Each layout shows the limits that are switched on and that the source sends, and the cost if it sends one, and closes up around the rest. Without a source the layouts show only the hardware, with the date where the sync status was. Rotation, Adaptive and Limits only then show Hardware only, and the settings leave them out.
 
 ## Development
 
 - `http://127.0.0.1:30640/lcd?mock` is the bare dial with made-up hardware readings.
 
-  `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `fps` and `lang` force a variant, e.g. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. A face goes as `layout=face:<id>`.
+  `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `limits`, `fps` and `lang` force a variant, e.g. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. A face goes as `layout=face:<id>`. `limits=claude5h,codex7d` picks limits, `limits=none` switches them all off.
 - Start the exe with `KRAKENDIAL_WEB=<repo>\web` to serve the web files from disk, without rebuilding. Open pages reload themselves when the service restarts.
 - `cargo test` runs the service tests. `node tests/web.js` builds every layout, template and widget in both languages on a fake DOM.
 - Logs, settings, faces and media are in `%LOCALAPPDATA%\krakendial`.
