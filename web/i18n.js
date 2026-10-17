@@ -135,7 +135,7 @@
     "cost.off": "Off",
 
     // the settings
-    "cfg.title": "Kraken LCD · settings",
+    "cfg.title": "KrakenDial · settings",
     "cfg.cooler": "Cooler",
     "cfg.live": "live",
     "cfg.noSignal": "no signal from CAM",
@@ -192,7 +192,7 @@
     "cfg.auto": "Automatic",
 
     // the editor
-    "ed.title": "Kraken LCD · face editor",
+    "ed.title": "KrakenDial · face editor",
     "ed.back": "← Settings",
     "ed.faces": "Face",
     "ed.name": "Name",
@@ -424,7 +424,7 @@
     "cost.month.short": "mies.",
     "cost.off": "Wyłączony",
 
-    "cfg.title": "Kraken LCD · ustawienia",
+    "cfg.title": "KrakenDial · ustawienia",
     "cfg.cooler": "Chłodzenie",
     "cfg.live": "na żywo",
     "cfg.noSignal": "brak sygnału z CAM",
@@ -479,7 +479,7 @@
     "cfg.sourceBad": "Podaj adres zaczynający się od http:// albo https://.",
     "cfg.auto": "Automatycznie",
 
-    "ed.title": "Kraken LCD · edytor tarcz",
+    "ed.title": "KrakenDial · edytor tarcz",
     "ed.back": "← Ustawienia",
     "ed.faces": "Tarcza",
     "ed.name": "Nazwa",

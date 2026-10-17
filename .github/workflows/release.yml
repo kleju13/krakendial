@@ -1,0 +1,29 @@
+# Pushing a tag like v0.2.0 builds krakendial.exe and publishes it as a GitHub release.
+# scripts/install.ps1 downloads the latest one.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo test
+      - run: node tests/web.js
+      - run: cargo build --release
+      - name: Checksum
+        shell: pwsh
+        run: |
+          Copy-Item target\release\krakendial.exe krakendial.exe
+          "$((Get-FileHash krakendial.exe -Algorithm SHA256).Hash.ToLower())  krakendial.exe" | Out-File -Encoding ascii krakendial.exe.sha256
+      - name: Publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" krakendial.exe krakendial.exe.sha256 --title "KrakenDial ${{ github.ref_name }}" --generate-notes

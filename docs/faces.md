@@ -1,6 +1,6 @@
 # Face format
 
-A face is a JSON file in `%LOCALAPPDATA%\krakenlcd\faces\<id>.json`. The editor writes these files; you can also write one by hand, or import one in the editor. The dial and the editor draw faces with the same code, `web/faces.js`.
+A face is a JSON file in `%LOCALAPPDATA%\krakendial\faces\<id>.json`. The editor writes these files; you can also write one by hand, or import one in the editor. The dial and the editor draw faces with the same code, `web/faces.js`.
 
 ```json
 {

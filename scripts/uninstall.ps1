@@ -1,7 +1,12 @@
-# Stops krakenlcd and removes the autostart entry. Settings and history in %LOCALAPPDATA%\krakenlcd stay
-# unless -Purge is given.
+# Stops KrakenDial and removes the autostart entry. Settings, faces and media in %LOCALAPPDATA%\krakendial
+# stay unless -Purge is given.
 param([switch]$Purge)
-Get-Process krakenlcd -ErrorAction SilentlyContinue | Stop-Process -Force
-Remove-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'KrakenLCD' -ErrorAction SilentlyContinue
-if ($Purge) { Remove-Item -Recurse -Force (Join-Path $env:LOCALAPPDATA 'krakenlcd') -ErrorAction SilentlyContinue }
-Write-Host 'KrakenLCD uninstalled.'
+$run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+Get-Process krakendial, krakenlcd -ErrorAction SilentlyContinue | Stop-Process -Force
+Remove-ItemProperty $run -Name 'KrakenDial' -ErrorAction SilentlyContinue
+Remove-ItemProperty $run -Name 'KrakenLCD' -ErrorAction SilentlyContinue
+if ($Purge) {
+    Remove-Item -Recurse -Force (Join-Path $env:LOCALAPPDATA 'krakendial') -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force (Join-Path $env:LOCALAPPDATA 'krakenlcd') -ErrorAction SilentlyContinue
+}
+Write-Host 'KrakenDial uninstalled.'

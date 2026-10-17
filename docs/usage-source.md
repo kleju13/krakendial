@@ -2,13 +2,13 @@
 
 The dial shows Claude and Codex limits and costs from a usage source: any URL that answers `GET` with the JSON below. The service never asks Claude or Codex itself and never reads their credentials, so you decide what collects the numbers and where it runs, e.g. on another machine in your own network.
 
-Set the URL in the settings under **Usage source**. You can also set the `KRAKENLCD_USAGE` environment variable before the service first starts; once the settings are saved, the saved value wins. An empty URL turns limits and costs off.
+Set the URL in the settings under **Usage source**. You can also set the `KRAKENDIAL_USAGE` environment variable before the service first starts; once the settings are saved, the saved value wins. An empty URL turns limits and costs off.
 
 ## Polling
 
 - The service fetches the URL every minute, with a 15-second timeout.
 - If a limit says when the source refreshes next (`nextAt`), the service fetches again 15 s after that, but at most once every 5 s and at least once a minute.
-- The last good answer is kept in `%LOCALAPPDATA%\krakenlcd\state.json` across restarts.
+- The last good answer is kept in `%LOCALAPPDATA%\krakendial\state.json` across restarts.
 
 When a fetch fails, the dial keeps the last numbers, dims them as they age, and shows why at the bottom:
 

@@ -1,4 +1,4 @@
-//! Faces made in the editor, one JSON file each in %LOCALAPPDATA%\krakenlcd\faces. The page
+//! Faces made in the editor, one JSON file each in %LOCALAPPDATA%\krakendial\faces. The page
 //! checks every widget when it draws a face; here a face only has to be a small JSON object
 //! with a list of widgets, saved under a plain id.
 

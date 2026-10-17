@@ -1,18 +1,47 @@
-# Builds krakenlcd, installs it to %LOCALAPPDATA%\krakenlcd and starts it at every logon (no admin needed).
+# Installs KrakenDial to %LOCALAPPDATA%\krakendial and starts it now and at every logon. No admin needed.
+#
+# From a clone with Rust installed it builds the exe; anywhere else it downloads the latest release:
+#   irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path -Parent $PSScriptRoot
-$dir = Join-Path $env:LOCALAPPDATA 'krakenlcd'
-$exe = Join-Path $dir 'krakenlcd.exe'
+$github = 'kleju13/krakendial'
+$dir = Join-Path $env:LOCALAPPDATA 'krakendial'
+$exe = Join-Path $dir 'krakendial.exe'
+$run = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$repo = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { '' }
+$fromSource = $repo -and (Test-Path (Join-Path $repo 'Cargo.toml')) -and (Get-Command cargo -ErrorAction SilentlyContinue)
 
-cargo build --release --manifest-path (Join-Path $repo 'Cargo.toml')
-if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
+if ($fromSource) {
+    cargo build --release --manifest-path (Join-Path $repo 'Cargo.toml')
+    if ($LASTEXITCODE -ne 0) { throw 'cargo build failed' }
+    $built = Join-Path $repo 'target\release\krakendial.exe'
+} else {
+    $release = Invoke-RestMethod "https://api.github.com/repos/$github/releases/latest" -Headers @{ 'User-Agent' = 'krakendial-install' } -UseBasicParsing
+    $asset = $release.assets | Where-Object { $_.name -eq 'krakendial.exe' } | Select-Object -First 1
+    $sum = $release.assets | Where-Object { $_.name -eq 'krakendial.exe.sha256' } | Select-Object -First 1
+    if (-not $asset -or -not $sum) { throw "release $($release.tag_name) has no krakendial.exe" }
+    Write-Host "Downloading KrakenDial $($release.tag_name)..."
+    $built = Join-Path $env:TEMP 'krakendial.exe'
+    Invoke-WebRequest $asset.browser_download_url -OutFile $built -UseBasicParsing
+    $want = ((Invoke-WebRequest $sum.browser_download_url -UseBasicParsing).Content -split '\s+')[0]
+    $have = (Get-FileHash $built -Algorithm SHA256).Hash
+    if ($have -ne $want) { Remove-Item $built; throw "download does not match its checksum ($have, expected $want)" }
+    Unblock-File $built
+}
 
-Get-Process krakenlcd -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process krakendial, krakenlcd -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep -Milliseconds 300
-New-Item -ItemType Directory -Force $dir | Out-Null
-Copy-Item (Join-Path $repo 'target\release\krakenlcd.exe') $exe -Force
 
-Set-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'KrakenLCD' -Value "`"$exe`""
+# Earlier versions were called krakenlcd: keep their settings, faces and media.
+$old = Join-Path $env:LOCALAPPDATA 'krakenlcd'
+if ((Test-Path $old) -and -not (Test-Path $dir)) {
+    Move-Item $old $dir
+    Remove-Item (Join-Path $dir 'krakenlcd.exe') -ErrorAction SilentlyContinue
+}
+Remove-ItemProperty $run -Name 'KrakenLCD' -ErrorAction SilentlyContinue
+
+New-Item -ItemType Directory -Force $dir | Out-Null
+Copy-Item $built $exe -Force
+Set-ItemProperty $run -Name 'KrakenDial' -Value "`"$exe`""
 Start-Process $exe
 
 Write-Host "Installed: $exe (starts at every logon)"

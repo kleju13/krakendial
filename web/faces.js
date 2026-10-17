@@ -616,7 +616,7 @@
       id: "terminal",
       widgets: () => [
         widget("mascot", { x: 320, y: 214, px: 7, walk: 220 }),
-        widget("text", { text: "kraken@lcd", x: 138, y: 262, size: 24, font: "mono", align: "start", color: "accent", bold: true }),
+        widget("text", { text: "kraken@dial", x: 138, y: 262, size: 24, font: "mono", align: "start", color: "accent", bold: true }),
         widget("text", { text: "cpu    {cpu.temp}\ngpu    {gpu.temp}\nliquid {liquid}\npower  {power}", x: 138, y: 300, size: 24, font: "mono", align: "start", color: "ink" }),
         widget("cells", { source: "cpu.load", x: 330, y: 300, size: 24, cells: 7, value: false }),
         widget("cells", { source: "gpu.load", x: 330, y: 328.8, size: 24, cells: 7, value: false }),

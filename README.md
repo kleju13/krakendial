@@ -1,6 +1,6 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# krakenlcdfree
+# KrakenDial
 
 [Polski](README.pl.md)
 
@@ -12,11 +12,13 @@ A free dial for the NZXT Kraken Elite LCD (640×640), shown through the Web Inte
 
 The dial and the settings are in English or Polish.
 
+![Six of the layouts](docs/img/dials.png)
+
 Not affiliated with or endorsed by NZXT. NZXT, CAM and Kraken are trademarks of NZXT, Inc.
 
 ## How it works
 
-A small Rust service (`krakenlcd.exe`, no window, about 14 MB of RAM) serves the dial at `http://127.0.0.1:30640/`. CAM loads that page on the cooler and pushes its sensor readings into it. The service keeps your settings and faces, and polls the usage source if you set one.
+A small Rust service (`krakendial.exe`, no window, about 14 MB of RAM) serves the dial at `http://127.0.0.1:30640/`. CAM loads that page on the cooler and pushes its sensor readings into it. The service keeps your settings and faces, and polls the usage source if you set one.
 
 - It listens on 127.0.0.1 only.
 - Settings can be changed only from its own pages. Other sites open in your browser can't change them, and requests addressed to any other host name are refused.
@@ -24,12 +26,15 @@ A small Rust service (`krakenlcd.exe`, no window, about 14 MB of RAM) serves the
 
 ## Install
 
-Windows with NZXT CAM and a Kraken Elite. There are no prebuilt releases yet, so you need [Rust](https://rustup.rs). [ffmpeg](https://ffmpeg.org) is optional; it shrinks your own videos to 640×640.
+Windows with NZXT CAM and a Kraken Elite. In PowerShell:
 
 ```powershell
-.\scripts\install.ps1     # builds, copies to %LOCALAPPDATA%\krakenlcd, starts it now and at every logon
-.\scripts\uninstall.ps1   # stops it and removes the autostart (-Purge also deletes settings, faces and media)
+irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
 ```
+
+This downloads the latest [release](https://github.com/kleju13/krakendial/releases), checks it against the SHA-256 published with it, copies it to `%LOCALAPPDATA%\krakendial` and starts it now and at every logon. The exe is not code-signed. Run the same line again to update.
+
+From a clone with [Rust](https://rustup.rs) installed, `.\scripts\install.ps1` builds it instead of downloading. `.\scripts\uninstall.ps1` stops it and removes the autostart; `-Purge` also deletes settings, faces and media. [ffmpeg](https://ffmpeg.org) is optional; it shrinks your own videos to 640×640.
 
 In NZXT CAM: **Lighting** → the Kraken's **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`.
 
@@ -62,11 +67,13 @@ CAM's **Configure** button, or `http://127.0.0.1:30640/` in a browser, opens the
 
 Undo, redo, layers, duplicating, and import and export as JSON are all there. Changes save as you go. **Show on the cooler** puts the face on the dial.
 
-The faces are JSON files in `%LOCALAPPDATA%\krakenlcd\faces`. Their format is in [docs/faces.md](docs/faces.md).
+![The face editor](docs/img/editor.png)
+
+The faces are JSON files in `%LOCALAPPDATA%\krakendial\faces`. Their format is in [docs/faces.md](docs/faces.md).
 
 ## Usage limits and costs
 
-The dial does not talk to Claude or Codex and never reads their tokens. Instead it reads one JSON summary from a URL you set in **Usage source**, or with the `KRAKENLCD_USAGE` environment variable before the first start. The summary is polled every minute, and 15 s after the source says it refreshed.
+The dial does not talk to Claude or Codex and never reads their tokens. Instead it reads one JSON summary from a URL you set in **Usage source**, or with the `KRAKENDIAL_USAGE` environment variable before the first start. The summary is polled every minute, and 15 s after the source says it refreshed.
 
 You need to run something that produces that summary. The format is in [docs/usage-source.md](docs/usage-source.md).
 
@@ -77,8 +84,12 @@ Without a source, the limit and cost parts of the layouts say so quietly. Everyt
 - `http://127.0.0.1:30640/lcd?mock` is the bare dial with made-up hardware readings.
 
   `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `fps` and `lang` force a variant, e.g. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. A face goes as `layout=face:<id>`.
-- Start the exe with `KRAKENLCD_WEB=<repo>\web` to serve the web files from disk, without rebuilding. Open pages reload themselves when the service restarts.
+- Start the exe with `KRAKENDIAL_WEB=<repo>\web` to serve the web files from disk, without rebuilding. Open pages reload themselves when the service restarts.
 - `cargo test` runs the service tests. `node tests/web.js` builds every layout, template and widget in both languages on a fake DOM.
-- Logs, settings, faces and media are in `%LOCALAPPDATA%\krakenlcd`.
+- Logs, settings, faces and media are in `%LOCALAPPDATA%\krakendial`.
 
 How the code is laid out, and how to add a layout, theme, background, widget or language: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md). Use it, change it and share it freely for personal and other noncommercial purposes. Selling it, or a product or service built on it, needs the author's permission.

@@ -1,6 +1,6 @@
 <img src="assets/icon.svg" width="64" height="64" alt="">
 
-# krakenlcdfree
+# KrakenDial
 
 [English](README.md)
 
@@ -12,11 +12,13 @@ Darmowa tarcza na LCD NZXT Kraken Elite (640×640), wyświetlana przez tryb Web 
 
 Tarcza i ustawienia są po angielsku albo po polsku.
 
+![Sześć z układów](docs/img/dials.png)
+
 Projekt nie jest powiązany z NZXT ani przez nie wspierany. NZXT, CAM i Kraken to znaki towarowe NZXT, Inc.
 
 ## Jak to działa
 
-Mała usługa w Ruście (`krakenlcd.exe`, bez okna, ok. 14 MB RAM) serwuje tarczę pod `http://127.0.0.1:30640/`. CAM wczytuje tę stronę na chłodzeniu i przekazuje do niej odczyty czujników. Usługa trzyma ustawienia i tarcze, a jeśli ustawisz źródło limitów, odpytuje je.
+Mała usługa w Ruście (`krakendial.exe`, bez okna, ok. 14 MB RAM) serwuje tarczę pod `http://127.0.0.1:30640/`. CAM wczytuje tę stronę na chłodzeniu i przekazuje do niej odczyty czujników. Usługa trzyma ustawienia i tarcze, a jeśli ustawisz źródło limitów, odpytuje je.
 
 - Słucha tylko na 127.0.0.1.
 - Ustawienia zmieniają tylko jej własne strony. Inne strony otwarte w przeglądarce nie mogą ich zmienić, a zapytania z inną nazwą hosta są odrzucane.
@@ -24,12 +26,15 @@ Mała usługa w Ruście (`krakenlcd.exe`, bez okna, ok. 14 MB RAM) serwuje tarcz
 
 ## Instalacja
 
-Windows z NZXT CAM i Krakenem Elite. Gotowych wydań jeszcze nie ma, więc potrzebny jest [Rust](https://rustup.rs). [ffmpeg](https://ffmpeg.org) jest opcjonalny: zmniejsza własne filmy do 640×640.
+Windows z NZXT CAM i Krakenem Elite. W PowerShellu:
 
 ```powershell
-.\scripts\install.ps1     # build, kopia do %LOCALAPPDATA%\krakenlcd, start teraz i przy każdym logowaniu
-.\scripts\uninstall.ps1   # zatrzymanie i usunięcie autostartu (-Purge kasuje też ustawienia, tarcze i media)
+irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
 ```
+
+To pobiera najnowsze [wydanie](https://github.com/kleju13/krakendial/releases), sprawdza je z opublikowaną sumą SHA-256, kopiuje do `%LOCALAPPDATA%\krakendial` i uruchamia teraz oraz przy każdym logowaniu. Exe nie jest podpisany. Ta sama linia aktualizuje.
+
+Z klonu repo z zainstalowanym [Rustem](https://rustup.rs) `.\scripts\install.ps1` buduje zamiast pobierać. `.\scripts\uninstall.ps1` zatrzymuje usługę i usuwa autostart; `-Purge` kasuje też ustawienia, tarcze i media. [ffmpeg](https://ffmpeg.org) jest opcjonalny: zmniejsza własne filmy do 640×640.
 
 W NZXT CAM: **Lighting** → przy Krakenie **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`.
 
@@ -62,11 +67,13 @@ Przycisk **Configure** w CAM albo `http://127.0.0.1:30640/` w przeglądarce otwi
 
 Jest cofanie i ponawianie, warstwy, duplikowanie oraz import i eksport do JSON. Zmiany zapisują się na bieżąco. **Pokaż na chłodzeniu** wrzuca tarczę na wyświetlacz.
 
-Tarcze to pliki JSON w `%LOCALAPPDATA%\krakenlcd\faces`. Format opisuje [docs/faces.md](docs/faces.md) (po angielsku).
+![Edytor tarcz](docs/img/editor.png)
+
+Tarcze to pliki JSON w `%LOCALAPPDATA%\krakendial\faces`. Format opisuje [docs/faces.md](docs/faces.md) (po angielsku).
 
 ## Limity i koszty
 
-Tarcza nie rozmawia z Claude'em ani Codexem i nigdy nie czyta ich tokenów. Czyta jedno podsumowanie JSON spod adresu wpisanego w **Źródło limitów** albo podanego w zmiennej `KRAKENLCD_USAGE` przed pierwszym startem. Odpytuje je co minutę i 15 s po tym, jak źródło zapowiedziało odświeżenie.
+Tarcza nie rozmawia z Claude'em ani Codexem i nigdy nie czyta ich tokenów. Czyta jedno podsumowanie JSON spod adresu wpisanego w **Źródło limitów** albo podanego w zmiennej `KRAKENDIAL_USAGE` przed pierwszym startem. Odpytuje je co minutę i 15 s po tym, jak źródło zapowiedziało odświeżenie.
 
 To podsumowanie musi wystawiać coś, co uruchamiasz sam. Format opisuje [docs/usage-source.md](docs/usage-source.md) (po angielsku).
 
@@ -77,8 +84,12 @@ Bez źródła części z limitami i kosztem po cichu o tym mówią. Cała reszta
 - `http://127.0.0.1:30640/lcd?mock` to sama tarcza ze zmyślonymi odczytami sprzętu.
 
   Parametry `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `fps` i `lang` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. Tarcza z edytora to `layout=face:<id>`.
-- Exe uruchomione z `KRAKENLCD_WEB=<repo>\web` serwuje pliki strony z dysku, bez przebudowy. Otwarte strony same się przeładowują po restarcie usługi.
+- Exe uruchomione z `KRAKENDIAL_WEB=<repo>\web` serwuje pliki strony z dysku, bez przebudowy. Otwarte strony same się przeładowują po restarcie usługi.
 - `cargo test` testuje usługę. `node tests/web.js` buduje każdy układ, szablon i widżet w obu językach na sztucznym DOM-ie.
-- Logi, ustawienia, tarcze i media są w `%LOCALAPPDATA%\krakenlcd`.
+- Logi, ustawienia, tarcze i media są w `%LOCALAPPDATA%\krakendial`.
 
 Układ kodu i dodawanie układu, motywu, tła, widżetu albo języka: [CONTRIBUTING.md](CONTRIBUTING.md) (po angielsku).
+
+## Licencja
+
+[PolyForm Noncommercial 1.0.0](LICENSE.md). Można używać, zmieniać i udostępniać za darmo do celów prywatnych i innych niekomercyjnych. Sprzedaż, albo produkt czy usługa zbudowane na tym, wymagają zgody autora.

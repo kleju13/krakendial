@@ -47,9 +47,27 @@ const ORIGINS: [&str; 2] = ["http://127.0.0.1:30640", "http://localhost:30640"];
 
 fn data_dir() -> PathBuf {
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
-    let dir = base.join("krakenlcd");
+    let dir = base.join("krakendial");
     let _ = std::fs::create_dir_all(&dir);
     dir
+}
+
+/// Earlier versions were called krakenlcd. Take over that folder's settings, faces and media
+/// once, unless this version already has settings of its own. Called after the port is bound,
+/// so no older copy is running out of that folder.
+fn adopt_old_data() {
+    let dir = data_dir();
+    let old = dir.with_file_name("krakenlcd");
+    if !old.is_dir() || dir.join("config.json").exists() {
+        return;
+    }
+    for entry in std::fs::read_dir(&old).into_iter().flatten().flatten() {
+        if entry.file_name() != "krakenlcd.exe" {
+            let _ = std::fs::rename(entry.path(), dir.join(entry.file_name()));
+        }
+    }
+    let _ = std::fs::remove_dir(&old);
+    log("took over the settings of krakenlcd");
 }
 
 /// Ids from older versions, which named things in Polish.
@@ -155,8 +173,8 @@ fn asset(name: &str) -> Option<(Vec<u8>, &'static str)> {
         "css" => "text/css; charset=utf-8",
         _ => return None,
     };
-    // KRAKENLCD_WEB points at the web/ folder during development, so edits show up without a rebuild.
-    if let Some(dir) = std::env::var_os("KRAKENLCD_WEB") {
+    // KRAKENDIAL_WEB points at the web/ folder during development, so edits show up without a rebuild.
+    if let Some(dir) = std::env::var_os("KRAKENDIAL_WEB") {
         if let Ok(b) = std::fs::read(PathBuf::from(dir).join(name)) {
             return Some((b, ctype));
         }
@@ -339,9 +357,10 @@ fn main() {
             return;
         }
     };
+    adopt_old_data();
     let state_path = data_dir().join("state.json");
-    // KRAKENLCD_USAGE sets the usage source until one is saved in the settings
-    let usage = std::env::var("KRAKENLCD_USAGE").ok().filter(|u| valid_url(u)).unwrap_or_default();
+    // KRAKENDIAL_USAGE sets the usage source until one is saved in the settings
+    let usage = std::env::var("KRAKENDIAL_USAGE").ok().filter(|u| valid_url(u)).unwrap_or_default();
     let mut config = json!({
         "layout": "rotation", "theme": "ice", "bg": "liquid", "fps": 10, "units": "left", "look": "plain", "mascot": "kraken",
         "cost": "last24h", "bars": "load", "lang": "auto", "usage": usage,

@@ -11,9 +11,9 @@ use std::time::Duration;
 
 const MIN: i64 = 60_000;
 const HOUR: i64 = 60 * MIN;
-const UA: &str = concat!("krakenlcd/", env!("CARGO_PKG_VERSION"));
+const UA: &str = concat!("krakendial/", env!("CARGO_PKG_VERSION"));
 const KEYS: [&str; 4] = ["claude5h", "claude7d", "codex5h", "codex7d"];
-/// The summary is cheap, so it is read every minute, and shortly after the ledger's own refresh.
+/// The summary is cheap, so it is read every minute, and shortly after the source's own refresh.
 pub const POLL_MS: i64 = MIN;
 
 pub fn now_ms() -> i64 {

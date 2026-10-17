@@ -2,15 +2,17 @@
 
 Issues and pull requests are welcome. For anything bigger than a fix, open an issue first, so we can agree on the shape before you spend time on it.
 
+The project is under the [PolyForm Noncommercial 1.0.0](LICENSE.md) license. By opening a pull request you agree that your contribution is licensed under it too, and you allow the maintainer to offer it under other terms as well, e.g. if a commercial license is ever granted.
+
 ## Running it
 
 ```powershell
 cargo build --release
-$env:KRAKENLCD_WEB = "$PWD\web"     # serve web/ from disk: edit, then reload the page
-.\target\release\krakenlcd.exe
+$env:KRAKENDIAL_WEB = "$PWD\web"     # serve web/ from disk: edit, then reload the page
+.\target\release\krakendial.exe
 ```
 
-Only one copy can listen on port 30640, so stop an installed one first (`Get-Process krakenlcd | Stop-Process`). Open pages reload by themselves when the service restarts.
+Only one copy can listen on port 30640, so stop an installed one first (`Get-Process krakendial | Stop-Process`). Open pages reload by themselves when the service restarts.
 
 - `http://127.0.0.1:30640/lcd?mock` is the dial with made-up hardware, and URL parameters force a variant (see the README).
 - `http://127.0.0.1:30640/` is the settings page.
@@ -31,7 +33,7 @@ node tests/web.js
 |---|---|
 | `src/main.rs` | HTTP server on 127.0.0.1:30640, settings, the API, the poller for the usage source |
 | `src/limits.rs` | Reading the usage source, limit history and burn rate |
-| `src/faces.rs` | Storing faces in `%LOCALAPPDATA%\krakenlcd\faces` |
+| `src/faces.rs` | Storing faces in `%LOCALAPPDATA%\krakendial\faces` |
 | `src/media.rs` | Own backgrounds: upload, ffmpeg, serving |
 | `web/index.html` | The page CAM shows on the cooler: takes CAM's sensor data, polls `/api/state`, drives the dial |
 | `web/dial.js` | Layouts (`scene*` functions), themes, mascots, the parts they are drawn with, and `KrakenDial.create()` |
@@ -116,3 +118,15 @@ Terminal-style layouts keep the English of the tools they imitate (`cpu`, `memor
 - Comments say why, briefly. Match the style of the code around them.
 - No new runtime dependencies in the web pages. They load straight from the service, with no build step.
 - Text shown to users goes through `t()`. Text that comes from users, such as face names and file names, goes in with `textContent`, never `innerHTML`.
+
+## Releases
+
+CI runs `cargo test` and `node tests/web.js` on every push and pull request. A release is a tag:
+
+```powershell
+# bump version in Cargo.toml, commit, then
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The release workflow builds `krakendial.exe` on a Windows runner, publishes it with its SHA-256 as a GitHub release, and `scripts/install.ps1` picks up the latest one.

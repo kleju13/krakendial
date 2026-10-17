@@ -663,7 +663,7 @@
     const L = Y.map((y) => term(p, 78, y, 20));
     const gauges = LIMITS.map((_, i) => limitBar(p, 78, Y[1 + i], 20, 10, 10));
     const bars = { cpu: fracBar(p, 78, Y[5], 20, 13, 10), gpu: fracBar(p, 78, Y[6], 20, 13, 10) };
-    const prompt = (cmd) => [["tm-p", "kraken"], ["tm-d", "@lcd ~ $ "], ["", cmd]];
+    const prompt = (cmd) => [["tm-p", "kraken"], ["tm-d", "@dial ~ $ "], ["", cmd]];
     return [
       (d) => {
         setSpans(L[0], prompt(`limits --${d.left ? "left" : "used"}`));
@@ -1103,7 +1103,7 @@
   // ---------- the fetch family ----------
   // The system the way neofetch and its descendants print it. The mascot lives in each of them.
 
-  const host = () => [["tm-p", "kraken"], ["", "@"], ["tm-p", "lcd"]];
+  const host = () => [["tm-p", "kraken"], ["", "@"], ["tm-p", "dial"]];
   const limitText = (v) => (v.value === "—" ? "—" : `${v.value}%`);
   const limitClass = (v) => (v.dim ? "tm-d" : v.hot ? "tm-w" : "");
   const memFrac = (r) => (r.used != null && r.total ? r.used / r.total : null);

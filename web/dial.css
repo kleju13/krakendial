@@ -1,4 +1,4 @@
-/* Kraken LCD dial. Themes are blue/white families to match a white build under blue light.
+/* KrakenDial dial. Themes are blue/white families to match a white build under blue light.
    Numerals are DIN (Bahnschrift ships with Windows). CAM rasterises without a GPU, so nothing
    here animates continuously: the moving background is a canvas painted by bg.js, and only
    whole scene layers fade. No rounded overflow clip either; the dial is round by itself. */
