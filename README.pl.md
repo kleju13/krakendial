@@ -4,7 +4,7 @@
 
 [English](README.md)
 
-Darmowa tarcza na LCD NZXT Kraken Elite (640×640), wyświetlana przez tryb Web Integration w NZXT CAM. Pokazuje:
+Otwartoźródłowa tarcza na LCD NZXT Kraken Elite (640×640), wyświetlana przez tryb Web Integration w NZXT CAM. Pokazuje:
 
 - temperatury CPU, GPU i cieczy, obciążenie i moc CPU i GPU, RAM i godzinę;
 - opcjonalnie limity Claude (5h, 7d) i Codexa (7d) z kreską tempa oraz ich koszt, ze źródła, które uruchamiasz u siebie;
@@ -92,4 +92,4 @@ Układ kodu i dodawanie układu, motywu, tła, widżetu albo języka: [CONTRIBUT
 
 ## Licencja
 
-[PolyForm Noncommercial 1.0.0](LICENSE.md). Można używać, zmieniać i udostępniać za darmo do celów prywatnych i innych niekomercyjnych. Sprzedaż, albo produkt czy usługa zbudowane na tym, wymagają zgody autora.
+[GNU AGPL v3](LICENSE). Można używać, zmieniać i udostępniać za darmo, także w pracy. Kto przekazuje dalej zmienioną wersję albo udostępnia ją innym przez sieć, musi opublikować jej źródła na tej samej licencji.

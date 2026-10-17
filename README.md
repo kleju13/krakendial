@@ -4,7 +4,7 @@
 
 [Polski](README.pl.md)
 
-A free dial for the NZXT Kraken Elite LCD (640×640), shown through the Web Integration mode of NZXT CAM. It shows:
+An open-source dial for the NZXT Kraken Elite LCD (640×640), shown through the Web Integration mode of NZXT CAM. It shows:
 
 - CPU, GPU and liquid temperatures, CPU and GPU load and power, RAM and the time;
 - optionally, your Claude (5h, 7d) and Codex (7d) usage limits with a pace marker, and what they cost, from a usage source you run yourself;
@@ -92,4 +92,4 @@ How the code is laid out, and how to add a layout, theme, background, widget or 
 
 ## License
 
-[PolyForm Noncommercial 1.0.0](LICENSE.md). Use it, change it and share it freely for personal and other noncommercial purposes. Selling it, or a product or service built on it, needs the author's permission.
+[GNU AGPL v3](LICENSE). Use it, change it and share it freely, at work too. If you pass on a changed version, or run one for other people over a network, you must publish its source under the same license.

@@ -2,7 +2,7 @@
 
 Issues and pull requests are welcome. For anything bigger than a fix, open an issue first, so we can agree on the shape before you spend time on it.
 
-The project is under the [PolyForm Noncommercial 1.0.0](LICENSE.md) license. By opening a pull request you agree that your contribution is licensed under it too, and you allow the maintainer to offer it under other terms as well, e.g. if a commercial license is ever granted.
+The project is under the [GNU AGPL v3](LICENSE). By opening a pull request you agree that your contribution is licensed under it too.
 
 ## Running it
 
