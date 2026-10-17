@@ -2,90 +2,83 @@
 
 # krakenlcdfree
 
-Tarcza na LCD Krakena Elite (640×640) przez Web Integration w NZXT CAM. Pokazuje:
+[Polski](README.pl.md)
 
-- temperatury CPU, GPU i cieczy, moc CPU+GPU, RAM i zegar;
-- limity Claude (5h, 7d) i Codexa (7d) z cienką kreską tempa;
-- ile Claude i Codex kosztowały na wszystkich maszynach: w 24 h, dziś, w 7 dni albo w miesiącu.
+A free dial for the NZXT Kraken Elite LCD (640×640), shown through the Web Integration mode of NZXT CAM. It shows:
 
-Mała usługa w Ruście (`krakenlcd.exe`, bez okna, ~14 MB RAM) serwuje stronę na `http://127.0.0.1:30640/`. Limity i koszty bierze z podsumowania ledgera (`GET https://usage.example.invalid/api/summary`, tylko w tailnecie; inny adres ustawia zmienna `KRAKENLCD_LEDGER`). Sama nigdy nie pyta Claude'a ani Codexa i nie czyta ich tokenów.
+- CPU, GPU and liquid temperatures, CPU and GPU load and power, RAM and the time;
+- optionally, your Claude (5h, 7d) and Codex (7d) usage limits with a pace marker, and what they cost, from a usage source you run yourself;
+- your own faces, built in the editor from values, gauges, bars, graphs, text, pictures and mascots.
 
-## Instalacja
+The dial and the settings are in English or Polish.
+
+Not affiliated with or endorsed by NZXT. NZXT, CAM and Kraken are trademarks of NZXT, Inc.
+
+## How it works
+
+A small Rust service (`krakenlcd.exe`, no window, about 14 MB of RAM) serves the dial at `http://127.0.0.1:30640/`. CAM loads that page on the cooler and pushes its sensor readings into it. The service keeps your settings and faces, and polls the usage source if you set one.
+
+- It listens on 127.0.0.1 only.
+- Settings can be changed only from its own pages. Other sites open in your browser can't change them, and requests addressed to any other host name are refused.
+- It connects to nothing except the usage source you enter. No telemetry.
+
+## Install
+
+Windows with NZXT CAM and a Kraken Elite. There are no prebuilt releases yet, so you need [Rust](https://rustup.rs). [ffmpeg](https://ffmpeg.org) is optional; it shrinks your own videos to 640×640.
 
 ```powershell
-.\scripts\install.ps1     # build, kopia do %LOCALAPPDATA%\krakenlcd, autostart przy logowaniu, start
-.\scripts\uninstall.ps1   # stop + usunięcie autostartu (-Purge kasuje też ustawienia i historię)
+.\scripts\install.ps1     # builds, copies to %LOCALAPPDATA%\krakenlcd, starts it now and at every logon
+.\scripts\uninstall.ps1   # stops it and removes the autostart (-Purge also deletes settings, faces and media)
 ```
 
-W NZXT CAM: **Lighting** → przy Krakenie **Mode** → **Web Integration** → **Custom Mode** → **Edit** → URL `http://127.0.0.1:30640/`.
+In NZXT CAM: **Lighting** → the Kraken's **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`.
 
-## Warianty
+## Settings
 
-Przycisk **Configure** w CAM (albo `http://127.0.0.1:30640/` w przeglądarce) otwiera panel z podglądem na żywych danych. Wybór trafia na chłodzenie w ciągu ~3 s. Panel i tarcza są po angielsku.
+CAM's **Configure** button, or `http://127.0.0.1:30640/` in a browser, opens the settings with a live preview. A choice reaches the cooler within about 3 seconds.
 
-- **Układ:**
-  - **Rotation:** limity i sprzęt na zmianę.
-  - **Adaptive:** limity, a gdy GPU pracuje (>60% przez 20 s), sprzęt.
-  - **Cockpit:** wszystko naraz: trzy limity z paskami, temperatury, ciecz, moc i RAM.
-  - **Chronograph:** zegarek ze wskazówkami, każdy limit na osobnej tarczce.
-  - **Columns:** siedem słupków obok siebie.
-  - **Clock:** duża godzina, limity nad nią, sprzęt pod nią.
-  - **One number:** karuzela dużych wartości.
-  - **Limits only** / **Hardware only**.
-  - Rodzina terminalowa:
-    - **Terminal:** wszystko jako wynik poleceń w konsoli.
-    - **htop:** mierniki `CPU[|||   55°C 15%]` u góry, limity jako lista procesów pod odwróconym nagłówkiem. Zaznaczony jest limit, który zużywa się najszybciej względem tempa.
-    - **btop:** zaokrąglone ramki na całą tarczę, zegar w ramce. Wykresy temperatur CPU i GPU z ostatnich 2 min są pisane brajlem i same dopasowują skalę (zakres w rogu ramki), więc sięgają do jej górnej krawędzi.
-    - Rodzina fetch, każdy układ z maskotką:
-      - **neofetch:** sprzęt i limity dużym tekstem jako `klucz: wartość`, a pod spodem chodzi maskotka.
-      - **fastfetch:** maskotka jako logo z ASCII (`$$`) po lewej, obok wyrównana tabela z paskami `■■■□□□□` dla CPU i GPU, cieczy, pamięci, mocy i limitów.
-      - **pfetch:** maskotka obok nazwy i dużej godziny, pod nimi bardzo duże linijki. Przed paskami CPU i GPU jest ich obciążenie albo temperatura, za nimi ich moc. Przy obciążeniu nazwa czerwienieje, gdy układ jest gorący. Linijka `power` to moc całego zestawu z paskiem do 600 W. Za paskami limitów jest czas do ich resetu (`2h50`, `2d13h`), czerwony, gdy limit już się skończył.
-      - **macchina:** paski z kropek `●●●○○○` w zaokrąglonej ramce, nazwa i godzina wpisane w dolną krawędź. Maskotka chodzi po górnej krawędzi ramki.
-      - **cpufetch:** CPU i GPU jako układy scalone z nóżkami, temperatura na rdzeniu (czerwienieje, gdy jest gorąco), pod spodem model, pasek i moc. Maskotka chodzi po nóżkach obu układów.
+- **Layout:** 17 built-in layouts, plus your own faces.
+  - Round dials: Cockpit, Chronograph, Columns, Clock, One number, Limits only, Hardware only.
+  - Rotation (limits and hardware in turns) and Adaptive (hardware while the GPU is busy).
+  - Terminal-style: Terminal, htop, btop, neofetch, fastfetch, pfetch, macchina, cpufetch. The fetch layouts have a mascot (Kraken, Crab, Ghost, Cat or Robot) that blinks, looks around and walks a little.
+- **Theme:** 22 themes, among them Nord, Tokyo Night, Catppuccin, Dracula, Solarized, Gruvbox and Synthwave.
+- **Background:** 18 drawn animations, from liquid and aurora to `donut.c`, fire, Game of Life and pipes. They speed up with GPU load.
+- **Own backgrounds:** a video, GIF or picture of your own. It can be drawn tinted to the theme, as it is, or as ASCII characters.
+- **Frame rate:** 10, 20 or 30 fps. CAM renders the page without the GPU and spends about 2–3% of one core per frame per second, so 10 is the default.
+- **Limits show:** what is left, or what is used.
+- **CPU and GPU bars:** load or temperature, in the terminal layouts.
+- **Cost:** last 24 h, today, last 7 days, this month, or off.
+- **Language:** automatic (from the browser), English or Polski.
+- **Usage source:** where the limits and costs come from (see below). Leave it empty if you only want hardware.
 
-      Maskotkę wybiera się w panelu: Kraken, Crab, Ghost, Cat albo Robot. Co parę sekund mruga, rozgląda się albo przechodzi kawałek, nie wchodząc na tekst; tam, gdzie nie ma gdzie chodzić (logo fastfetch, pfetch), przebiera nogami w miejscu. Między ruchami nic się nie zmienia, więc te układy bez tła kosztują CAM-a tyle co btop: ok. 20–35% jednego rdzenia.
-- **Limits show:** ile zostało (domyślnie) albo ile zużyte.
+## Face editor
 
-  Cienka kreska na każdym limicie to miejsce, w którym byłby przy równym tempie przez całe okno. Przy „ile zostało” mówi, ile powinno jeszcze zostać teraz. W układach terminalowych leży nad znakami paska w dokładnym miejscu, a sam pasek też kończy się tam, gdzie wypada wartość, w razie potrzeby w połowie kwadratu czy kropki, a nie na całej komórce. Dzięki temu przy tygodniowym limicie widać, czy jest przed kreską, czy za nią. Tak samo wypełniają się paski temperatur, obciążenia, pamięci i mocy.
-- **CPU and GPU bars:** obciążenie (domyślnie) albo temperatura. Dotyczy pasków CPU i GPU w układach terminalowych (terminal, htop, fastfetch, pfetch, macchina, cpufetch). Wartość paska stoi tuż przy nim. Wykresy btop i okrągłe tarcze zawsze pokazują temperatury.
-- **Theme:** Ice, Porcelain, Frost, Blue, Ocean, Deep, Indigo, Graphite, Night, Neon, a w stylu motywów terminala: Nord, Tokyo Night, Catppuccin, Latte, Dracula, Solarized, Gruvbox, Synthwave, Phosphor, Amber, Mono, Paper.
-- **Background:** rysowane animacje albo brak. Przyspieszają razem z obciążeniem GPU.
-  - Liquid, Ripples, Bubbles, Aurora, Flow, Nebula, Stars, Bokeh.
-  - Silk, Contours, Vortex, Honeycomb, Grid, Code rain.
-  - Terminalowe, pisane znakami:
-    - **donut.c:** obracający się torus ASCII.
-    - **Fire:** płomień z gęstości znaków.
-    - **Life:** Gra w życie z gasnącym śladem, sama zaczyna od nowa, gdy się ustabilizuje.
-    - **Pipes:** rury jak w `pipes.sh`.
-- **Own backgrounds:** film, GIF albo obrazek dodany w panelu (trafia do `%LOCALAPPDATA%\krakenlcd\media`).
+`http://127.0.0.1:30640/editor`, or **My faces** in the settings. Start from a template or a blank face:
 
-  Ruchome pliki są przycinane do kwadratu i zmniejszane do 640×640 przez ffmpeg, jeśli jest zainstalowany. Tarcza przyciemnia film tym mocniej, im jest jaśniejszy, a w jasnych motywach zamienia go na biało-niebieski duoton, żeby liczby zostały czytelne.
+- add widgets from the palette;
+- drag them on the dial; they snap to the centre and to each other;
+- resize them by the corner handle;
+- change everything else in the properties panel.
 
-  Pod listą jest przełącznik wyglądu:
-  - **Theme tint** (domyślnie): przyciemnienie i duoton jak wyżej.
-  - **Original:** film w oryginalnych kolorach, bez przyciemniania. Tekst dostaje cienką obwódkę w kolorze tła, żeby był czytelny na jasnych fragmentach.
-  - **ASCII:** każda klatka jest rysowana znakami ` .:-=+*#%@` w kolorach motywu, z poziomami dopasowanymi do klipu, żeby pasowała do układów terminalowych. Kosztuje ok. 20 punktów procentowych więcej niż zwykły film.
-- **Background frame rate:** 10, 20 albo 30 kl/s.
+Undo, redo, layers, duplicating, and import and export as JSON are all there. Changes save as you go. **Show on the cooler** puts the face on the dial.
 
-  CAM renderuje stronę bez GPU i każdą zmienioną klatkę przechwytuje i wysyła na wyświetlacz, co kosztuje ok. 2–3% jednego rdzenia na każdą klatkę na sekundę. Przy 10 kl/s cały CAM zużywa ok. 55–65% jednego rdzenia z animowanym tłem albo filmem i ok. 20–25% bez tła.
-- **Cost:** Last 24 h (domyślnie), Today, Last 7 days, This month albo Off.
+The faces are JSON files in `%LOCALAPPDATA%\krakenlcd\faces`. Their format is in [docs/faces.md](docs/faces.md).
 
-  Koszt jest w każdym układzie:
-  - w zwykłych tarczach na dolnej linijce obok godziny synchronizacji;
-  - w **One number** jako osobna karta z dwoma pozostałymi okresami pod spodem;
-  - w terminalu, htop i btop jako `cost`, `Cost:` albo w rogu ramki `sys`;
-  - w rodzinie fetch jako osobna linijka, a w cpufetch zamiast łącznej mocy.
+## Usage limits and costs
 
-Usługa czyta podsumowanie ledgera co minutę i dodatkowo 15 s po jego własnym odświeżeniu (`nextAt`), więc nowe limity widać zaraz po tym, jak ledger je pobierze, a sam ledger pyta Claude'a raz na 5 min. Tempo zużycia (`burnAt`) liczy z kolejnych próbek ledgera.
+The dial does not talk to Claude or Codex and never reads their tokens. Instead it reads one JSON summary from a URL you set in **Usage source**, or with the `KRAKENLCD_USAGE` environment variable before the first start. The summary is polled every minute, and 15 s after the source says it refreshed.
 
-Na dole tarczy jest godzina, o której ledger ostatnio pobrał limity, i jego odstęp, a obok kółko, które wypełnia się do następnego pobrania. Gdy ledgera nie da się odpytać (np. poza tailnetem), tekst i kółko robią się czerwone („ledger offline”), a nieaktualne limity i koszt przygasają. Panel pokazuje też, które maszyny ledgera są offline.
+You need to run something that produces that summary. The format is in [docs/usage-source.md](docs/usage-source.md).
 
-## Rozwój
+Without a source, the limit and cost parts of the layouts say so quietly. Everything else works.
 
-- `http://127.0.0.1:30640/lcd?mock` to sama tarcza ze sztucznymi danymi sprzętu.
+## Development
 
-  Parametry `layout`, `theme`, `bg`, `units`, `look` (`plain`, `raw`, `ascii`), `mascot`, `bars` (`load`, `temp`), `cost` (`last24h`, `today`, `last7d`, `month`, `off`) i `fps` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost` albo `/lcd?mock&layout=btop&theme=deep&bg=media:runa.mp4&look=ascii`. Identyfikatory układów i teł są stałe (np. `kokpit`, `gwiazdy`), choć nazwy w panelu są po angielsku.
-- `KRAKENLCD_WEB=<repo>\web` przy uruchomieniu exe serwuje pliki z dysku bez przebudowy.
+- `http://127.0.0.1:30640/lcd?mock` is the bare dial with made-up hardware readings.
 
-  Otwarte strony same się przeładowują po restarcie usługi.
-- Logi, historia i ustawienia są w `%LOCALAPPDATA%\krakenlcd`.
+  `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `fps` and `lang` force a variant, e.g. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. A face goes as `layout=face:<id>`.
+- Start the exe with `KRAKENLCD_WEB=<repo>\web` to serve the web files from disk, without rebuilding. Open pages reload themselves when the service restarts.
+- `cargo test` runs the service tests. `node tests/web.js` builds every layout, template and widget in both languages on a fake DOM.
+- Logs, settings, faces and media are in `%LOCALAPPDATA%\krakenlcd`.
+
+How the code is laid out, and how to add a layout, theme, background, widget or language: [CONTRIBUTING.md](CONTRIBUTING.md).

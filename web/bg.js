@@ -3,30 +3,31 @@
 // rate is a setting (10/20/30) and between frames the page stays idle. Soft light is painted
 // at 256 px (the upscale is invisible), line work at 384–512 px, the user's own media at 640 px.
 //   const back = KrakenBg.backdrop(canvas, root);  // root carries the theme's custom properties
-//   back.set("zorza", animate);                    // or "media:<file>" from the media folder
+//   back.set("aurora", animate);                   // or "media:<file>" from the media folder
 //   back.play(); back.pause(); back.speed(1.6); back.fps(10);
 //   back.look("ascii");                            // own media: "plain" (tinted), "raw" or "ascii"
 (function () {
+  // The drawn backgrounds; their names are in i18n.js under bg.<id>.
   const LIST = [
-    { id: "ciecz", name: "Liquid" },
-    { id: "fale", name: "Ripples" },
-    { id: "babelki", name: "Bubbles" },
-    { id: "zorza", name: "Aurora" },
-    { id: "obieg", name: "Flow" },
-    { id: "mglawica", name: "Nebula" },
-    { id: "gwiazdy", name: "Stars" },
-    { id: "bokeh", name: "Bokeh" },
-    { id: "linie", name: "Silk" },
-    { id: "topografia", name: "Contours" },
-    { id: "wir", name: "Vortex" },
-    { id: "plaster", name: "Honeycomb" },
-    { id: "siatka", name: "Grid" },
-    { id: "kod", name: "Code rain" },
-    { id: "donut", name: "donut.c" },
-    { id: "fire", name: "Fire" },
-    { id: "life", name: "Life" },
-    { id: "pipes", name: "Pipes" },
-    { id: "brak", name: "None" },
+    { id: "liquid" },
+    { id: "ripples" },
+    { id: "bubbles" },
+    { id: "aurora" },
+    { id: "flow" },
+    { id: "nebula" },
+    { id: "stars" },
+    { id: "bokeh" },
+    { id: "silk" },
+    { id: "contours" },
+    { id: "vortex" },
+    { id: "honeycomb" },
+    { id: "grid" },
+    { id: "rain" },
+    { id: "donut" },
+    { id: "fire" },
+    { id: "life" },
+    { id: "pipes" },
+    { id: "none" },
   ];
 
   const TAU = 2 * Math.PI;
@@ -223,8 +224,8 @@
 
   // Each painter draws the moment t (seconds) on an s×s canvas already clipped to the dial.
   const PAINT = {
-    // ciecz: soft pools of light orbiting slowly, like coolant swirling in the pump
-    ciecz: {
+    // liquid: soft pools of light orbiting slowly, like coolant swirling in the pump
+    liquid: {
       paint(ctx, t, s, p) {
         for (const [period, ox, oy, r, c] of [[48, 0.19, -0.08, 0.35, p.a], [-66, -0.21, 0.11, 0.34, p.b], [84, 0.05, 0.24, 0.26, p.a]]) {
           const a = (TAU * t) / period;
@@ -232,8 +233,8 @@
         }
       },
     },
-    // fale: slow ripples spreading from the centre
-    fale: {
+    // ripples: slow ripples spreading from the centre
+    ripples: {
       paint(ctx, t, s, p) {
         const c = s / 2;
         for (let i = 0; i < 3; i++) {
@@ -253,8 +254,8 @@
         }
       },
     },
-    // bąbelki: a few bubbles drifting up
-    babelki: {
+    // bubbles: a few bubbles drifting up
+    bubbles: {
       paint(ctx, t, s, p) {
         for (const b of BUBBLES) {
           const w = b.w * s;
@@ -271,8 +272,8 @@
         }
       },
     },
-    // zorza: two broad bands of light breathing across the dial
-    zorza: {
+    // aurora: two broad bands of light breathing across the dial
+    aurora: {
       paint(ctx, t, s, p) {
         for (const [period, delay, rx, ry, c] of [[26, 0, 0.75, 0.24, p.a], [34, 12, 0.7, 0.23, p.b]]) {
           const k = pingPong(t + delay, period);
@@ -285,8 +286,8 @@
         }
       },
     },
-    // obieg: light circulating around the rim, the flow through the pump
-    obieg: {
+    // flow: light circulating around the rim, the flow through the pump
+    flow: {
       paint(ctx, t, s, p) {
         const c = s / 2;
         const sweeps = [
@@ -311,8 +312,8 @@
         ctx.globalCompositeOperation = "source-over";
       },
     },
-    // mgławica: two clouds turning against each other, a handful of stars in front
-    mglawica: {
+    // nebula: two clouds turning against each other, a handful of stars in front
+    nebula: {
       res: 320,
       paint(ctx, t, s, p) {
         const c = s / 2;
@@ -329,8 +330,8 @@
         stars(ctx, t, s, p, 70, s / 640);
       },
     },
-    // gwiazdy: a slowly turning sky, twinkling, with a meteor now and then
-    gwiazdy: {
+    // stars: a slowly turning sky, twinkling, with a meteor now and then
+    stars: {
       res: 512,
       paint(ctx, t, s, p) {
         const c = s / 2;
@@ -378,8 +379,8 @@
         }
       },
     },
-    // jedwab: two ribbons of fine threads twisting slowly across the dial
-    linie: {
+    // silk: two ribbons of fine threads twisting slowly across the dial
+    silk: {
       res: 512,
       paint(ctx, t, s, p) {
         ctx.lineWidth = s / 400;
@@ -402,8 +403,8 @@
         }
       },
     },
-    // topografia: contour lines of a landscape that slowly reshapes itself
-    topografia: {
+    // contours: contour lines of a landscape that slowly reshapes itself
+    contours: {
       res: 512,
       paint(ctx, t, s, p) {
         const G = 44, W = G + 1, cs = s / G, z = t * 0.035, c = s / 2;
@@ -440,8 +441,8 @@
         }
       },
     },
-    // wir: streaks of light spiralling into the centre, faster as they sink
-    wir: {
+    // vortex: streaks of light spiralling into the centre, faster as they sink
+    vortex: {
       res: 384,
       paint(ctx, t, s, p) {
         const c = s / 2;
@@ -463,8 +464,8 @@
         }
       },
     },
-    // plaster: a honeycomb with pulses rippling out from the pump, and the odd cell lighting up
-    plaster: {
+    // honeycomb: a honeycomb with pulses rippling out from the pump, and the odd cell lighting up
+    honeycomb: {
       res: 512,
       paint(ctx, t, s, p) {
         const R = s / 21, w = Math.sqrt(3) * R, h = 1.5 * R, c = s / 2;
@@ -494,8 +495,8 @@
         });
       },
     },
-    // siatka: a grid floor running towards a glowing horizon
-    siatka: {
+    // grid: a grid floor running towards a glowing horizon
+    grid: {
       res: 512,
       paint(ctx, t, s, p) {
         const hz = s * 0.6, vx = s / 2, f = s * 0.5, zn = f / (s - hz);
@@ -527,8 +528,8 @@
         ctx.stroke();
       },
     },
-    // kod: columns of glyphs falling, quietly
-    kod: {
+    // rain: columns of glyphs falling, quietly
+    rain: {
       res: 384,
       paint(ctx, t, s, p) {
         const n = DROPS.length, cw = s / n, rows = Math.ceil(s / cw);

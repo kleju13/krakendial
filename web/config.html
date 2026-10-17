@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Kraken LCD · settings</title>
+<title data-t="cfg.title">Kraken LCD · settings</title>
 <link rel="stylesheet" href="dial.css">
 <style>
   :root {
@@ -28,8 +28,12 @@
   .cap > div { width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 0 0 4px #0b0f16; }
   .status { width: 100%; display: grid; gap: 8px; font-size: 14px; color: var(--muted); }
   .status div { display: flex; justify-content: space-between; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .status div[hidden] { display: none; }
   .status b { font-weight: 500; color: var(--text); text-align: right; }
   .status .bad { color: var(--warn); }
+  .status .off { color: var(--dim); }
+  .langs { align-self: stretch; justify-content: center; }
+  .langs .chip { padding: 7px 14px; font-size: 13px; }
 
   section { margin-bottom: 34px; }
   h2 { margin: 0 0 14px; font-size: 13px; font-weight: 600; letter-spacing: 0.24em; color: var(--muted); }
@@ -50,13 +54,15 @@
   .bgs .thumb { max-width: 76px; }
   .media { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
   .media .thumb { max-width: 92px; }
-  .media .opt { position: relative; }
-  .media .opt b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-  .del { position: absolute; top: 8px; right: 8px; padding: 3px 8px; border-radius: 999px; font-size: 11.5px; color: var(--muted);
-    background: rgba(8, 16, 31, 0.85); opacity: 0; transition: opacity 0.2s; }
-  .opt:hover .del, .del.sure { opacity: 1; }
+  .media .opt, .faces .opt { position: relative; }
+  .media .opt b, .faces .opt b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+  .del, .edit { position: absolute; top: 8px; right: 8px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; color: var(--muted);
+    background: rgba(8, 16, 31, 0.85); text-decoration: none; opacity: 0; transition: opacity 0.2s; }
+  .opt:hover .del, .del.sure, .opt:hover .edit, .edit:focus-visible { opacity: 1; }
   .del:hover, .del.sure { color: var(--warn); }
+  .edit:hover { color: var(--text); }
   .add .thumb { display: grid; place-items: center; font-size: 34px; color: var(--muted); box-shadow: none; border: 1.5px dashed var(--dim); }
+  a.opt { color: inherit; text-decoration: none; }
   .busy { cursor: default; opacity: 0.7; }
   .busy .thumb { box-shadow: none; border: 1.5px dashed var(--dim); }
   .opt b { font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
@@ -65,12 +71,17 @@
   .chips { display: flex; gap: 10px; flex-wrap: wrap; }
   .grid + .chips { margin-top: 16px; }
   .chip { all: unset; cursor: pointer; padding: 10px 18px; border-radius: 999px; background: var(--panel); border: 1.5px solid transparent; font-size: 14px; }
+  .chip:focus-visible { border-color: var(--dim); }
   .chip.pet { display: flex; align-items: center; gap: 10px; padding: 8px 18px 8px 12px; }
   .chip.pet svg { width: 34px; height: 30px; }
   .pet .px-X { fill: var(--accent); } .pet .px-o { fill: #b4d2ff; } .pet .px-W { fill: #f7faff; } .pet .px-K { fill: var(--page); }
   .chip[aria-pressed="true"] { border-color: var(--accent); background: #112347; }
   .hint { margin-top: 10px; font-size: 13px; color: var(--dim); }
   .hint.bad { color: var(--warn); }
+  .row { display: flex; gap: 10px; }
+  .field { flex: 1; min-width: 0; padding: 10px 16px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--panel);
+    color: var(--text); font: inherit; font-size: 14px; }
+  .field:focus { outline: none; border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -79,45 +90,57 @@
     <div class="brand">KRAKEN LCD</div>
     <div class="cap"><div id="preview"></div></div>
     <div class="status">
-      <div>Cooler <b id="s-lcd">…</b></div>
-      <div>Ledger <b id="s-ledger">…</b></div>
-      <div>Machines <b id="s-machines">…</b></div>
+      <div><span data-t="cfg.cooler"></span> <b id="s-lcd">…</b></div>
+      <div><span data-t="cfg.usage"></span> <b id="s-usage">…</b></div>
+      <div id="s-machines-row" hidden><span data-t="cfg.machines"></span> <b id="s-machines">…</b></div>
     </div>
+    <div class="chips langs" id="langs"></div>
   </aside>
   <div>
-    <section><h2>LAYOUT</h2><div class="grid layouts" id="layouts"></div></section>
-    <section><h2>MASCOT</h2><div class="chips" id="mascots"></div>
-      <div class="hint">Lives in the fetch layouts: walks under the neofetch text, along the macchina frame and over the cpufetch chips, sits by the pfetch name, and is the fastfetch logo. It looks around and blinks, and only moves now and then, so standing still costs nothing.</div></section>
-    <section><h2>LIMITS SHOW</h2><div class="chips" id="units"></div>
-      <div class="hint">The thin line on each limit is where it would be at an even pace through the window: with “left”, how much should still be there now.</div></section>
-    <section><h2>CPU AND GPU BARS</h2><div class="chips" id="hwbars"></div>
-      <div class="hint">What the CPU and GPU bars fill with in the terminal layouts; their value is next to the bar. btop’s graphs and the round layouts always show temperatures.</div></section>
-    <section><h2>THEME</h2><div class="grid themes" id="themes"></div></section>
-    <section><h2>BACKGROUND</h2><div class="grid bgs" id="bgs"></div>
-      <div class="hint">Hover to see it move. Backgrounds speed up while the graphics card is busy.</div></section>
-    <section><h2>OWN BACKGROUNDS</h2><div class="grid media" id="media"></div>
+    <section><h2 data-t="cfg.layout"></h2><div class="grid layouts" id="layouts"></div></section>
+    <section><h2 data-t="cfg.faces"></h2><div class="grid layouts faces" id="faces"></div>
+      <div class="hint" data-t="cfg.facesHint"></div></section>
+    <section><h2 data-t="cfg.mascot"></h2><div class="chips" id="mascots"></div>
+      <div class="hint" data-t="cfg.mascotHint"></div></section>
+    <section><h2 data-t="cfg.units"></h2><div class="chips" id="units"></div>
+      <div class="hint" data-t="cfg.unitsHint"></div></section>
+    <section><h2 data-t="cfg.bars"></h2><div class="chips" id="hwbars"></div>
+      <div class="hint" data-t="cfg.barsHint"></div></section>
+    <section><h2 data-t="cfg.theme"></h2><div class="grid themes" id="themes"></div></section>
+    <section><h2 data-t="cfg.bg"></h2><div class="grid bgs" id="bgs"></div>
+      <div class="hint" data-t="cfg.bgHint"></div></section>
+    <section><h2 data-t="cfg.media"></h2><div class="grid media" id="media"></div>
       <div class="chips" id="looks"></div>
-      <div class="hint" id="media-hint">A video, GIF or picture. Moving ones are cropped square and shrunk to 640×640. Theme tint dims and recolours the picture so the numbers stay readable; Original leaves it alone and puts a soft halo behind the text instead; ASCII redraws it as characters in the theme’s colours. Video costs more CPU than a drawn background.</div></section>
-    <section><h2>BACKGROUND FRAME RATE</h2><div class="chips" id="fps"></div>
-      <div class="hint">CAM captures every changed frame and sends it to the display, which costs CPU. A slow background already looks smooth at 10 fps.</div></section>
-    <section><h2>COST</h2><div class="chips" id="costs"></div>
-      <div class="hint">What Claude and Codex cost on all your machines, as the ledger counts it. The limits come from the ledger too: this service never asks Claude or Codex itself, it reads the ledger’s summary once a minute.</div></section>
+      <div class="hint" id="media-hint" data-t="cfg.mediaHint"></div></section>
+    <section><h2 data-t="cfg.fps"></h2><div class="chips" id="fps"></div>
+      <div class="hint" data-t="cfg.fpsHint"></div></section>
+    <section><h2 data-t="cfg.cost"></h2><div class="chips" id="costs"></div>
+      <div class="hint" data-t="cfg.costHint"></div></section>
+    <section><h2 data-t="cfg.source"></h2>
+      <form class="row" id="usage-form"><input class="field" id="usage" type="url" placeholder="https://…/api/summary" spellcheck="false" autocomplete="off">
+        <button class="chip" data-t="cfg.sourceSave"></button></form>
+      <div class="hint" id="usage-hint" data-t="cfg.sourceHint"></div></section>
   </div>
 </main>
 <script src="bg.js"></script>
+<script src="i18n.js"></script>
 <script src="dial.js"></script>
+<script src="faces.js"></script>
 <script>
 (() => {
-  const K = KrakenDial;
+  const K = KrakenDial, I = KrakenI18n, t = I.t;
   const FPS = [[10, "10 fps"], [20, "20 fps"], [30, "30 fps"]];
-  const UNITS = [["left", "What’s left"], ["used", "What’s used"]];
-  const BARS = [["load", "Usage"], ["temp", "Temperature"]];
-  const LOOKS = [["plain", "Theme tint"], ["raw", "Original"], ["ascii", "ASCII"]];
-  const MEDIA_HINT = document.getElementById("media-hint").textContent;
-  let state = { limits: {}, costs: null, interval: 60e3, config: {}, hw: null };
-  const cfg = () => ({ layout: "rotacja", theme: "ice", bg: "ciecz", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h", bars: "load", ...(state.config || {}) });
+  const UNITS = [["left", "cfg.left"], ["used", "cfg.used"]];
+  const BARS = [["load", "cfg.barsLoad"], ["temp", "cfg.barsTemp"]];
+  const LOOKS = [["plain", "cfg.lookPlain"], ["raw", "cfg.lookRaw"], ["ascii", "cfg.lookAscii"]];
+  let state = { limits: {}, costs: null, interval: 60e3, config: null, hw: null };
+  const cfg = () => ({
+    layout: "rotation", theme: "ice", bg: "liquid", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h",
+    bars: "load", lang: "auto", usage: "", ...(state.config || {}),
+  });
+  const byId = (id) => document.getElementById(id);
 
-  const preview = K.create(document.getElementById("preview"), cfg());
+  const preview = K.create(byId("preview"), cfg());
 
   function option(parent, cls, html, onPick) {
     const b = document.createElement("button");
@@ -127,43 +150,72 @@
     parent.appendChild(b);
     return b;
   }
+  // A button with a picture and a caption. Names go in as text, never as markup: faces and
+  // media are named by the user.
+  function card(parent, title, small, onPick) {
+    const b = option(parent, "opt", `<div class="thumb"></div><b></b>${small == null ? "" : "<small></small>"}`, onPick);
+    b.querySelector("b").textContent = title;
+    if (small != null) b.querySelector("small").textContent = small;
+    return b;
+  }
+  function chip(parent, label, onPick) {
+    const b = option(parent, "chip", "", onPick);
+    b.textContent = label;
+    return b;
+  }
+  const host = (id) => {
+    const n = byId(id);
+    n.replaceChildren();
+    return n;
+  };
 
-  const layoutOpts = K.LAYOUTS.map((l) => {
-    const b = option(document.getElementById("layouts"), "opt", `<div class="thumb"></div><b>${l.name}</b><small>${l.desc}</small>`, () => save({ layout: l.id }));
-    return { id: l.id, b, dial: K.create(b.querySelector(".thumb"), { layout: l.id, theme: cfg().theme, bg: "brak", animate: false }) };
-  });
-  const themeOpts = K.THEMES.map((t) => {
-    const b = option(document.getElementById("themes"), "opt", `<div class="thumb"></div><b>${t.name}</b>`, () => save({ theme: t.id }));
-    return { id: t.id, b, dial: K.create(b.querySelector(".thumb"), { layout: cfg().layout, theme: t.id, bg: "brak", animate: false }) };
-  });
-  const bgOpts = K.BGS.map((g) => {
-    const b = option(document.getElementById("bgs"), "opt", `<div class="thumb"></div><b>${g.name}</b>`, () => save({ bg: g.id }));
-    const o = { id: g.id, b, el: b.querySelector(".thumb"), theme: null, back: null };
-    b.onmouseenter = () => o.back && o.back.play();
-    b.onmouseleave = () => o.back && o.back.pause();
-    return o;
-  });
-  const unitOpts = UNITS.map(([u, label]) => ({
-    u, b: option(document.getElementById("units"), "chip", label, () => save({ units: u })),
-  }));
-  const barOpts = BARS.map(([v, label]) => ({
-    v, b: option(document.getElementById("hwbars"), "chip", label, () => save({ bars: v })),
-  }));
-  const mascotOpts = K.MASCOTS.map((m) => {
-    const b = option(document.getElementById("mascots"), "chip pet", `<svg></svg>${m.name}`, () =>
-      save({ mascot: m.id, ...(K.LAYOUTS.find((l) => l.id === cfg().layout)?.mascot ? {} : { layout: "neofetch" }) }));
-    K.mascotIcon(b.querySelector("svg"), m.id);
-    return { id: m.id, b };
-  });
-  const lookOpts = LOOKS.map(([l, label]) => ({
-    l, b: option(document.getElementById("looks"), "chip", label, () => save({ look: l })),
-  }));
-  const fpsOpts = FPS.map(([n, label]) => ({
-    n, b: option(document.getElementById("fps"), "chip", label, () => save({ fps: n })),
-  }));
-  const costOpts = K.COSTS.map((c) => ({
-    id: c.id, b: option(document.getElementById("costs"), "chip", c.name, () => save({ cost: c.id })),
-  }));
+  // ---------- the lists, in the current language ----------
+
+  // opts[setting]: its options; `key` is the value each one sets, so the saved one is pressed
+  let opts = {}, builtLang = null;
+  function build() {
+    builtLang = I.lang;
+    document.documentElement.lang = I.lang;
+    for (const n of document.querySelectorAll("[data-t]")) n.textContent = t(n.dataset.t);
+    const c = cfg();
+    const langs = host("langs");
+    opts.lang = [["auto", t("cfg.auto")], ...I.LANGS.map((l) => [l.id, l.name])].map(([key, label]) => ({ key, b: chip(langs, label, () => save({ lang: key })) }));
+    const layouts = host("layouts");
+    opts.layout = K.LAYOUTS.map((l) => {
+      const b = card(layouts, l.name, l.desc, () => save({ layout: l.id }));
+      return { key: l.id, b, dial: K.create(b.querySelector(".thumb"), { layout: l.id, theme: c.theme, bg: "none", animate: false }) };
+    });
+    const themes = host("themes");
+    opts.theme = K.THEMES.map((th) => {
+      const b = card(themes, th.name, null, () => save({ theme: th.id }));
+      return { key: th.id, b, dial: K.create(b.querySelector(".thumb"), { layout: "cockpit", theme: th.id, bg: "none", animate: false }) };
+    });
+    const bgs = host("bgs");
+    bgOpts = K.BGS.map((g) => swatch(card(bgs, g.name, null, () => save({ bg: g.id })), g.id));
+    const units = host("units");
+    opts.units = UNITS.map(([key, label]) => ({ key, b: chip(units, t(label), () => save({ units: key })) }));
+    const bars = host("hwbars");
+    opts.bars = BARS.map(([key, label]) => ({ key, b: chip(bars, t(label), () => save({ bars: key })) }));
+    const mascots = host("mascots");
+    opts.mascot = K.MASCOTS.map((m) => {
+      // a mascot picked while the dial has none switches to a layout where it lives
+      const b = option(mascots, "chip pet", "<svg></svg><span></span>", () =>
+        save({ mascot: m.id, ...(K.LAYOUTS.find((l) => l.id === cfg().layout)?.mascot || K.isFace(cfg().layout) ? {} : { layout: "neofetch" }) }));
+      b.querySelector("span").textContent = m.name;
+      K.mascotIcon(b.querySelector("svg"), m.id);
+      return { key: m.id, b };
+    });
+    const looks = host("looks");
+    opts.look = LOOKS.map(([key, label]) => ({ key, b: chip(looks, t(label), () => save({ look: key })) }));
+    const fps = host("fps");
+    opts.fps = FPS.map(([key, label]) => ({ key, b: chip(fps, label, () => save({ fps: key })) }));
+    const costs = host("costs");
+    opts.cost = K.COSTS.map((co) => ({ key: co.id, b: chip(costs, co.name, () => save({ cost: co.id })) }));
+    usageHint.classList.remove("bad");
+    buildMedia();
+    buildFaces();
+    minisKey = "";
+  }
 
   async function save(patch) {
     state.config = { ...cfg(), ...patch };
@@ -175,9 +227,18 @@
     render();
   }
 
-  // ---------- own backgrounds ----------
+  // ---------- backgrounds ----------
 
-  const mediaHost = document.getElementById("media");
+  // A background swatch: still until hovered.
+  function swatch(b, id) {
+    const o = { key: id, b, el: b.querySelector(".thumb"), theme: null, look: null, back: null };
+    b.onmouseenter = () => o.back && o.back.play();
+    b.addEventListener("mouseleave", () => o.back && o.back.pause());
+    return o;
+  }
+  let bgOpts = [];
+
+  const mediaHost = byId("media");
   let mediaList = [], mediaKey = null, mediaOpts = [], uploading = null, pending = null;
   const stem = (n) => n.replace(/\.[^.]+$/, "");
 
@@ -185,35 +246,37 @@
     mediaHost.replaceChildren();
     mediaOpts = mediaList.map((m) => {
       const id = `media:${m.name}`;
-      const b = option(mediaHost, "opt", `<div class="thumb"></div><b></b><span class="del">delete</span>`, () => save({ bg: id }));
-      b.querySelector("b").textContent = stem(m.name);
+      const b = card(mediaHost, stem(m.name), null, () => save({ bg: id }));
       b.title = m.name;
-      const del = b.querySelector(".del");
-      const o = { id, b, el: b.querySelector(".thumb"), theme: null, back: null };
+      const del = document.createElement("span");
+      del.className = "del";
+      del.textContent = t("cfg.delete");
+      b.appendChild(del);
       del.onclick = (e) => {
         e.stopPropagation();
         if (del.classList.contains("sure")) return remove(m.name);
         del.classList.add("sure");
-        del.textContent = "sure?";
+        del.textContent = t("cfg.sure");
       };
-      b.onmouseenter = () => o.back && o.back.play();
-      b.onmouseleave = () => {
-        if (o.back) o.back.pause();
+      b.addEventListener("mouseleave", () => {
         del.classList.remove("sure");
-        del.textContent = "delete";
-      };
-      return o;
+        del.textContent = t("cfg.delete");
+      });
+      return swatch(b, id);
     });
     if (uploading || pending) {
       const w = document.createElement("div");
       w.className = "opt busy";
-      w.innerHTML = `<div class="thumb"></div><b></b><small>${uploading ? "uploading…" : "converting…"}</small>`;
+      w.innerHTML = `<div class="thumb"></div><b></b><small></small>`;
       w.querySelector("b").textContent = stem(uploading || pending);
+      w.querySelector("small").textContent = t(uploading ? "cfg.uploading" : "cfg.converting");
       mediaHost.appendChild(w);
     }
     const add = document.createElement("label");
     add.className = "opt add";
-    add.innerHTML = `<div class="thumb">+</div><b>Add</b><small>video, GIF, picture</small><input type="file" accept="video/*,image/*" hidden>`;
+    add.innerHTML = `<div class="thumb">+</div><b></b><small></small><input type="file" accept="video/*,image/*" hidden>`;
+    add.querySelector("b").textContent = t("cfg.add");
+    add.querySelector("small").textContent = t("cfg.addSub");
     add.querySelector("input").onchange = (e) => e.target.files[0] && upload(e.target.files[0]);
     mediaHost.appendChild(add);
     render();
@@ -238,10 +301,10 @@
   }
 
   async function upload(file) {
-    const hint = document.getElementById("media-hint");
+    const hint = byId("media-hint");
     const name = file.name.replace(/[^\p{L}\p{N} ._()-]/gu, "-").replace(/^\.+/, "").slice(-120);
     uploading = name;
-    hint.textContent = MEDIA_HINT;
+    hint.textContent = t("cfg.mediaHint");
     hint.classList.remove("bad");
     await loadMedia();
     try {
@@ -249,7 +312,7 @@
       if (!r.ok) throw new Error(await r.text());
       pending = (await r.json()).name;
     } catch (e) {
-      hint.textContent = `Could not add ${name}: ${e.message}`;
+      hint.textContent = t("cfg.addFailed", { name, msg: e.message });
       hint.classList.add("bad");
     }
     uploading = null;
@@ -262,11 +325,75 @@
     loadMedia();
   }
 
+  // ---------- my faces ----------
+
+  const facesHost = byId("faces");
+  let faces = [], facesKey = null, faceOpts = [];
+  const faceOf = (layout) => faces.find((f) => `face:${f.id}` === layout) || (state.face && `face:${state.face.id}` === layout ? state.face : null);
+
+  function buildFaces() {
+    facesHost.replaceChildren();
+    const c = cfg();
+    faceOpts = faces.map((f) => {
+      const key = `face:${f.id}`;
+      const b = card(facesHost, f.name, null, () => save({ layout: key }));
+      const edit = document.createElement("a");
+      edit.className = "edit";
+      edit.href = `/editor?face=${encodeURIComponent(f.id)}`;
+      edit.textContent = t("cfg.edit");
+      edit.onclick = (e) => e.stopPropagation();
+      b.appendChild(edit);
+      return { key, b, face: f, dial: K.create(b.querySelector(".thumb"), { layout: key, face: f, theme: c.theme, bg: "none", animate: false }) };
+    });
+    const add = document.createElement("a");
+    add.className = "opt add";
+    add.href = "/editor?new=1";
+    add.innerHTML = `<div class="thumb">+</div><b></b><small></small>`;
+    add.querySelector("b").textContent = t("cfg.newFace");
+    add.querySelector("small").textContent = t("cfg.newFaceSub");
+    facesHost.appendChild(add);
+    minisKey = "";
+    render();
+  }
+
+  async function loadFaces() {
+    try {
+      const r = await fetch("/api/faces", { cache: "no-store" });
+      if (r.ok) faces = await r.json();
+    } catch (_) {}
+    const key = JSON.stringify(faces);
+    if (key !== facesKey) {
+      facesKey = key;
+      buildFaces();
+    }
+  }
+
+  // ---------- usage source ----------
+
+  const usageInput = byId("usage"), usageHint = byId("usage-hint");
+  byId("usage-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const v = usageInput.value.trim();
+    if (v && !/^https?:\/\/\S+$/.test(v)) {
+      usageHint.textContent = t("cfg.sourceBad");
+      usageHint.classList.add("bad");
+      return;
+    }
+    usageInput.blur();
+    await save({ usage: v });
+    usageHint.classList.remove("bad");
+    usageHint.textContent = `${t("cfg.sourceSaved")} ${t("cfg.sourceHint")}`;
+  };
+
+  // ---------- drawing ----------
+
   let minisAt = 0, minisKey = "";
   function render() {
+    if (!builtLang) return;
     const c = cfg();
     const now = Date.now();
-    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}|${c.bars}`;
+    const face = faceOf(c.layout);
+    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}|${c.bars}|${c.lang}|${face ? JSON.stringify(face) : ""}`;
     const minis = key !== minisKey || now - minisAt > 5e3;
     if (minis) {
       minisKey = key;
@@ -275,71 +402,84 @@
     const live = state.hw && state.hw.at && now - state.hw.at < 15e3;
     const data = { now, hw: live ? state.hw : K.emptyHw(), limits: state.limits, costs: state.costs, interval: state.interval, mode: live ? state.hw.mode : "work" };
 
-    preview.configure(c);
+    preview.configure({ ...c, face });
     preview.update(data);
-    for (const o of layoutOpts) {
-      o.b.setAttribute("aria-pressed", String(o.id === c.layout));
-      if (!minis) continue;
-      o.dial.configure({ layout: o.id, theme: c.theme, bg: "brak", units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars });
-      o.dial.update(data);
+    const same = { units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars };
+    if (minis) {
+      for (const o of opts.layout || []) {
+        o.dial.configure({ layout: o.key, theme: c.theme, bg: "none", ...same });
+        o.dial.update(data);
+      }
+      // each theme shows the layout on the dial now
+      for (const o of opts.theme || []) {
+        o.dial.configure({ layout: c.layout, face, theme: o.key, bg: "none", ...same });
+        o.dial.update(data);
+      }
+      for (const o of faceOpts) {
+        o.dial.configure({ layout: o.key, face: o.face, theme: c.theme, bg: "none", ...same });
+        o.dial.update(data);
+      }
     }
-    for (const o of themeOpts) {
-      o.b.setAttribute("aria-pressed", String(o.id === c.theme));
-      if (!minis) continue;
-      o.dial.configure({ layout: c.layout, theme: o.id, bg: "brak", units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars });
-      o.dial.update(data);
-    }
+    for (const o of faceOpts) o.b.setAttribute("aria-pressed", String(o.key === c.layout));
     for (const o of bgOpts.concat(mediaOpts)) {
-      o.b.setAttribute("aria-pressed", String(o.id === c.bg));
-      const look = o.id.startsWith("media:") ? c.look : "plain";
+      o.b.setAttribute("aria-pressed", String(o.key === c.bg));
+      const look = o.key.startsWith("media:") ? c.look : "plain";
       if (o.theme !== c.theme || o.look !== look) {
-        o.back = K.background(o.el, { theme: c.theme, bg: o.id, look });
+        o.back = K.background(o.el, { theme: c.theme, bg: o.key, look });
         o.theme = c.theme;
         o.look = look;
       }
     }
-    for (const o of unitOpts) o.b.setAttribute("aria-pressed", String(o.u === c.units));
-    for (const o of barOpts) o.b.setAttribute("aria-pressed", String(o.v === c.bars));
-    for (const o of lookOpts) o.b.setAttribute("aria-pressed", String(o.l === c.look));
-    for (const o of mascotOpts) o.b.setAttribute("aria-pressed", String(o.id === c.mascot));
-    for (const o of fpsOpts) o.b.setAttribute("aria-pressed", String(o.n === c.fps));
-    for (const o of costOpts) o.b.setAttribute("aria-pressed", String(o.id === c.cost));
+    for (const [setting, list] of Object.entries(opts)) for (const o of list) o.b.setAttribute("aria-pressed", String(o.key === c[setting]));
+    if (document.activeElement !== usageInput && usageInput.value !== c.usage) usageInput.value = c.usage;
 
-    const lcd = document.getElementById("s-lcd");
-    lcd.textContent = live ? "live" : "no signal from CAM";
+    const lcd = byId("s-lcd");
+    lcd.textContent = t(live ? "cfg.live" : "cfg.noSignal");
     lcd.className = live ? "" : "bad";
-    // the ledger: when it last fetched the limits, or why it can't be read
+    // the usage source: when it last fetched the limits, or why it can't be read
     const ls = Object.values(state.limits || {}).filter(Boolean);
     const err = (ls.find((l) => l.error) || {}).error;
     const last = Math.max(0, ...ls.map((l) => l.fetchedAt || 0));
-    const t = last ? new Date(last).toLocaleTimeString("en-GB") : null;
-    const ledger = document.getElementById("s-ledger");
-    ledger.textContent = err ? `${err.replace(/^ledger /, "")}${t ? ` · last ${t}` : ""}` : t ? `synced ${t}` : "waiting";
-    ledger.className = err ? "bad" : "";
-    // the machines whose costs it adds up, by name when some are offline
+    const at = last ? new Date(last).toLocaleTimeString(I.locale) : null;
+    const usage = byId("s-usage");
+    if (!c.usage) [usage.textContent, usage.className] = [t("cfg.usageOff"), "off"];
+    else if (err && err !== "unset") [usage.textContent, usage.className] = [at ? t("cfg.usageLast", { err: K.errText(err), t: at }) : K.errText(err), "bad"];
+    else [usage.textContent, usage.className] = [at ? t("cfg.usageSynced", { t: at }) : t("cfg.usageWaiting"), ""];
+    // the machines whose costs the source adds up, by name when some are offline; only if it sends them
     const ms = (state.costs && state.costs.machines) || [];
     const off = ms.filter((m) => m.status !== "online");
-    const machines = document.getElementById("s-machines");
-    machines.textContent = !ms.length ? "—" : off.length ? `${off.map((m) => m.name).join(", ")} offline` : `all ${ms.length} online`;
+    byId("s-machines-row").hidden = !ms.length;
+    const machines = byId("s-machines");
+    machines.textContent = off.length ? t("cfg.machinesOffline", { names: off.map((m) => m.name).join(", ") }) : t("cfg.machinesOnline", { n: ms.length });
     machines.className = off.length ? "bad" : "";
   }
 
-  let build = null;
+  let serviceBuild = null;
   async function poll() {
     try {
       const r = await fetch("/api/state", { cache: "no-store" });
       if (r.ok) state = await r.json();
-      if (build && state.build !== build) return location.reload();
-      build = state.build;
+      if (serviceBuild && state.build !== serviceBuild) return location.reload();
+      serviceBuild = state.build;
     } catch (_) {
-      document.getElementById("s-lcd").textContent = "service not responding";
+      if (builtLang) byId("s-lcd").textContent = t("cfg.down");
+    }
+    // The page is built in the saved language, so the first settings build it; another
+    // language later builds it again.
+    const want = I.resolve(state.config ? state.config.lang : "auto");
+    if (want !== builtLang) {
+      I.use(want);
+      build();
     }
     render();
   }
-  poll();
-  loadMedia();
+  poll().then(() => {
+    loadMedia();
+    loadFaces();
+  });
   setInterval(poll, 2000);
   setInterval(loadMedia, 3000);
+  setInterval(loadFaces, 5000);
   setInterval(render, 1000);
 })();
 </script>

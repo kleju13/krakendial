@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-t="ed.title">Kraken LCD · face editor</title>
+<link rel="stylesheet" href="dial.css">
+<style>
+  :root {
+    --page: #08101f; --panel: #0e1a30; --panel-2: #12213c; --line: #1c2c4a; --text: #e9f1ff; --muted: #8ea3c4; --dim: #5a7096;
+    --accent: #5b9cff; --warn: #ff6b6b;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: radial-gradient(1200px 700px at 50% -10%, #12254a 0%, var(--page) 60%);
+    color: var(--text); font-family: Bahnschrift, "DIN Alternate", system-ui, sans-serif; font-size: 14px;
+    display: grid; grid-template-rows: auto 1fr; overflow: hidden;
+  }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .btn { all: unset; cursor: pointer; padding: 8px 14px; border-radius: 999px; background: var(--panel); border: 1.5px solid transparent; white-space: nowrap; }
+  .btn:hover { background: var(--panel-2); }
+  .btn:focus-visible { border-color: var(--dim); }
+  .btn[disabled] { opacity: 0.4; cursor: default; }
+  .btn.on { border-color: var(--accent); background: #112347; }
+  .btn.bad { color: var(--warn); }
+  .btn.icon { padding: 8px 11px; }
+
+  header { display: flex; align-items: center; gap: 8px; padding: 14px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header a.btn { text-decoration: none; }
+  header .btn { padding: 8px 12px; }
+  header .btn.icon { padding: 8px 11px; }
+  .sep { flex: 1; }
+  .field { padding: 8px 14px; border-radius: 999px; border: 1.5px solid var(--line); background: var(--panel); min-width: 0; }
+  .field:focus { outline: none; border-color: var(--accent); }
+  #name { width: 180px; }
+  #faces { max-width: 180px; }
+  #faces:empty { display: none; }
+  #saved { color: var(--dim); min-width: 70px; text-align: right; }
+  #saved.bad { color: var(--warn); }
+
+  .work { display: grid; grid-template-columns: 250px 1fr 330px; min-height: 0; }
+  .side { overflow: auto; padding: 18px 16px 28px; border-right: 1px solid var(--line); }
+  .side.right { border-right: 0; border-left: 1px solid var(--line); }
+  h2 { margin: 0 0 12px; font-size: 12px; font-weight: 600; letter-spacing: 0.24em; color: var(--muted); }
+  h2 + * { margin-bottom: 26px; }
+
+  .palette { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tool { all: unset; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px 10px; border-radius: 12px;
+    background: var(--panel); border: 1.5px solid transparent; text-align: center; font-size: 12.5px; }
+  .tool:hover { background: var(--panel-2); }
+  .tool:focus-visible { border-color: var(--dim); }
+  .tool i { font-style: normal; font-size: 20px; line-height: 24px; color: var(--accent); font-family: "Cascadia Mono", Consolas, monospace; }
+
+  .layers { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .layer { display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 10px; border-radius: 10px; cursor: pointer; border: 1.5px solid transparent; }
+  .layer:hover { background: var(--panel); }
+  .layer.sel { background: #112347; border-color: var(--accent); }
+  .layer.off span { opacity: 0.45; }
+  .layer i { font-style: normal; width: 24px; text-align: center; color: var(--accent); font-family: "Cascadia Mono", Consolas, monospace; }
+  .layer span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .layer button { all: unset; cursor: pointer; padding: 2px 6px; border-radius: 6px; color: var(--dim); }
+  .layer button:hover { color: var(--text); background: var(--panel-2); }
+  .empty { color: var(--dim); font-size: 13px; line-height: 1.45; }
+
+  .center { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 18px; min-width: 0; min-height: 0; }
+  .stage { position: relative; width: min(100%, calc(100vh - 190px)); aspect-ratio: 1; touch-action: none; }
+  .stage > .dial { position: absolute; inset: 0; border-radius: 50%; box-shadow: 0 0 0 6px #0b0f16, 0 30px 70px rgba(0, 0, 0, 0.5); }
+  .stage > svg { position: absolute; inset: -8%; width: 116%; height: 116%; overflow: visible; pointer-events: none; }
+  .stage .rim { fill: none; stroke: var(--dim); stroke-width: 1.5; stroke-dasharray: 4 6; }
+  .stage .box { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  .stage .box.hover { stroke: var(--dim); stroke-dasharray: 4 4; }
+  .stage .handle { fill: var(--accent); stroke: var(--page); stroke-width: 2; vector-effect: non-scaling-stroke; pointer-events: all; cursor: nwse-resize; }
+  .stage .guide { stroke: #ff5fd2; stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .stage.dragging { cursor: grabbing; }
+  .caption { color: var(--dim); font-size: 12.5px; text-align: center; max-width: 640px; line-height: 1.45; }
+
+  .props { display: grid; gap: 14px; }
+  .prop { display: grid; gap: 6px; }
+  .prop > label { font-size: 12.5px; color: var(--muted); }
+  .prop .hint { font-size: 12px; color: var(--dim); line-height: 1.4; }
+  .num { display: grid; grid-template-columns: 1fr 74px; gap: 10px; align-items: center; }
+  .num input[type=number] { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--panel); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  textarea.field { border-radius: 12px; min-height: 92px; resize: vertical; font-family: "Cascadia Mono", Consolas, monospace; font-size: 13px; }
+  select.field { border-radius: 10px; padding: 8px 10px; background: var(--panel); }
+  select.field option, select.field optgroup { background: var(--panel); }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg .btn { padding: 6px 12px; font-size: 13px; }
+  .check { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .check input { accent-color: var(--accent); width: 16px; height: 16px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .sw { all: unset; cursor: pointer; width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 0 2px var(--line); }
+  .sw.on { box-shadow: 0 0 0 2px var(--page), 0 0 0 4px var(--accent); }
+  .swatches input[type=color] { width: 30px; height: 26px; border: 0; padding: 0; background: none; cursor: pointer; }
+  .actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .actions .btn { padding: 6px 11px; font-size: 13px; }
+  .xy { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .xy input { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--panel); }
+
+  .pop { position: absolute; z-index: 10; padding: 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line);
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); display: grid; grid-template-columns: repeat(5, 110px); gap: 10px; }
+  .pop[hidden] { display: none; }
+  .tpl { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 8px; padding: 10px 6px; border-radius: 12px; font-size: 13px; }
+  .tpl:hover, .tpl:focus-visible { background: var(--panel-2); }
+  .tpl .thumb { width: 92px; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #060a12; }
+
+  @media (max-width: 1100px) { .work { grid-template-columns: 210px 1fr 280px; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="btn" href="/" data-t="ed.back"></a>
+  <select class="field" id="faces" aria-label="Face"></select>
+  <input class="field" id="name" maxlength="60" spellcheck="false" aria-label="Name">
+  <button class="btn" id="new" data-t="ed.new"></button>
+  <button class="btn" id="duplicate" data-t="ed.duplicate"></button>
+  <button class="btn" id="import" data-t="ed.import"></button>
+  <button class="btn" id="export" data-t="ed.export"></button>
+  <button class="btn" id="delete" data-t="ed.delete"></button>
+  <input type="file" id="import-file" accept=".json,application/json" hidden>
+  <span class="sep"></span>
+  <button class="btn icon" id="undo">↶</button>
+  <button class="btn icon" id="redo">↷</button>
+  <span id="saved"></span>
+  <button class="btn" id="show"></button>
+  <div class="pop" id="templates" hidden></div>
+</header>
+<div class="work">
+  <aside class="side">
+    <h2 data-t="ed.add"></h2>
+    <div class="palette" id="palette"></div>
+    <h2 data-t="ed.layers"></h2>
+    <div class="layers" id="layers"></div>
+  </aside>
+  <div class="center">
+    <div class="stage" id="stage">
+      <div class="dial" id="dial"></div>
+      <svg viewBox="-51.2 -51.2 742.4 742.4" id="overlay"></svg>
+    </div>
+    <div class="caption" id="caption"></div>
+    <div class="caption" data-t="ed.keys"></div>
+  </div>
+  <aside class="side right">
+    <h2 data-t="ed.props"></h2>
+    <div class="props" id="props"></div>
+  </aside>
+</div>
+<script src="bg.js"></script>
+<script src="i18n.js"></script>
+<script src="dial.js"></script>
+<script src="faces.js"></script>
+<script src="editor.js"></script>
+</body>
+</html>

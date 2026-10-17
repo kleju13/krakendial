@@ -48,14 +48,14 @@
   --num-weight: 500;
 }
 
-.th-porcelana {
+.th-porcelain {
   --bg-hi: #fdfcfa; --bg-lo: #e4e8ef;
   --ink: #111a2c; --ink-2: #4a5568; --ink-3: #9aa3b2;
   --track: #dde2ea; --fill: #1e40af; --fill-2: #93b4f5; --warn: #d9363e; --tick: rgba(17, 26, 44, 0.18);
   --glow-a: rgba(30, 64, 175, 0.12); --glow-b: rgba(147, 180, 245, 0.24);
   --num-weight: 600;
 }
-.th-mroz {
+.th-frost {
   --bg-hi: #f1fbff; --bg-lo: #c9e6f5;
   --ink: #062438; --ink-2: #376581; --ink-3: #7fa6be;
   --track: #c6e0ee; --fill: #0284c7; --fill-2: #7dd3fc; --warn: #e5484d; --tick: rgba(6, 36, 56, 0.2);
@@ -69,14 +69,14 @@
   --glow-a: rgba(56, 189, 248, 0.28); --glow-b: rgba(45, 212, 191, 0.16);
   --num-weight: 500;
 }
-.th-indygo {
+.th-indigo {
   --bg-hi: #27287a; --bg-lo: #08082a;
   --ink: #eef0ff; --ink-2: #aeb4ec; --ink-3: #6a6fae;
   --track: #2a2c6a; --fill: #818cf8; --fill-2: #c7d2fe; --warn: #ff8a8a; --tick: rgba(238, 240, 255, 0.16);
   --glow-a: rgba(129, 140, 248, 0.3); --glow-b: rgba(96, 165, 250, 0.18);
   --num-weight: 500;
 }
-.th-grafit {
+.th-graphite {
   --bg-hi: #2b3038; --bg-lo: #0e1013;
   --ink: #f2f4f7; --ink-2: #a3abb7; --ink-3: #5d6672;
   --track: #2d333b; --fill: #7dd3fc; --fill-2: #e0f2fe; --warn: #ff6b6b; --tick: rgba(242, 244, 247, 0.14);

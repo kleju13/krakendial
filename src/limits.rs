@@ -1,5 +1,6 @@
-//! Claude and Codex usage limits and what the agents cost, read from the ledger's summary.
-//! The ledger is the only thing that asks Claude and Codex; this service never does.
+//! Claude and Codex usage limits and what the agents cost, read from a usage summary: a URL set
+//! in the settings that answers with the JSON described in docs/usage-source.md. Whatever serves
+//! it is the only thing that asks Claude and Codex; this service never does.
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -11,8 +12,6 @@ use std::time::Duration;
 const MIN: i64 = 60_000;
 const HOUR: i64 = 60 * MIN;
 const UA: &str = concat!("krakenlcd/", env!("CARGO_PKG_VERSION"));
-/// Only reachable inside the tailnet; KRAKENLCD_LEDGER points elsewhere.
-const LEDGER: &str = "https://usage.example.invalid/api/summary";
 const KEYS: [&str; 4] = ["claude5h", "claude7d", "codex5h", "codex7d"];
 /// The summary is cheap, so it is read every minute, and shortly after the ledger's own refresh.
 pub const POLL_MS: i64 = MIN;
@@ -32,7 +31,7 @@ pub struct Limit {
     pub fetched_at: Option<i64>,
     #[serde(skip)]
     pub error: Option<String>,
-    /// When the ledger asks the provider next.
+    /// When the source asks the provider next.
     #[serde(default)]
     pub next_at: i64,
     /// (time, percent) samples of the current window, used to measure the burn rate.
@@ -96,7 +95,7 @@ impl Limit {
 #[derive(Serialize, Deserialize, Default)]
 pub struct Store {
     limits: BTreeMap<String, Limit>,
-    /// The ledger's costs as it sent them, plus `polledAt`: when we got them.
+    /// The source's costs as it sent them, plus `polledAt`: when we got them.
     #[serde(default)]
     costs: Value,
 }
@@ -118,8 +117,8 @@ impl Store {
         }
     }
 
-    /// Takes in a summary. A limit is only recorded again when the ledger has fetched it again,
-    /// so the burn rate is measured between the ledger's own samples.
+    /// Takes in a summary. A limit is only recorded again when the source has fetched it again,
+    /// so the burn rate is measured between the source's own samples.
     fn apply(&mut self, summary: &Value, now: i64) {
         for key in KEYS {
             let s = &summary["limits"][key];
@@ -142,11 +141,17 @@ impl Store {
 
     fn fail(&mut self, msg: &str) {
         for key in KEYS {
-            self.limits.entry(key.into()).or_default().error = Some(format!("ledger {msg}"));
+            self.limits.entry(key.into()).or_default().error = Some(msg.into());
         }
     }
 
-    /// The next poll: in a minute, or a little after the ledger's next refresh if that is sooner.
+    /// No source is set up: nothing to show, rather than old numbers going stale.
+    pub fn unset(&mut self) {
+        self.limits = KEYS.iter().map(|k| (k.to_string(), Limit { error: Some("unset".into()), ..Limit::default() })).collect();
+        self.costs = Value::Null;
+    }
+
+    /// The next poll: in a minute, or a little after the source's next refresh if that is sooner.
     fn next_poll(&self, now: i64) -> i64 {
         let refresh = self.limits.values().map(|l| l.next_at).filter(|&t| t + 15_000 > now).min();
         refresh.map_or(now + POLL_MS, |t| (t + 15_000).clamp(now + 5_000, now + POLL_MS))
@@ -161,24 +166,20 @@ impl Store {
     }
 }
 
-pub struct Ledger {
+pub struct Source {
     agent: ureq::Agent,
-    url: String,
 }
 
-impl Ledger {
-    pub fn new() -> Ledger {
-        Ledger {
-            agent: ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).user_agent(UA).build(),
-            url: std::env::var("KRAKENLCD_LEDGER").unwrap_or_else(|_| LEDGER.into()),
-        }
+impl Source {
+    pub fn new() -> Source {
+        Source { agent: ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).user_agent(UA).build() }
     }
 
-    /// Reads the summary into the store; returns when to poll next and what went wrong, if anything.
-    pub fn poll(&self, store: &Mutex<Store>) -> (i64, Option<String>) {
-        let res = match self.agent.get(&self.url).call() {
+    /// Reads the summary at `url` into the store; returns when to poll next and what went wrong, if anything.
+    pub fn poll(&self, url: &str, store: &Mutex<Store>) -> (i64, Option<String>) {
+        let res = match self.agent.get(url).call() {
             Ok(r) => r.into_json::<Value>().map_err(|_| "bad reply".to_string()),
-            Err(ureq::Error::Status(code, _)) => Err(format!("error {code}")),
+            Err(ureq::Error::Status(code, _)) => Err(format!("http {code}")),
             Err(ureq::Error::Transport(_)) => Err("offline".into()),
         };
         let now = now_ms();
@@ -227,7 +228,7 @@ mod tests {
     }
 
     #[test]
-    fn summary_is_sampled_once_per_ledger_fetch() {
+    fn summary_is_sampled_once_per_source_fetch() {
         let t = 1_000_000_000_000;
         let summary = |pct: f64, fetched: i64| {
             json!({
@@ -250,7 +251,7 @@ mod tests {
         assert!(!s.limits.contains_key("codex5h") || s.limits["codex5h"].pct.is_none());
         assert_eq!(s.costs["last24h"], json!(14.29));
         assert_eq!(s.costs["polledAt"], json!(t + 5 * MIN + 10_000));
-        // next poll: 15 s after the ledger's next fetch, as that is within the minute
+        // next poll: 15 s after the source's next fetch, as that is within the minute
         assert_eq!(s.next_poll(t + 9 * MIN + 30_000), t + 10 * MIN + 15_000);
         assert_eq!(s.next_poll(t + 5 * MIN + 10_000), t + 6 * MIN + 10_000);
     }

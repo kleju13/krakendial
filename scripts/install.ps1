@@ -15,6 +15,7 @@ Copy-Item (Join-Path $repo 'target\release\krakenlcd.exe') $exe -Force
 Set-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'KrakenLCD' -Value "`"$exe`""
 Start-Process $exe
 
-Write-Host "Zainstalowano: $exe (autostart przy logowaniu)"
-Write-Host 'Adres dla NZXT CAM: http://127.0.0.1:30640/  (przycisk Configure w CAM otwiera wybór wariantu)'
-Write-Host 'Podgląd w przeglądarce: http://127.0.0.1:30640/lcd?mock'
+Write-Host "Installed: $exe (starts at every logon)"
+Write-Host 'URL for NZXT CAM Web Integration: http://127.0.0.1:30640/  (CAM''s Configure button opens the settings)'
+Write-Host 'Face editor: http://127.0.0.1:30640/editor'
+Write-Host 'Preview in a browser: http://127.0.0.1:30640/lcd?mock'

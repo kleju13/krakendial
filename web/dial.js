@@ -3,7 +3,7 @@
 // separate layers so fades are composited, and the DOM is only touched when a value really changes.
 //   const dial = KrakenDial.create(container, { layout, theme, bg, fps, units, look });
 //   dial.update({ now, hw, limits, costs, interval, mode }); // call about once a second
-//   dial.configure({ layout, theme, bg, fps, units, look, mascot, cost, bars }); // switch variant live
+//   dial.configure({ layout, theme, bg, fps, units, look, mascot, cost, bars, lang, face }); // switch variant live
 //   dial.setActivity(gpuLoad);                               // 0..1, speeds the background up under load
 (function () {
   const NS = "http://www.w3.org/2000/svg";
@@ -12,67 +12,64 @@
   const ROTATE_MS = 12e3;
   const CAROUSEL_MS = 6e3;
   const HOT = { cpu: 85, gpu: 80 };
-  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-  const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const I18N = window.KrakenI18n;
+  const t = I18N.t;
+  // Lists whose names follow the language: each entry reads its name from the translations.
+  const named = (prefix, items) =>
+    items.map((it) => Object.defineProperty({ ...it }, "name", { get: () => t(`${prefix}.${it.id}`), enumerable: true }));
 
-  const LAYOUTS = [
-    { id: "rotacja", name: "Rotation", desc: "Limits and hardware, taking turns every 12 s." },
-    { id: "adaptacyjny", name: "Adaptive", desc: "Limits; hardware while you game." },
-    { id: "kokpit", name: "Cockpit", desc: "Everything at once: limits, temperatures, power, RAM." },
-    { id: "chronograf", name: "Chronograph", desc: "A watch with hands, a subdial per limit." },
-    { id: "slupki", name: "Columns", desc: "Seven bars side by side." },
-    { id: "terminal", name: "Terminal", desc: "Everything as console output." },
-    { id: "htop", name: "htop", desc: "Meters on top, limits as the process list." },
-    { id: "btop", name: "btop", desc: "Boxes and braille graphs of the last minutes." },
-    { id: "neofetch", name: "neofetch", desc: "The system in big type, a mascot wandering below.", mascot: true },
-    { id: "fastfetch", name: "fastfetch", desc: "The mascot as an ASCII logo, the system beside it with bars.", mascot: true },
-    { id: "pfetch", name: "pfetch", desc: "Very large lines under a mascot, the name and the time.", mascot: true },
-    { id: "macchina", name: "macchina", desc: "Dot bars in a frame the mascot walks along.", mascot: true },
-    { id: "cpufetch", name: "cpufetch", desc: "CPU and GPU as chips, the mascot walking over them.", mascot: true },
-    { id: "zegar", name: "Clock", desc: "The time, large; limits and hardware around it." },
-    { id: "jedna", name: "One number", desc: "One huge value, the next one every 6 s." },
-    { id: "limity", name: "Limits only", desc: "Claude 5h, Claude 7d and Codex." },
-    { id: "sprzet", name: "Hardware only", desc: "CPU, GPU, liquid and power." },
-  ];
-  const THEMES = [
-    { id: "ice", name: "Ice" },
-    { id: "porcelana", name: "Porcelain" },
-    { id: "mroz", name: "Frost" },
-    { id: "blue", name: "Blue" },
-    { id: "ocean", name: "Ocean" },
-    { id: "deep", name: "Deep" },
-    { id: "indygo", name: "Indigo" },
-    { id: "grafit", name: "Graphite" },
-    { id: "night", name: "Night" },
-    { id: "neon", name: "Neon" },
-    { id: "nord", name: "Nord" },
-    { id: "tokyo", name: "Tokyo Night" },
-    { id: "catppuccin", name: "Catppuccin" },
-    { id: "latte", name: "Latte" },
-    { id: "dracula", name: "Dracula" },
-    { id: "solarized", name: "Solarized" },
-    { id: "gruvbox", name: "Gruvbox" },
-    { id: "synthwave", name: "Synthwave" },
-    { id: "phosphor", name: "Phosphor" },
-    { id: "amber", name: "Amber" },
-    { id: "mono", name: "Mono" },
-    { id: "paper", name: "Paper" },
-  ];
-  const BGS = window.KrakenBg.LIST;
+  const LAYOUTS = named("layout", [
+    { id: "rotation" },
+    { id: "adaptive" },
+    { id: "cockpit" },
+    { id: "chronograph" },
+    { id: "columns" },
+    { id: "terminal" },
+    { id: "htop" },
+    { id: "btop" },
+    { id: "neofetch", mascot: true },
+    { id: "fastfetch", mascot: true },
+    { id: "pfetch", mascot: true },
+    { id: "macchina", mascot: true },
+    { id: "cpufetch", mascot: true },
+    { id: "clock" },
+    { id: "one" },
+    { id: "limits" },
+    { id: "hardware" },
+  ]).map((l) => Object.defineProperty(l, "desc", { get: () => t(`layout.${l.id}.desc`), enumerable: true }));
+  const THEMES = named("theme", [
+    { id: "ice" },
+    { id: "porcelain" },
+    { id: "frost" },
+    { id: "blue" },
+    { id: "ocean" },
+    { id: "deep" },
+    { id: "indigo" },
+    { id: "graphite" },
+    { id: "night" },
+    { id: "neon" },
+    { id: "nord" },
+    { id: "tokyo" },
+    { id: "catppuccin" },
+    { id: "latte" },
+    { id: "dracula" },
+    { id: "solarized" },
+    { id: "gruvbox" },
+    { id: "synthwave" },
+    { id: "phosphor" },
+    { id: "amber" },
+    { id: "mono" },
+    { id: "paper" },
+  ]);
+  const BGS = named("bg", window.KrakenBg.LIST.map(({ id }) => ({ id })));
   const LIMITS = [
     { key: "claude5h", label: "CLAUDE · 5H", short: "CLAUDE 5H", tiny: "5H", cmd: "claude 5h" },
     { key: "claude7d", label: "CLAUDE · 7D", short: "CLAUDE 7D", tiny: "7D", cmd: "claude 7d" },
     { key: "codex7d", label: "CODEX · 7D", short: "CODEX 7D", tiny: "CODEX", cmd: "codex  7d" },
   ];
-  // What Claude and Codex cost across all machines, as the ledger counts it; the period is a setting.
-  const COSTS = [
-    { id: "last24h", name: "Last 24 h", short: "24h" },
-    { id: "today", name: "Today", short: "today" },
-    { id: "last7d", name: "Last 7 days", short: "7d" },
-    { id: "month", name: "This month", short: "month" },
-    { id: "off", name: "Off" },
-  ];
+  // What Claude and Codex cost, as the usage source counts it; the period is a setting.
+  const COSTS = named("cost", [{ id: "last24h" }, { id: "today" }, { id: "last7d" }, { id: "month" }, { id: "off" }]).map((c) =>
+    Object.defineProperty(c, "short", { get: () => t(`cost.${c.id}.short`), enumerable: true }));
 
   // ---------- helpers ----------
 
@@ -101,7 +98,15 @@
     return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   };
   const hhmmss = (t) => `${hhmm(t)}:${pad(new Date(t).getSeconds())}`;
-  const when = (t, now) => (t - now < 18 * 3600e3 ? hhmm(t) : `${DAYS[new Date(t).getDay()]} ${hhmm(t)}`);
+  // Dates in the dial's language; the formatters are made once per language.
+  const formats = {};
+  function dateText(at, kind) {
+    const key = `${I18N.locale}|${kind}`;
+    const opts = kind === "day" ? { weekday: "short" } : { weekday: "long", day: "numeric", month: "long" };
+    formats[key] = formats[key] || new Intl.DateTimeFormat(I18N.locale, opts);
+    return formats[key].format(at);
+  }
+  const when = (at, now) => (at - now < 18 * 3600e3 ? hhmm(at) : `${dateText(at, "day")} ${hhmm(at)}`);
   function dur(ms) {
     const m = Math.max(0, Math.round(ms / 60e3));
     if (m < 60) return `${m} min`;
@@ -166,8 +171,10 @@
     if (l && l.nextAt > l.fetchedAt) interval = Math.max(interval, l.nextAt - l.fetchedAt);
     const staleAfter = Math.max(STALE_MS, 3 * interval);
     if (!l || l.pct == null) {
-      const sub = l && l.error ? [{ t: l.error, warn: true }] : [{ t: "waiting for data" }];
-      return { state: l && l.error ? "error" : "none", pct: 0, pace: null, value: "—", dim: true, sub, left };
+      // with no usage source set up, the limits are quietly empty instead of failing
+      const failed = l && l.error && l.error !== "unset";
+      const sub = failed ? [{ t: errText(l.error), warn: true }] : [{ t: t(l && l.error ? "st.noSource" : "st.waiting") }];
+      return { state: failed ? "error" : "none", pct: 0, pace: null, value: "—", dim: true, sub, left };
     }
     const show = (used) => (left ? 100 - used : used);
     const age = now - l.fetchedAt;
@@ -175,14 +182,14 @@
     const pct = show(clamp(l.pct, 0, 100));
     const base = { pct, pace, value: `${Math.round(pct)}`, dim: false, state: "ok", left, resetsAt: l.resetsAt };
     if (l.resetsAt && now >= l.resetsAt) {
-      return { ...base, state: "reset", pct: show(0), pace: 0, value: `${show(0)}`, dim: true, sub: [{ t: "window reset" }] };
+      return { ...base, state: "reset", pct: show(0), pace: 0, value: `${show(0)}`, dim: true, sub: [{ t: t("st.reset") }] };
     }
     if (age > staleAfter) {
-      return { ...base, state: l.error ? "error" : "stale", dim: true, sub: [{ t: `${dur(age)} ago` }] };
+      return { ...base, state: l.error ? "error" : "stale", dim: true, sub: [{ t: t("st.ago", { t: dur(age) }) }] };
     }
-    if (!l.resetsAt) return { ...base, sub: [{ t: "window idle" }] };
-    if (l.pct >= 100) return { ...base, hot: true, sub: [{ t: `limit · reset ${when(l.resetsAt, now)}`, warn: true }] };
-    return { ...base, sub: [{ t: `reset ${when(l.resetsAt, now)}` }] };
+    if (!l.resetsAt) return { ...base, sub: [{ t: t("st.idle") }] };
+    if (l.pct >= 100) return { ...base, hot: true, sub: [{ t: t("st.limitReset", { t: when(l.resetsAt, now) }), warn: true }] };
+    return { ...base, sub: [{ t: t("st.resetAt", { t: when(l.resetsAt, now) }) }] };
   }
 
   // Where a limit gauge fills to, where the pace line sits and where the second colour starts.
@@ -194,24 +201,36 @@
     return { f: v.pct, notch: v.pace == null ? null : 100 - v.pace, over: null };
   }
 
-  // The quiet status line: when the ledger last fetched the limits and how often, or that it
-  // can't be reached. `short` leaves the cadence out, for when the cost shares the line.
+  // What the service says went wrong with the usage source, in words.
+  function errText(code) {
+    if (code === "offline") return t("err.offline");
+    if (code === "bad reply") return t("err.bad");
+    const http = /^http (\d+)$/.exec(code || "");
+    return http ? t("err.http", { code: http[1] }) : code;
+  }
+
+  // The quiet status line: when the usage source last fetched the limits and how often, or that
+  // it can't be reached. `short` leaves the cadence out, for when the cost shares the line.
   function metaView(limits, now, interval) {
     const entries = Object.entries(limits || {}).filter(([, l]) => l);
     const failing = entries.find(([, l]) => l.error);
     const last = Math.max(0, ...entries.map(([, l]) => l.fetchedAt || 0));
-    if (failing) return { state: "error", frac: 1, last, text: failing[1].error, short: failing[1].error };
-    if (!last) return { state: "stale", frac: 0, last, text: "waiting for data", short: "waiting for data" };
-    // The ledger's cadence, from when it fetched last and when it fetches next.
+    if (failing && failing[1].error === "unset") return { state: "stale", frac: 0, last, text: t("st.noSource"), short: t("st.noSource") };
+    if (failing) {
+      const e = errText(failing[1].error);
+      return { state: "error", frac: 1, last, text: e, short: e };
+    }
+    if (!last) return { state: "stale", frac: 0, last, text: t("st.waiting"), short: t("st.waiting") };
+    // The source's cadence, from when it fetched last and when it fetches next.
     const cadence = Math.max(interval, ...entries.map(([, l]) => (l.fetchedAt && l.nextAt > l.fetchedAt ? l.nextAt - l.fetchedAt : 0)));
     const age = now - last;
     const stale = age > Math.max(STALE_MS, 3 * cadence);
-    const text = `synced ${hhmmss(last)}`;
-    return { state: stale ? "stale" : "ok", frac: clamp(age / cadence, 0, 1), last, text: `${text} · every ${every(cadence)}`, short: text };
+    const text = t("st.synced", { t: hhmmss(last) });
+    return { state: stale ? "stale" : "ok", frac: clamp(age / cadence, 0, 1), last, text: `${text} · ${t("st.every", { t: every(cadence) })}`, short: text };
   }
 
   const money = (v) => (v == null ? "—" : v < 1000 ? `$${v.toFixed(2)}` : `$${Math.round(v).toLocaleString("en-US")}`);
-  // null when switched off; dim when the ledger has nothing or hasn't been reached for a while.
+  // null when switched off; dim when the source has nothing or hasn't been reached for a while.
   function costView(costs, id, now) {
     const def = COSTS.find((c) => c.id === id) || COSTS[0];
     if (def.id === "off") return null;
@@ -318,22 +337,22 @@
   // ---------- shared widgets ----------
 
   function clock(p, y) {
-    const t = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-clock" });
-    return (d) => setText(t, hhmm(d.now));
+    const node = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-clock" });
+    return (d) => setText(node, hhmm(d.now));
   }
 
   // When the limits were synced, with a pie filling until the next sync, then the cost.
-  function meta(p, y) {
-    const t = el(p, "text", { x: C + 10, y, "text-anchor": "middle", class: "t-meta" });
+  function meta(p, y, x = C) {
+    const line = el(p, "text", { x: x + 10, y, "text-anchor": "middle", class: "t-meta" });
     const pi = pie(p);
     let lastKey = null;
     return (d) => {
       const m = d.meta, c = d.cost;
       const key = `${m.text}|${c ? c.value + c.dim : ""}`;
       if (key !== lastKey) {
-        setSpans(t, c ? [["", `${m.short} · `], [c.dim ? "" : "t-cost", c.value], ["", ` ${c.short}`]] : [["", m.text]]);
-        t.classList.toggle("is-warn", m.state === "error");
-        pi.move(C + 10 - t.getComputedTextLength() / 2 - 14, y - 5.5);
+        setSpans(line, c ? [["", `${m.short} · `], [c.dim ? "" : "t-cost", c.value], ["", ` ${c.short}`]] : [["", m.text]]);
+        line.classList.toggle("is-warn", m.state === "error");
+        pi.move(x + 10 - line.getComputedTextLength() / 2 - 14, y - 5.5);
         lastKey = key;
       }
       pi.set(m);
@@ -342,15 +361,15 @@
 
   // "LEFT" or "USED": says which way the limit numbers read.
   function unitHead(p, x, y, anchor = "middle") {
-    const t = el(p, "text", { x, y, "text-anchor": anchor, class: "t-head" });
-    return (d) => setText(t, d.unitWord);
+    const node = el(p, "text", { x, y, "text-anchor": anchor, class: "t-head" });
+    return (d) => setText(node, d.unitWord);
   }
 
   function ramLine(p, y) {
-    const t = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-sub" });
+    const line = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-sub" });
     return (d) => {
       const r = d.hw.ram || {};
-      setText(t, `RAM  ${r.used == null ? "—" : dec(r.used / 1024)} / ${r.total == null ? "—" : Math.round(r.total / 1024)} GB`);
+      setText(line, t("sub.ram", { used: r.used == null ? "—" : dec(r.used / 1024), total: r.total == null ? "—" : Math.round(r.total / 1024) }));
     };
   }
 
@@ -398,7 +417,7 @@
   // ---------- scenes ----------
 
   // Three limits, one per row: label + reset on the left, big percentage on the right, pace bar below.
-  function sceneLimity(p) {
+  function sceneLimits(p) {
     const up = [clock(p, 96)];
     const x0 = 118, x1 = 522;
     up.push(unitHead(p, x1, 128, "end"));
@@ -420,20 +439,20 @@
     return up;
   }
 
-  function sceneSprzet(p) {
+  function sceneHardware(p) {
     const up = [clock(p, 96), tempArcs(p)];
     up.push(tempBlock(p, "cpu", 226, 270, 106, true));
     up.push(tempBlock(p, "gpu", 414, 270, 106, true));
     el(p, "line", { x1: C, x2: C, y1: 160, y2: 300, class: "rule" });
-    up.push(statBlock(p, "LIQUID", 226, 444, 74, readLiquid));
-    up.push(statBlock(p, "POWER", 414, 444, 74, readPower));
+    up.push(statBlock(p, t("lbl.liquid"), 226, 444, 74, readLiquid));
+    up.push(statBlock(p, t("lbl.power"), 414, 444, 74, readPower));
     up.push(ramLine(p, 500));
     up.push(meta(p, 552));
     return up;
   }
 
   // Everything at once, in reading order: three limits with pace bars, then the hardware.
-  function sceneKokpit(p) {
+  function sceneCockpit(p) {
     const up = [clock(p, 90), tempArcs(p), unitHead(p, C, 126)];
     LIMITS.forEach((def, i) => {
       const x = 200 + i * 120;
@@ -452,15 +471,15 @@
     el(p, "line", { x1: 170, x2: 470, y1: 292, y2: 292, class: "rule" });
     up.push(tempBlock(p, "cpu", 226, 398, 92, true));
     up.push(tempBlock(p, "gpu", 414, 398, 92, true));
-    up.push(statBlock(p, "LIQUID", 200, 500, 38, readLiquid, "t-lbl-xs"));
-    up.push(statBlock(p, "POWER", 320, 500, 38, readPower, "t-lbl-xs"));
-    up.push(statBlock(p, "RAM", 440, 500, 38, readRam, "t-lbl-xs"));
+    up.push(statBlock(p, t("lbl.liquid"), 200, 500, 38, readLiquid, "t-lbl-xs"));
+    up.push(statBlock(p, t("lbl.power"), 320, 500, 38, readPower, "t-lbl-xs"));
+    up.push(statBlock(p, t("lbl.ram"), 440, 500, 38, readRam, "t-lbl-xs"));
     up.push(meta(p, 554));
     return up;
   }
 
   // A watch: hands for the time, a subdial per limit, the hardware in the window at twelve.
-  function sceneChronograf(p) {
+  function sceneChronograph(p) {
     const up = [];
     for (let i = 0; i < 12; i++) {
       const [x0, y0] = polar(i % 3 ? 274 : 264, i * 30);
@@ -484,7 +503,7 @@
       });
     }
     el(p, "rect", { x: 198, y: 128, width: 244, height: 78, rx: 18, class: "window" });
-    [["CPU", 242, readTemp("cpu")], ["GPU", 320, readTemp("gpu")], ["LIQUID", 398, readLiquid]].forEach(([label, x, read]) => {
+    [["CPU", 242, readTemp("cpu")], ["GPU", 320, readTemp("gpu")], [t("lbl.liquid"), 398, readLiquid]].forEach(([label, x, read]) => {
       up.push(statBlock(p, label, x + 3, 192, 32, read, "t-lbl-xxs"));
     });
     const extra = el(p, "text", { x: C, y: 232, "text-anchor": "middle", class: "t-sub-s" });
@@ -516,18 +535,18 @@
   }
 
   // Seven columns side by side: the three limits, then CPU, GPU, liquid and power.
-  function sceneSlupki(p) {
+  function sceneColumns(p) {
     const up = [clock(p, 96)];
     const X = (i) => C + (i - 3) * 58 + (i < 3 ? -14 : 14);
     const top = 238, bottom = 436;
     up.push(unitHead(p, X(1), 150));
-    el(p, "text", { x: (X(4) + X(5)) / 2, y: 150, "text-anchor": "middle", class: "t-head" }, "HARDWARE");
+    el(p, "text", { x: (X(4) + X(5)) / 2, y: 150, "text-anchor": "middle", class: "t-head" }, t("lbl.hardware"));
     const cols = [
       ...LIMITS.map((def) => ({ label: def.tiny, limit: def.key })),
       { label: "CPU", temp: "cpu" },
       { label: "GPU", temp: "gpu" },
-      { label: "LIQUID", read: (d) => [int(d.hw.liquid), "°", 14], f: (d) => scale(d.hw.liquid, 20, 50) },
-      { label: "POWER", read: (d) => [int(power(d.hw)), "W", 12], f: (d) => scale(power(d.hw), 0, 600) },
+      { label: t("lbl.liquid"), read: (d) => [int(d.hw.liquid), "°", 14], f: (d) => scale(d.hw.liquid, 20, 50) },
+      { label: t("lbl.power"), read: (d) => [int(power(d.hw)), "W", 12], f: (d) => scale(power(d.hw), 0, 600) },
     ];
     cols.forEach((col, i) => {
       const x = X(i);
@@ -555,7 +574,7 @@
       });
     });
     el(p, "path", { d: `M${X(0) - 15} 480V486H${X(1) + 15}V480`, class: "bracket" });
-    el(p, "text", { x: (X(0) + X(1)) / 2, y: 506, "text-anchor": "middle", class: "t-head" }, "CLAUDE");
+    el(p, "text", { x: (X(0) + X(1)) / 2, y: 506, "text-anchor": "middle", class: "t-head" }, t("lbl.claude"));
     up.push(ramLine(p, 534));
     up.push(meta(p, 568));
     return up;
@@ -919,21 +938,18 @@
   const MASCOTS = [
     {
       id: "kraken",
-      name: "Kraken",
       eyes: [[4, 4, 2, 2], [10, 4, 2, 2]],
       a: [...OCTO_HEAD, "..XX.XX..XX.XX..", ".XX..XX..XX..XX.", ".X..XX....XX..X.", "....X......X...."],
       b: [...OCTO_HEAD, "..XX.XX..XX.XX..", "..XX.XX..XX.XX..", ".XX..X....X..XX.", "XX...XX..XX...XX"],
     },
     {
       id: "crab",
-      name: "Crab",
       eyes: [[5, 1, 2, 2], [9, 1, 2, 2]],
       a: ["................", ".XX..WW..WW..XX.", "XX.X.WW..WW.X.XX", ...CRAB_BODY, ".X.X.X....X.X.X.", "X..X..X..X..X..X"],
       b: ["................", ".XX..WW..WW..XX.", "XXXX.WW..WW.XXXX", ...CRAB_BODY, "..X.X.X..X.X.X..", ".X..X..XX..X..X."],
     },
     {
       id: "ghost",
-      name: "Ghost",
       float: true,
       eyes: [[4, 3, 2, 2], [10, 3, 2, 2]],
       a: [...GHOST_TOP, ".XX.XXX..XXX.XX.", ".X...XX..XX...X."],
@@ -941,7 +957,6 @@
     },
     {
       id: "cat",
-      name: "Cat",
       flip: true,
       eyes: [[12, 3, 1, 1], [14, 3, 1, 1]],
       a: [...CAT_TOP, "..X.X......X.X..", "..X.X......X.X.."],
@@ -949,12 +964,12 @@
     },
     {
       id: "robot",
-      name: "Robot",
       eyes: [[4, 3, 2, 2], [10, 3, 2, 2]],
       a: [...ROBOT_TOP, "....XX....XX....", "....XX....XX...."],
       b: [...ROBOT_TOP, "....XX....XX....", "..........XX...."],
     },
   ];
+  for (const m of MASCOTS) Object.defineProperty(m, "name", { get: () => t(`mascot.${m.id}`), enumerable: true });
   const mascotById = (id) => MASCOTS.find((m) => m.id === id) || MASCOTS[0];
 
   // Draws a mascot into parent, px to a pixel; set() moves it, picks the frame, points the eyes, closes them.
@@ -1319,7 +1334,7 @@
   }
 
   // The time, large; limits above it, hardware below, a seconds marker running round the rim.
-  function sceneZegar(p) {
+  function sceneClock(p) {
     const up = [unitHead(p, C, 102)];
     LIMITS.forEach((def, i) => {
       const x = 216 + i * 104;
@@ -1340,26 +1355,26 @@
     up.push((d) => {
       const t = new Date(d.now);
       setText(time, hhmm(d.now));
-      setText(date, `${DAY_NAMES[t.getDay()]}, ${t.getDate()} ${MONTHS[t.getMonth()]}`);
+      setText(date, dateText(d.now, "date"));
       setAttr(sec, "transform", `rotate(${t.getSeconds() * 6} ${C} ${C})`);
     });
     up.push(statBlock(p, "CPU", 194, 492, 30, readTemp("cpu"), "t-lbl-xs"));
     up.push(statBlock(p, "GPU", 278, 492, 30, readTemp("gpu"), "t-lbl-xs"));
-    up.push(statBlock(p, "LIQUID", 362, 492, 30, readLiquid, "t-lbl-xs"));
-    up.push(statBlock(p, "POWER", 446, 492, 30, readPower, "t-lbl-xs"));
+    up.push(statBlock(p, t("lbl.liquid"), 362, 492, 30, readLiquid, "t-lbl-xs"));
+    up.push(statBlock(p, t("lbl.power"), 446, 492, 30, readPower, "t-lbl-xs"));
     up.push(meta(p, 550));
     return up;
   }
 
   // One huge value at a time; the rim gauge and the dots follow the carousel.
-  function sceneJedna(p, layer, env) {
+  function sceneOne(p, layer, env) {
     const items = [
       ...LIMITS.map((def) => ({ label: def.label, limit: def.key })),
       { label: "CPU", temp: "cpu" },
       { label: "GPU", temp: "gpu" },
-      { label: "LIQUID", read: readLiquid, gauge: (d) => scale(d.hw.liquid, 20, 50) },
-      { label: "POWER", read: readPower, gauge: (d) => scale(power(d.hw), 0, 600), sub: (d) => `CPU ${int(d.hw.cpu.power)} W · GPU ${int(d.hw.gpu.power)} W` },
-      ...(env.cost ? [{ label: "COST", cost: true }] : []),
+      { label: t("lbl.liquid"), read: readLiquid, gauge: (d) => scale(d.hw.liquid, 20, 50) },
+      { label: t("lbl.power"), read: readPower, gauge: (d) => scale(power(d.hw), 0, 600), sub: (d) => `CPU ${int(d.hw.cpu.power)} W · GPU ${int(d.hw.gpu.power)} W` },
+      ...(env.cost ? [{ label: t("lbl.cost"), cost: true }] : []),
     ];
     const up = [clock(p, 108)];
     const groups = items.map((it) => {
@@ -1385,7 +1400,7 @@
           tempGauge(arc, h, it.temp);
           setNum(val, int(h.temp), "°", 98, 196);
           val.classList.toggle("is-warn", isHot(h, it.temp));
-          setText(sub, `load ${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
+          setText(sub, t("sub.load", { v: h.load == null ? "—" : Math.round(h.load * 100), w: int(h.power) }));
         } else if (it.cost) {
           // the amount for the chosen period, two of the others under it
           setText(unit, ` · ${d.cost.short.toUpperCase()}`);
@@ -1413,11 +1428,11 @@
   }
 
   const SCENES = {
-    limity: sceneLimity,
-    sprzet: sceneSprzet,
-    kokpit: sceneKokpit,
-    chronograf: sceneChronograf,
-    slupki: sceneSlupki,
+    limits: sceneLimits,
+    hardware: sceneHardware,
+    cockpit: sceneCockpit,
+    chronograph: sceneChronograph,
+    columns: sceneColumns,
     terminal: sceneTerminal,
     htop: sceneHtop,
     btop: sceneBtop,
@@ -1426,13 +1441,26 @@
     pfetch: scenePfetch,
     macchina: sceneMacchina,
     cpufetch: sceneCpufetch,
-    zegar: sceneZegar,
-    jedna: sceneJedna,
+    clock: sceneClock,
+    one: sceneOne,
+    // a face made in the editor, drawn by faces.js
+    face: (p, layer, env) => (window.KrakenFaces ? window.KrakenFaces.build(p, env.face, env) : []),
   };
-  const LEGACY = { adaptive: "adaptacyjny", fixed: "kokpit", pierscienie: "kokpit", work: "limity", game: "sprzet" };
-  function normLayout(l) {
+  // Ids from older versions, which named things in Polish.
+  const LEGACY = {
+    rotacja: "rotation", adaptacyjny: "adaptive", kokpit: "cockpit", fixed: "cockpit", pierscienie: "cockpit",
+    chronograf: "chronograph", slupki: "columns", zegar: "clock", jedna: "one", limity: "limits", work: "limits",
+    sprzet: "hardware", game: "hardware",
+    porcelana: "porcelain", mroz: "frost", indygo: "indigo", grafit: "graphite",
+    ciecz: "liquid", fale: "ripples", babelki: "bubbles", zorza: "aurora", obieg: "flow", mglawica: "nebula",
+    gwiazdy: "stars", linie: "silk", topografia: "contours", wir: "vortex", plaster: "honeycomb", siatka: "grid",
+    kod: "rain", brak: "none",
+  };
+  const isFace = (l) => /^face:[a-z0-9-]+$/.test(l || "");
+  function normLayout(l, face) {
+    if (isFace(l) || l === "face") return face ? "face" : "rotation";
     const id = LEGACY[l] || l;
-    return LAYOUTS.some((x) => x.id === id) ? id : "rotacja";
+    return LAYOUTS.some((x) => x.id === id) ? id : "rotation";
   }
   const validBg = (b) => BGS.some((x) => x.id === b) || /^media:./.test(b || "");
 
@@ -1455,34 +1483,40 @@
     const animate = cfg.animate !== false;
 
     let layout = null, theme = null, bgType = null, left = true, mascot = null, cost = null, bars = "load";
+    let face = null, faceKey = null, builtLang = null;
     let scenes = {}, updaters = [];
     // Every scene is its own <svg>, so switching between them is a composited fade, not a repaint.
     const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: "scene" });
 
     function buildLayout() {
       for (const n of root.querySelectorAll("svg.scene")) n.remove();
-      const names = layout === "rotacja" || layout === "adaptacyjny" ? ["limity", "sprzet"] : [layout];
+      const names = layout === "rotation" || layout === "adaptive" ? ["limits", "hardware"] : [layout];
       scenes = {};
       updaters = [];
       for (const name of names) {
         scenes[name] = layer();
-        updaters = updaters.concat(SCENES[name](scenes[name], layer, { animate, mascot, cost: cost !== "off" }));
+        updaters = updaters.concat(SCENES[name](scenes[name], layer, { animate, mascot, cost: cost !== "off", face }));
       }
+      builtLang = I18N.lang;
     }
 
     function configure(next) {
-      const l = normLayout(next.layout);
-      const t = THEMES.some((x) => x.id === next.theme) ? next.theme : "ice";
-      const b = validBg(next.bg) ? next.bg : "ciecz";
+      // the page usually sets the language for all its dials; a dial follows it either way
+      if (next.lang) I18N.use(next.lang);
+      const l = normLayout(next.layout, next.face);
+      const th = LEGACY[next.theme] || next.theme;
+      const tm = THEMES.some((x) => x.id === th) ? th : "ice";
+      const bg = LEGACY[next.bg] || next.bg;
+      const b = validBg(bg) ? bg : "liquid";
       left = next.units !== "used";
       bars = next.bars === "temp" ? "temp" : "load";
       back.fps(next.fps);
       back.look(next.look);
       const m = mascotById(next.mascot).id;
       const c = COSTS.some((x) => x.id === next.cost) ? next.cost : COSTS[0].id;
-      const themed = t !== theme;
+      const themed = tm !== theme;
       if (themed) {
-        root.className = `kd th-${(theme = t)}`;
+        root.className = `kd th-${(theme = tm)}`;
         // pixel art needs to know which way "dark" goes
         const lo = getComputedStyle(root).getPropertyValue("--bg-lo").trim();
         const rgb = lo.length >= 7 ? [1, 3, 5].map((i) => parseInt(lo.slice(i, i + 2), 16)) : [0, 0, 0];
@@ -1491,9 +1525,12 @@
       if (themed || b !== bgType) back.set((bgType = b), animate);
       // untouched media gets a halo behind the text instead of a dimmed picture
       root.classList.toggle("is-raw", next.look === "raw" && /^media:/.test(b));
-      // switching the cost on or off adds or removes a line, so the layout is laid out again
-      if (l !== layout || (m !== mascot && LAYOUTS.find((x) => x.id === l).mascot) || (c === "off") !== (cost === "off")) {
-        [layout, mascot, cost] = [l, m, c];
+      // switching the cost on or off adds or removes a line, so the layout is laid out again; so
+      // does another language, for the labels, and any change to a face
+      const fk = l === "face" ? JSON.stringify(next.face) : null;
+      const withMascot = l === "face" || LAYOUTS.find((x) => x.id === l).mascot;
+      if (l !== layout || (m !== mascot && withMascot) || (c === "off") !== (cost === "off") || fk !== faceKey || builtLang !== I18N.lang) {
+        [layout, mascot, cost, faceKey, face] = [l, m, c, fk, l === "face" ? next.face : null];
         buildLayout();
       }
       [mascot, cost] = [m, c];
@@ -1512,10 +1549,10 @@
         const views = {};
         for (const def of LIMITS) views[def.key] = limitView((data.limits || {})[def.key], now, interval, left);
         const cv = costView(data.costs, cost, now);
-        const d = { now, hw: data.hw || emptyHw(), views, left, bars, unitWord: left ? "LEFT" : "USED", meta: metaView(data.limits, now, interval), cost: cv, costs: data.costs };
+        const d = { now, hw: data.hw || emptyHw(), views, left, bars, unitWord: t(left ? "unit.left" : "unit.used"), meta: metaView(data.limits, now, interval), cost: cv, costs: data.costs };
         let active = Object.keys(scenes);
-        if (layout === "rotacja") active = [Math.floor(now / ROTATE_MS) % 2 ? "sprzet" : "limity"];
-        if (layout === "adaptacyjny") active = [data.mode === "game" ? "sprzet" : "limity"];
+        if (layout === "rotation") active = [Math.floor(now / ROTATE_MS) % 2 ? "hardware" : "limits"];
+        if (layout === "adaptive") active = [data.mode === "game" ? "hardware" : "limits"];
         for (const k in scenes) scenes[k].classList.toggle("is-off", !active.includes(k));
         for (const u of updaters) u(d);
       },
@@ -1543,5 +1580,13 @@
     return back;
   }
 
-  window.KrakenDial = { create, background, mascotIcon, money, LAYOUTS, THEMES, BGS, MASCOTS, COSTS, emptyHw };
+  // The parts the layouts are drawn with, for faces.js to build faces from.
+  const kit = {
+    C, HOT, el, clamp, polar, arcD, hhmm, hhmmss, dateText, dur, durShort, dec, int, scale, tempF, power, isHot,
+    setText, setAttr, setParts, setSpans, setNum, num, gauge, arcGauge, barGauge, columnGauge, limitGauge, tempGauge,
+    limitSpan, ticks, pie, meta, term, advance, track, limitBar, fracBar, braille, sprite, asciiSprite, walker,
+    mascotById, money, loadText, memFrac, LIMITS, COSTS,
+  };
+
+  window.KrakenDial = { create, background, mascotIcon, money, errText, LAYOUTS, THEMES, BGS, MASCOTS, COSTS, LEGACY, isFace, emptyHw, kit };
 })();
