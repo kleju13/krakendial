@@ -2,7 +2,7 @@
 
 Issues and pull requests are welcome. For anything bigger than a fix, open an issue first, so we can agree on the shape before you spend time on it.
 
-The project is under the [GNU AGPL v3](LICENSE). By opening a pull request you agree that your contribution is licensed under it too.
+The project is under the [GNU AGPL v3](LICENSE). By opening a pull request you agree that your contribution is licensed under it too. You keep the copyright to what you write; there is no CLA.
 
 ## Running it
 
@@ -115,6 +115,7 @@ Terminal-style layouts keep the English of the tools they imitate (`cpu`, `memor
 ## Style
 
 - Code, comments and commit messages are in English.
+- New source files start with the same two SPDX lines as the others: the license and the copyright.
 - Comments say why, briefly. Match the style of the code around them.
 - No new runtime dependencies in the web pages. They load straight from the service, with no build step.
 - Text shown to users goes through `t()`. Text that comes from users, such as face names and file names, goes in with `textContent`, never `innerHTML`.

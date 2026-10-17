@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // Background service for the Kraken Elite LCD: serves the dial to NZXT CAM's Web Integration
 // and keeps the Claude / Codex limits and costs from the usage source fresh. Runs windowless in
 // release builds.

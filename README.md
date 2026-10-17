@@ -92,4 +92,6 @@ How the code is laid out, and how to add a layout, theme, background, widget or 
 
 ## License
 
+Copyright (C) 2026 kleju13 and KrakenDial contributors.
+
 [GNU AGPL v3](LICENSE). Use it, change it and share it freely, at work too. If you pass on a changed version, or run one for other people over a network, you must publish its source under the same license.

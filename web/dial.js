@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // Kraken Elite LCD dial (640×640, round). SVG over a canvas background (bg.js), no dependencies.
 // CAM renders web integrations without a GPU, so everything here keeps the CPU idle: scenes are
 // separate layers so fades are composited, and the DOM is only touched when a value really changes.

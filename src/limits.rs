@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 //! Claude and Codex usage limits and what the agents cost, read from a usage summary: a URL set
 //! in the settings that answers with the JSON described in docs/usage-source.md. Whatever serves
 //! it is the only thing that asks Claude and Codex; this service never does.

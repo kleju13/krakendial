@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // node tests/web.js
 // Builds every layout, face template and widget variant in every language on a fake DOM, and
 // checks that translations exist and that bad faces are cleaned up instead of thrown on. It

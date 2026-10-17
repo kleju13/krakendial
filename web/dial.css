@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later
+   SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors */
 /* KrakenDial dial. Themes are blue/white families to match a white build under blue light.
    Numerals are DIN (Bahnschrift ships with Windows). CAM rasterises without a GPU, so nothing
    here animates continuously: the moving background is a canvas painted by bg.js, and only

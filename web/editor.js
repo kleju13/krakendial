@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // The face editor. The dial in the middle is drawn by the same code as on the cooler, with the
 // selection on top of it; widgets to add and the layers are on the left, the selected widget's
 // properties on the right. Every change is saved half a second later; when the face is on the

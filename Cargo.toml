@@ -2,6 +2,7 @@
 name = "krakendial"
 version = "0.1.0"
 edition = "2021"
+authors = ["kleju13"]
 description = "A dial and face editor for the NZXT Kraken Elite LCD, through NZXT CAM's Web Integration"
 repository = "https://github.com/kleju13/krakendial"
 license = "AGPL-3.0-or-later"

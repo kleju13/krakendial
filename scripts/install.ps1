@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 # Installs KrakenDial to %LOCALAPPDATA%\krakendial and starts it now and at every logon. No admin needed.
 #
 # From a clone with Rust installed it builds the exe; anywhere else it downloads the latest release:

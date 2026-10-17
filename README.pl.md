@@ -92,4 +92,6 @@ Układ kodu i dodawanie układu, motywu, tła, widżetu albo języka: [CONTRIBUT
 
 ## Licencja
 
+Copyright (C) 2026 kleju13 i współtwórcy KrakenDial.
+
 [GNU AGPL v3](LICENSE). Można używać, zmieniać i udostępniać za darmo, także w pracy. Kto przekazuje dalej zmienioną wersję albo udostępnia ją innym przez sieć, musi opublikować jej źródła na tej samej licencji.

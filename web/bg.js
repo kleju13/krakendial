@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // Moving backgrounds for the Kraken dial, painted on one canvas a few times a second.
 // CAM captures and ships every frame that changes, at a real CPU cost per frame, so the frame
 // rate is a setting (10/20/30) and between frames the page stays idle. Soft light is painted

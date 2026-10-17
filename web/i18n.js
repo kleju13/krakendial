@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // Translations for the dial, the settings and the editor. English is the fallback for any key a
 // language leaves out; to add a language, add it to LANGS and give it a dictionary below.
 //   KrakenI18n.use("pl");                     // "auto" picks from the browser's languages

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 //! Faces made in the editor, one JSON file each in %LOCALAPPDATA%\krakendial\faces. The page
 //! checks every widget when it draws a face; here a face only has to be a small JSON object
 //! with a list of widgets, saved under a plain id.

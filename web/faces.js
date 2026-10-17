@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // Faces made in the editor: a list of widgets, each drawn with the parts of the built-in layouts
 // (kit in dial.js), so a face follows the theme and costs CAM no more than a built-in layout.
 //   KrakenFaces.build(svg, face, env)  -> updaters (d) => …; dial.js calls it for "face:<id>"

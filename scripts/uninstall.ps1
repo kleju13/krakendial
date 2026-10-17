@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 # Stops KrakenDial and removes the autostart entry. Settings, faces and media in %LOCALAPPDATA%\krakendial
 # stay unless -Purge is given.
 param([switch]$Purge)

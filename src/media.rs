@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // User backgrounds (videos, GIFs, pictures) kept in %LOCALAPPDATA%\krakendial\media.
 // Uploads are squared and shrunk to 640×640 with ffmpeg when it is installed: CAM decodes
 // everything on the CPU, and a 4K 60 fps clip would cost far more than the dial itself.
