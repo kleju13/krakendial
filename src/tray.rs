@@ -25,6 +25,9 @@ const WM_TRAY: u32 = WM_APP + 1;
 /// A second start: show the icon again and say that KrakenDial already runs.
 const WM_WAKE: u32 = WM_APP + 2;
 const CF_UNICODETEXT: u32 = 13;
+/// Enter or Space on the icon. Windows sends it twice for Enter; the second one finds the menu
+/// already open.
+const NIN_KEYSELECT: u32 = NIN_SELECT | NINF_KEY;
 /// The LCD page posts what the cooler shows every 3 s; longer than this and CAM has stopped.
 const LIVE_MS: i64 = 15_000;
 const OPEN: usize = 1;
@@ -476,7 +479,7 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
         WM_TIMER => refresh(),
         // with NOTIFYICON_VERSION_4 the event is in the low word of lp, and where to put the menu in wp
         WM_TRAY => match (lp & 0xffff) as u32 {
-            WM_CONTEXTMENU | NIN_SELECT => menu((wp & 0xffff) as i16 as i32, ((wp >> 16) & 0xffff) as i16 as i32),
+            WM_CONTEXTMENU | NIN_SELECT | NIN_KEYSELECT => menu((wp & 0xffff) as i16 as i32, ((wp >> 16) & 0xffff) as i16 as i32),
             _ => {}
         },
         WM_WAKE => woken(),
