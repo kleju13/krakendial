@@ -197,6 +197,10 @@
     "cfg.sourceSave": "Save",
     "cfg.sourceSaved": "Saved.",
     "cfg.sourceBad": "Use an http:// or https:// address.",
+    "cfg.tray": "TRAY ICON",
+    "cfg.trayOn": "Shown",
+    "cfg.trayOff": "Hidden",
+    "cfg.trayHint": "The icon in the Windows tray says KrakenDial is running: orange while the cooler gets the dial, grey while CAM sends nothing, with a red dot while the usage source fails. Click it for the status, these pages and the address for CAM. Windows may tuck new icons away under ^.",
     "cfg.auto": "Automatic",
 
     // the editor
@@ -491,6 +495,10 @@
     "cfg.sourceSave": "Zapisz",
     "cfg.sourceSaved": "Zapisano.",
     "cfg.sourceBad": "Podaj adres zaczynający się od http:// albo https://.",
+    "cfg.tray": "IKONA W ZASOBNIKU",
+    "cfg.trayOn": "Widoczna",
+    "cfg.trayOff": "Ukryta",
+    "cfg.trayHint": "Ikona w zasobniku Windows mówi, że KrakenDial działa: pomarańczowa, gdy chłodzenie dostaje tarczę, szara, gdy CAM nic nie wysyła, z czerwoną kropką, gdy źródło limitów nie odpowiada. Kliknij ją, żeby zobaczyć stan, otworzyć te strony albo skopiować adres dla CAM. Nowe ikony Windows może chować pod ^.",
     "cfg.auto": "Automatycznie",
 
     "ed.title": "KrakenDial · edytor tarcz",

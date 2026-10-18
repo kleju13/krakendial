@@ -2,12 +2,14 @@
 // SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // Background service for the Kraken Elite LCD: serves the dial to NZXT CAM's Web Integration
 // and keeps the Claude / Codex limits and costs from the usage source fresh. Runs windowless in
-// release builds.
+// release builds, with an icon in the tray.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod faces;
 mod limits;
 mod media;
+#[cfg(windows)]
+mod tray;
 
 use serde_json::{json, Value};
 use std::io::{Read, Write};
@@ -148,6 +150,9 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     }
     if let Some(f) = patch["fps"].as_i64().filter(|f| FPS.contains(f)) {
         cfg["fps"] = json!(f);
+    }
+    if let Some(t) = patch["tray"].as_bool() {
+        cfg["tray"] = json!(t);
     }
     if let Some(ls) = patch["limits"].as_array() {
         let on: Vec<&str> = ls.iter().filter_map(Value::as_str).collect();
@@ -357,11 +362,14 @@ fn handle(app: &App, mut req: Request) {
 }
 
 fn main() {
-    // A second copy can't bind the port and quietly exits, so autostart plus a manual start is harmless.
+    // A second copy can't bind the port and quietly exits, so autostart plus a manual start is
+    // harmless. Starting it by hand is how a hidden tray icon comes back.
     let server = match Server::http(ADDR) {
         Ok(s) => s,
         Err(e) => {
             log(&format!("port {ADDR} busy, exiting: {e}"));
+            #[cfg(windows)]
+            tray::wake();
             return;
         }
     };
@@ -371,7 +379,7 @@ fn main() {
     let usage = std::env::var("KRAKENDIAL_USAGE").ok().filter(|u| valid_url(u)).unwrap_or_default();
     let mut config = json!({
         "layout": "cockpit", "theme": "ice", "bg": "liquid", "fps": 10, "units": "left", "look": "plain", "mascot": "kraken",
-        "cost": "last24h", "bars": "load", "lang": "auto", "usage": usage, "limits": LIMITS,
+        "cost": "last24h", "bars": "load", "lang": "auto", "usage": usage, "limits": LIMITS, "tray": true,
     });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
@@ -383,6 +391,12 @@ fn main() {
         build: limits::now_ms(),
     });
     log(&format!("listening on http://{ADDR}"));
+
+    #[cfg(windows)]
+    {
+        let app = Arc::clone(&app);
+        std::thread::spawn(move || tray::run(app));
+    }
 
     let poller = Arc::clone(&app);
     std::thread::spawn(move || {
@@ -454,6 +468,15 @@ mod tests {
         assert_eq!(cfg["limits"], json!(["claude5h", "codex7d"]));
         merge_config(&mut cfg, &json!({ "limits": [] }));
         assert_eq!(cfg["limits"], json!([]));
+    }
+
+    #[test]
+    fn tray_is_on_or_off() {
+        let mut cfg = json!({ "tray": true });
+        merge_config(&mut cfg, &json!({ "tray": "no" }));
+        assert_eq!(cfg["tray"], true);
+        merge_config(&mut cfg, &json!({ "tray": false }));
+        assert_eq!(cfg["tray"], false);
     }
 
     #[test]

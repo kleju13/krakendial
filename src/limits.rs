@@ -159,6 +159,13 @@ impl Store {
         refresh.map_or(now + POLL_MS, |t| (t + 15_000).clamp(now + 5_000, now + POLL_MS))
     }
 
+    /// The source at a glance: what went wrong at the last poll, if anything, and when it last
+    /// fetched a limit.
+    pub fn sync(&self) -> (Option<String>, Option<i64>) {
+        let err = self.limits.values().find_map(|l| l.error.clone()).filter(|e| e != "unset");
+        (err, self.limits.values().filter_map(|l| l.fetched_at).max())
+    }
+
     pub fn limits_json(&self) -> Value {
         Value::Object(self.limits.iter().map(|(k, l)| (k.clone(), l.to_json())).collect())
     }

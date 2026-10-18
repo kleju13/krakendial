@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
-# Installs KrakenDial to %LOCALAPPDATA%\krakendial and starts it now and at every logon. No admin needed.
+# Installs KrakenDial to %LOCALAPPDATA%\krakendial, adds it to the Start menu and starts it now and at
+# every logon. No admin needed.
 #
 # From a clone with Rust installed it builds the exe; anywhere else it downloads the latest release:
 #   irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
@@ -44,9 +45,16 @@ Remove-ItemProperty $run -Name 'KrakenLCD' -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $dir | Out-Null
 Copy-Item $built $exe -Force
 Set-ItemProperty $run -Name 'KrakenDial' -Value "`"$exe`""
+# Start menu entry: starts KrakenDial after Quit, and brings back a hidden tray icon
+$shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut((Join-Path ([Environment]::GetFolderPath('Programs')) 'KrakenDial.lnk'))
+$shortcut.TargetPath = $exe
+$shortcut.WorkingDirectory = $dir
+$shortcut.Description = 'The dial for the NZXT Kraken Elite LCD'
+$shortcut.Save()
 Start-Process $exe
 
-Write-Host "Installed: $exe (starts at every logon)"
+Write-Host "Installed: $exe (starts at every logon, and from the Start menu)"
+Write-Host 'Its icon is in the tray: click it for the status and the address.'
 Write-Host 'URL for NZXT CAM Web Integration: http://127.0.0.1:30640/  (CAM''s Configure button opens the settings)'
 Write-Host 'Face editor: http://127.0.0.1:30640/editor'
 Write-Host 'Preview in a browser: http://127.0.0.1:30640/lcd?mock'

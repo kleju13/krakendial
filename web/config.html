@@ -126,6 +126,8 @@
       <div class="hint" data-t="cfg.unitsHint"></div></section>
     <section class="sourced"><h2 data-t="cfg.cost"></h2><div class="chips" id="costs"></div>
       <div class="hint" data-t="cfg.costHint"></div></section>
+    <section><h2 data-t="cfg.tray"></h2><div class="chips" id="tray"></div>
+      <div class="hint" data-t="cfg.trayHint"></div></section>
   </div>
 </main>
 <script src="bg.js"></script>
@@ -139,11 +141,12 @@
   const UNITS = [["left", "cfg.left"], ["used", "cfg.used"]];
   const BARS = [["load", "cfg.barsLoad"], ["temp", "cfg.barsTemp"]];
   const LOOKS = [["plain", "cfg.lookPlain"], ["raw", "cfg.lookRaw"], ["ascii", "cfg.lookAscii"]];
+  const TRAY = [[true, "cfg.trayOn"], [false, "cfg.trayOff"]];
   let state = { limits: {}, costs: null, interval: 60e3, config: null, hw: null };
   const ALL_LIMITS = K.LIMITS.map((def) => def.key);
   const cfg = () => ({
     layout: "cockpit", theme: "ice", bg: "liquid", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h",
-    bars: "load", lang: "auto", usage: "", limits: ALL_LIMITS, ...(state.config || {}),
+    bars: "load", lang: "auto", usage: "", limits: ALL_LIMITS, tray: true, ...(state.config || {}),
   });
   const byId = (id) => document.getElementById(id);
 
@@ -227,6 +230,8 @@
     opts.fps = FPS.map(([key, label]) => ({ key, b: chip(fps, label, () => save({ fps: key })) }));
     const costs = host("costs");
     opts.cost = K.COSTS.map((co) => ({ key: co.id, b: chip(costs, co.name, () => save({ cost: co.id })) }));
+    const tray = host("tray");
+    opts.tray = TRAY.map(([key, label]) => ({ key, b: chip(tray, t(label), () => save({ tray: key })) }));
     usageHint.classList.remove("bad");
     buildMedia();
     buildFaces();
