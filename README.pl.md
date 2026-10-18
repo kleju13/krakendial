@@ -42,7 +42,7 @@ W NZXT CAM: **Lighting** → przy Krakenie **Mode** → **Web Integration** → 
 
 Gdy KrakenDial działa, jego ikona jest w zasobniku Windows. Windows 11 może schować nową ikonę pod **^**; przeciągnij ją na pasek, żeby była widoczna.
 
-- **Pomarańczowa:** chłodzenie dostaje tarczę.
+- **Niebieska:** chłodzenie dostaje tarczę.
 - **Szara:** CAM nic nie wysyła, więc tarczy nie ma na chłodzeniu.
 - **Czerwona kropka:** źródło limitów nie odpowiada.
 

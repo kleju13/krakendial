@@ -4,7 +4,7 @@
 //! and whether the usage source answers, and its menu opens the pages and copies the address for
 //! CAM. It can be hidden; the settings page, or starting the exe again, brings it back.
 
-use crate::{limits, log, save_config, App, ADDR};
+use crate::{limits, log, logo, save_config, App, ADDR};
 use serde_json::json;
 use std::cell::Cell;
 use std::sync::{Arc, OnceLock};
@@ -208,93 +208,16 @@ fn clock(ms: i64) -> String {
 /// What the icon says at a glance.
 #[derive(Clone, Copy, PartialEq, Debug)]
 struct Look {
-    /// The cooler gets the dial: orange, else grey.
+    /// The cooler gets the dial: in colour, else grey.
     live: bool,
     /// The usage source fails: a red dot.
     failing: bool,
 }
 
-/// The icon at `n`×`n` pixels as straight-alpha BGRA, rows from the top: the orange K of
-/// assets/icon.svg, drawn here rather than shipped so it is sharp at every scale.
-fn draw(n: usize, look: Look) -> Vec<[u8; 4]> {
-    const SS: usize = 4;
-    let mut out = vec![[0; 4]; n * n];
-    for (i, px) in out.iter_mut().enumerate() {
-        let (mut sum, mut hits) = ([0u32; 3], 0u32);
-        for s in 0..SS * SS {
-            // the sample, in the 64 units of the SVG
-            let u = ((i % n) as f32 + ((s % SS) as f32 + 0.5) / SS as f32) * 64.0 / n as f32;
-            let v = ((i / n) as f32 + ((s / SS) as f32 + 0.5) / SS as f32) * 64.0 / n as f32;
-            if let Some(c) = sample(u, v, look) {
-                for k in 0..3 {
-                    sum[k] += c[k] as u32;
-                }
-                hits += 1;
-            }
-        }
-        if hits > 0 {
-            *px = [(sum[0] / hits) as u8, (sum[1] / hits) as u8, (sum[2] / hits) as u8, (hits * 255 / (SS * SS) as u32) as u8];
-        }
-    }
-    out
-}
-
-/// The colour (BGR) at a point of the 64-unit icon, or None where it is transparent.
-fn sample(u: f32, v: f32, look: Look) -> Option<[u8; 3]> {
-    if look.failing {
-        let d = (u - 51.0).hypot(v - 51.0);
-        if d <= 12.0 {
-            return Some([0x26, 0x26, 0xdc]);
-        }
-        if d <= 16.0 {
-            return None; // a gap between the dot and the tile
-        }
-    }
-    const R: f32 = 14.0;
-    let inside = (0.0..=64.0).contains(&u) && (0.0..=64.0).contains(&v);
-    if !inside || (u - u.clamp(R, 64.0 - R)).hypot(v - v.clamp(R, 64.0 - R)) > R {
-        return None;
-    }
-    Some(if glyph(u, v) {
-        [0xff; 3]
-    } else if look.live {
-        [0x0c, 0x58, 0xea]
-    } else {
-        [0x7a, 0x71, 0x71]
-    })
-}
-
-/// The K: a stem and two diagonals, cut flat at the cap height and the baseline. A little
-/// bolder than the SVG's text, so it still reads at 16 px.
-fn glyph(u: f32, v: f32) -> bool {
-    if !(19.0..=45.0).contains(&v) || u < 21.0 {
-        return false;
-    }
-    u <= 27.5 || near(u, v, (26.0, 35.5), (45.0, 15.0), 3.4) || near(u, v, (30.0, 30.0), (46.0, 48.0), 3.4)
-}
-
-/// Whether (u, v) is within `r` of the segment from `a` to `b`.
-fn near(u: f32, v: f32, a: (f32, f32), b: (f32, f32), r: f32) -> bool {
-    let (dx, dy) = (b.0 - a.0, b.1 - a.1);
-    let t = (((u - a.0) * dx + (v - a.1) * dy) / (dx * dx + dy * dy)).clamp(0.0, 1.0);
-    (a.0 + t * dx - u).hypot(a.1 + t * dy - v) <= r
-}
-
-/// The icon as the shell wants it: an icon resource, a DIB with an AND mask the alpha makes moot.
+/// The logo, drawn at the tray's size so it is sharp at every scale.
 fn icon(look: Look) -> HICON {
     let n = unsafe { GetSystemMetrics(SM_CXSMICON) }.clamp(16, 256) as usize;
-    let mask_row = n.div_ceil(32) * 4;
-    let mut res = Vec::with_capacity(40 + n * n * 4 + mask_row * n);
-    // BITMAPINFOHEADER; its height counts the colour rows and the mask rows
-    for x in [40, n as u32, 2 * n as u32] {
-        res.extend(x.to_le_bytes());
-    }
-    res.extend([1, 0, 32, 0]); // one plane, 32 bits per pixel
-    res.extend([0; 24]); // uncompressed; the rest is unused
-    for row in draw(n, look).chunks(n).rev() {
-        res.extend(row.iter().flatten());
-    }
-    res.resize(res.len() + mask_row * n, 0);
+    let res = logo::dib(n, &logo::draw(n, !look.live, look.failing));
     unsafe { CreateIconFromResourceEx(res.as_ptr(), res.len() as u32, 1, 0x0003_0000, n as i32, n as i32, 0) }
 }
 
@@ -547,23 +470,6 @@ mod tests {
     use super::*;
 
     const LIVE: Look = Look { live: true, failing: false };
-
-    #[test]
-    fn icon_is_a_rounded_tile_with_a_white_k() {
-        for n in [16, 20, 24, 32, 48] {
-            let px = draw(n, LIVE);
-            let at = |x: usize, y: usize| px[y * n + x];
-            assert_eq!(at(0, 0)[3], 0, "{n}: rounded corner");
-            assert_eq!(at(n / 2, 1), [0x0c, 0x58, 0xea, 255], "{n}: orange tile");
-            // at 16 px the strokes are anti-aliased, so count the near-white
-            let white = px.iter().filter(|p| p[1] > 0xc0 && p[3] == 255).count();
-            assert!(white > n * n / 16, "{n}: the K shows, {white} white pixels");
-        }
-        let grey = draw(32, Look { live: false, failing: false });
-        assert_eq!(grey[32 + 16], [0x7a, 0x71, 0x71, 255]);
-        let failing = draw(32, Look { live: true, failing: true });
-        assert_eq!(failing[25 * 32 + 25], [0x26, 0x26, 0xdc, 255], "red dot");
-    }
 
     #[test]
     fn status_reads_like_the_settings_page() {

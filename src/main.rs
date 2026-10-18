@@ -7,6 +7,9 @@
 
 mod faces;
 mod limits;
+// the tray draws it; elsewhere only its tests run
+#[cfg_attr(not(windows), allow(dead_code))]
+mod logo;
 mod media;
 #[cfg(windows)]
 mod tray;
@@ -184,6 +187,7 @@ fn asset(name: &str) -> Option<(Vec<u8>, &'static str)> {
         "html" => "text/html; charset=utf-8",
         "js" => "text/javascript; charset=utf-8",
         "css" => "text/css; charset=utf-8",
+        "ico" => "image/x-icon",
         _ => return None,
     };
     // KRAKENDIAL_WEB points at the web/ folder during development, so edits show up without a rebuild.
@@ -202,6 +206,8 @@ fn asset(name: &str) -> Option<(Vec<u8>, &'static str)> {
         "faces.js" => include_bytes!("../web/faces.js"),
         "bg.js" => include_bytes!("../web/bg.js"),
         "dial.css" => include_bytes!("../web/dial.css"),
+        // the logo, which build.rs draws
+        "favicon.ico" => include_bytes!(concat!(env!("OUT_DIR"), "/favicon.ico")),
         _ => return None,
     };
     Some((bytes.to_vec(), ctype))
@@ -477,6 +483,15 @@ mod tests {
         assert_eq!(cfg["tray"], true);
         merge_config(&mut cfg, &json!({ "tray": false }));
         assert_eq!(cfg["tray"], false);
+    }
+
+    #[test]
+    fn favicon_is_the_logo() {
+        let (ico, ctype) = asset("favicon.ico").unwrap();
+        assert_eq!(ctype, "image/x-icon");
+        // an icon file of three images: 16, 32 and 48 px
+        assert_eq!(ico[..6], [0, 0, 1, 0, 3, 0]);
+        assert_eq!([ico[6], ico[22], ico[38]], [16, 32, 48]);
     }
 
     #[test]

@@ -42,7 +42,7 @@ In NZXT CAM: **Lighting** → the Kraken's **Mode** → **Web Integration** → 
 
 While KrakenDial runs, its icon is in the Windows tray. Windows 11 may put a new icon under **^**; drag it out to keep it in sight.
 
-- **Orange:** the cooler gets the dial.
+- **Blue:** the cooler gets the dial.
 - **Grey:** CAM sends nothing, so the dial isn't on the cooler.
 - **Red dot:** the usage source fails.
 

@@ -29,6 +29,10 @@ windows-sys = { version = "0.52", features = [
     "Win32_UI_WindowsAndMessaging",
 ] }
 
+# build.rs: the 256 px icon is a PNG (ureq brings flate2 in already)
+[build-dependencies]
+flate2 = "1"
+
 [profile.release]
 opt-level = "s"
 lto = true

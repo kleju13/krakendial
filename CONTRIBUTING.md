@@ -27,6 +27,8 @@ node tests/web.js
 
 `cargo test tray -- --ignored` also puts a real icon in the tray and takes it out again. If you change `src/tray.rs`, click the icon and try every menu item too.
 
+The logo is drawn pixel by pixel in `src/logo.rs`, for the tray, the exe's icon and the favicon. After changing it, run `cargo test logo -- --ignored` to write `assets/icon.svg` again; until you do, a test fails.
+
 `tests/web.js` needs only Node. It builds every layout, face template and widget variant in English and Polish on a fake DOM, and checks that bad faces are cleaned up rather than thrown on. It catches crashes and missing translations, not how things look, so look at your change in a browser too: on the dial, in the settings and in the editor.
 
 ## How it fits together
@@ -38,6 +40,8 @@ node tests/web.js
 | `src/faces.rs` | Storing faces in `%LOCALAPPDATA%\krakendial\faces` |
 | `src/media.rs` | Own backgrounds: upload, ffmpeg, serving |
 | `src/tray.rs` | The tray icon: status, menu, hiding, and waking the running copy on a second start |
+| `src/logo.rs` | The logo, the dial's pixel kraken on a navy tile, at any size |
+| `build.rs` | Links the logo into the exe as its icon, and makes the favicon |
 | `web/index.html` | The page CAM shows on the cooler: takes CAM's sensor data, polls `/api/state`, drives the dial |
 | `web/dial.js` | Layouts (`scene*` functions), themes, mascots, the parts they are drawn with, and `KrakenDial.create()` |
 | `web/bg.js` | Animated backgrounds, drawn on a canvas |
