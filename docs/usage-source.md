@@ -6,6 +6,8 @@ KrakenDial doesn't ship a source, and won't. Everyone has different plans, runs 
 
 Set the URL in the settings under **Usage source**. You can also set the `KRAKENDIAL_USAGE` environment variable before the service first starts; once the settings are saved, the saved value wins. An empty URL turns limits and costs off.
 
+The URL has to start with `http://` or `https://`, have no spaces and be at most 500 characters long. The settings ignore any other URL and keep the one they had, and a `KRAKENDIAL_USAGE` that isn't such a URL is ignored too.
+
 ## Polling
 
 - The service fetches the URL every minute, with a 15-second timeout.
