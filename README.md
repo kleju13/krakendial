@@ -89,7 +89,7 @@ The faces are JSON files in `%LOCALAPPDATA%\krakendial\faces`. Their format is i
 
 The dial does not talk to Claude or Codex and never reads their tokens. Instead it reads one JSON summary from a URL you set in **Usage source**, or with the `KRAKENDIAL_USAGE` environment variable before the first start. The summary is polled every minute, and 15 s after the source says it refreshed.
 
-You need to run something that produces that summary. The format is in [docs/usage-source.md](docs/usage-source.md).
+You make that source yourself. KrakenDial doesn't ship one and won't, because everyone gets these numbers differently. Anything that answers `GET` with the JSON will do. The format is in [docs/usage-source.md](docs/usage-source.md).
 
 Each layout shows the limits that are switched on and that the source sends, and the cost if it sends one, and closes up around the rest. Without a source the layouts show only the hardware, with the date where the sync status was. Rotation, Adaptive and Limits only then show Hardware only, and the settings leave them out.
 

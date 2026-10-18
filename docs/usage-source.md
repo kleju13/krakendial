@@ -2,6 +2,8 @@
 
 The dial shows Claude and Codex limits and costs from a usage source: any URL that answers `GET` with the JSON below. The service never asks Claude or Codex itself and never reads their credentials, so you decide what collects the numbers and where it runs, e.g. on another machine in your own network.
 
+KrakenDial doesn't ship a source, and won't. Everyone has different plans, runs the agents on different machines and keeps their credentials somewhere different, so one built-in source would fit almost no one. Make your own: anything that answers `GET` with the JSON below works, such as a small script on a timer or a route in a server you already run.
+
 Set the URL in the settings under **Usage source**. You can also set the `KRAKENDIAL_USAGE` environment variable before the service first starts; once the settings are saved, the saved value wins. An empty URL turns limits and costs off.
 
 ## Polling

@@ -89,7 +89,7 @@ Tarcze to pliki JSON w `%LOCALAPPDATA%\krakendial\faces`. Format opisuje [docs/f
 
 Tarcza nie rozmawia z Claude'em ani Codexem i nigdy nie czyta ich tokenów. Czyta jedno podsumowanie JSON spod adresu wpisanego w **Źródło limitów** albo podanego w zmiennej `KRAKENDIAL_USAGE` przed pierwszym startem. Odpytuje je co minutę i 15 s po tym, jak źródło zapowiedziało odświeżenie.
 
-To podsumowanie musi wystawiać coś, co uruchamiasz sam. Format opisuje [docs/usage-source.md](docs/usage-source.md) (po angielsku).
+Takie źródło robisz sam. KrakenDial go nie ma i nie będzie miał, bo każdy zbiera te liczby inaczej. Wystarczy cokolwiek, co na `GET` odpowiada tym JSON-em. Format opisuje [docs/usage-source.md](docs/usage-source.md) (po angielsku).
 
 Każdy układ pokazuje te limity, które są włączone i które źródło wysyła, oraz koszt, jeśli źródło go podaje. Resztę pomija i zsuwa się w jej miejscu. Bez źródła układy pokazują sam sprzęt, a tam, gdzie był stan synchronizacji, datę. Rotacja, Adaptacyjny i Tylko limity pokazują wtedy Tylko sprzęt, a ustawienia ich nie wyświetlają.
 
