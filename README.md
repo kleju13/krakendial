@@ -18,7 +18,7 @@ Not affiliated with or endorsed by NZXT. NZXT, CAM and Kraken are trademarks of 
 
 ## How it works
 
-A small Rust service (`krakendial.exe`, no window, about 14 MB of RAM) serves the dial at `http://127.0.0.1:30640/`. CAM loads that page on the cooler and pushes its sensor readings into it. The service keeps your settings and faces, and polls the usage source if you set one.
+A small Rust service (`krakendial.exe`, no window but an icon in the tray, about 14 MB of RAM) serves the dial at `http://127.0.0.1:30640/`. CAM loads that page on the cooler and pushes its sensor readings into it. The service keeps your settings and faces, and polls the usage source if you set one.
 
 - It listens on 127.0.0.1 only.
 - Settings can be changed only from its own pages. Other sites open in your browser can't change them, and requests addressed to any other host name are refused.
@@ -32,11 +32,23 @@ Windows with NZXT CAM and a Kraken Elite. In PowerShell:
 irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
 ```
 
-This downloads the latest [release](https://github.com/kleju13/krakendial/releases), checks it against the SHA-256 published with it, copies it to `%LOCALAPPDATA%\krakendial` and starts it now and at every logon. The exe is not code-signed. Run the same line again to update.
+This downloads the latest [release](https://github.com/kleju13/krakendial/releases), checks it against the SHA-256 published with it, copies it to `%LOCALAPPDATA%\krakendial`, adds it to the Start menu and starts it now and at every logon. The exe is not code-signed. Run the same line again to update.
 
-From a clone with [Rust](https://rustup.rs) installed, `.\scripts\install.ps1` builds it instead of downloading. `.\scripts\uninstall.ps1` stops it and removes the autostart; `-Purge` also deletes settings, faces and media. [ffmpeg](https://ffmpeg.org) is optional; it shrinks your own videos to 640×640.
+From a clone with [Rust](https://rustup.rs) installed, `.\scripts\install.ps1` builds it instead of downloading. `.\scripts\uninstall.ps1` stops it and removes the autostart and the Start menu entry; `-Purge` also deletes settings, faces and media. [ffmpeg](https://ffmpeg.org) is optional; it shrinks your own videos to 640×640.
 
 In NZXT CAM: **Lighting** → the Kraken's **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`.
+
+## Tray icon
+
+While KrakenDial runs, its icon is in the Windows tray. Windows 11 may put a new icon under **^**; drag it out to keep it in sight.
+
+- **Orange:** the cooler gets the dial.
+- **Grey:** CAM sends nothing, so the dial isn't on the cooler.
+- **Red dot:** the usage source fails.
+
+Click it for the status, **Open settings**, **Face editor**, **Copy address for CAM** (`http://127.0.0.1:30640/`), **Hide icon…** and **Quit KrakenDial**.
+
+A hidden icon comes back with **Tray icon** → **Shown** in the settings, or when KrakenDial is started again from the Start menu. After **Quit**, the Start menu starts it again.
 
 ## Settings
 

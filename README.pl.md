@@ -18,7 +18,7 @@ Projekt nie jest powiązany z NZXT ani przez nie wspierany. NZXT, CAM i Kraken t
 
 ## Jak to działa
 
-Mała usługa w Ruście (`krakendial.exe`, bez okna, ok. 14 MB RAM) serwuje tarczę pod `http://127.0.0.1:30640/`. CAM wczytuje tę stronę na chłodzeniu i przekazuje do niej odczyty czujników. Usługa trzyma ustawienia i tarcze, a jeśli ustawisz źródło limitów, odpytuje je.
+Mała usługa w Ruście (`krakendial.exe`, bez okna, z ikoną w zasobniku, ok. 14 MB RAM) serwuje tarczę pod `http://127.0.0.1:30640/`. CAM wczytuje tę stronę na chłodzeniu i przekazuje do niej odczyty czujników. Usługa trzyma ustawienia i tarcze, a jeśli ustawisz źródło limitów, odpytuje je.
 
 - Słucha tylko na 127.0.0.1.
 - Ustawienia zmieniają tylko jej własne strony. Inne strony otwarte w przeglądarce nie mogą ich zmienić, a zapytania z inną nazwą hosta są odrzucane.
@@ -32,11 +32,23 @@ Windows z NZXT CAM i Krakenem Elite. W PowerShellu:
 irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
 ```
 
-To pobiera najnowsze [wydanie](https://github.com/kleju13/krakendial/releases), sprawdza je z opublikowaną sumą SHA-256, kopiuje do `%LOCALAPPDATA%\krakendial` i uruchamia teraz oraz przy każdym logowaniu. Exe nie jest podpisany. Ta sama linia aktualizuje.
+To pobiera najnowsze [wydanie](https://github.com/kleju13/krakendial/releases), sprawdza je z opublikowaną sumą SHA-256, kopiuje do `%LOCALAPPDATA%\krakendial`, dodaje do menu Start i uruchamia teraz oraz przy każdym logowaniu. Exe nie jest podpisany. Ta sama linia aktualizuje.
 
-Z klonu repo z zainstalowanym [Rustem](https://rustup.rs) `.\scripts\install.ps1` buduje zamiast pobierać. `.\scripts\uninstall.ps1` zatrzymuje usługę i usuwa autostart; `-Purge` kasuje też ustawienia, tarcze i media. [ffmpeg](https://ffmpeg.org) jest opcjonalny: zmniejsza własne filmy do 640×640.
+Z klonu repo z zainstalowanym [Rustem](https://rustup.rs) `.\scripts\install.ps1` buduje zamiast pobierać. `.\scripts\uninstall.ps1` zatrzymuje usługę i usuwa autostart oraz wpis w menu Start; `-Purge` kasuje też ustawienia, tarcze i media. [ffmpeg](https://ffmpeg.org) jest opcjonalny: zmniejsza własne filmy do 640×640.
 
 W NZXT CAM: **Lighting** → przy Krakenie **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`.
+
+## Ikona w zasobniku
+
+Gdy KrakenDial działa, jego ikona jest w zasobniku Windows. Windows 11 może schować nową ikonę pod **^**; przeciągnij ją na pasek, żeby była widoczna.
+
+- **Pomarańczowa:** chłodzenie dostaje tarczę.
+- **Szara:** CAM nic nie wysyła, więc tarczy nie ma na chłodzeniu.
+- **Czerwona kropka:** źródło limitów nie odpowiada.
+
+Kliknięcie pokazuje stan i opcje **Otwórz ustawienia**, **Edytor tarcz**, **Kopiuj adres dla CAM** (`http://127.0.0.1:30640/`), **Ukryj ikonę…** i **Zakończ KrakenDial**.
+
+Ukrytą ikonę przywraca **Ikona w zasobniku** → **Widoczna** w ustawieniach albo ponowne uruchomienie KrakenDial z menu Start. Po **Zakończ** menu Start uruchamia go znowu.
 
 ## Ustawienia
 

@@ -599,6 +599,7 @@ mod tests {
         };
         refresh();
         assert!(SHOWN.get() && present(), "icon added");
+        assert_ne!(ICON.get(), 0, "icon drawn");
         assert!(TIP.take().starts_with("KrakenDial
 Cooler: live"));
         assert_eq!(LOOK.get(), Some(LIVE));

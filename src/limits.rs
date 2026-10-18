@@ -250,6 +250,7 @@ mod tests {
         };
         let mut s = Store::default();
         s.fail("offline");
+        assert_eq!(s.sync(), (Some("offline".into()), None));
         s.apply(&summary(20.0, t), t + 10_000);
         s.apply(&summary(20.0, t), t + 70_000);
         s.apply(&summary(25.0, t + 5 * MIN), t + 5 * MIN + 10_000);
@@ -263,5 +264,8 @@ mod tests {
         // next poll: 15 s after the source's next fetch, as that is within the minute
         assert_eq!(s.next_poll(t + 9 * MIN + 30_000), t + 10 * MIN + 15_000);
         assert_eq!(s.next_poll(t + 5 * MIN + 10_000), t + 6 * MIN + 10_000);
+        assert_eq!(s.sync(), (None, Some(t + 5 * MIN)));
+        s.unset();
+        assert_eq!(s.sync(), (None, None));
     }
 }
