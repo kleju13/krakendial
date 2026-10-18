@@ -25,7 +25,9 @@ if ($fromSource) {
     Write-Host "Downloading KrakenDial $($release.tag_name)..."
     $built = Join-Path $env:TEMP 'krakendial.exe'
     Invoke-WebRequest $asset.browser_download_url -OutFile $built -UseBasicParsing
-    $want = ((Invoke-WebRequest $sum.browser_download_url -UseBasicParsing).Content -split '\s+')[0]
+    # Saved to a file: .Content of an octet-stream download is bytes, not text.
+    Invoke-WebRequest $sum.browser_download_url -OutFile "$built.sha256" -UseBasicParsing
+    $want = ((Get-Content "$built.sha256" -Raw) -split '\s+')[0]
     $have = (Get-FileHash $built -Algorithm SHA256).Hash
     if ($have -ne $want) { Remove-Item $built; throw "download does not match its checksum ($have, expected $want)" }
     Unblock-File $built
