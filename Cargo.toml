@@ -1,6 +1,6 @@
 [package]
 name = "krakendial"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["kleju13"]
 description = "A dial and face editor for the NZXT Kraken Elite LCD, through NZXT CAM's Web Integration"

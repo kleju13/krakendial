@@ -137,9 +137,9 @@ Terminal-style layouts keep the English of the tools they imitate (`cpu`, `memor
 CI runs `cargo test` and `node tests/web.js` on every push and pull request. A release is a tag:
 
 ```powershell
-# bump version in Cargo.toml, commit, then
-git tag v0.2.0
-git push origin v0.2.0
+# set version in Cargo.toml (say 0.3.0), commit, then
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
-The release workflow builds `krakendial.exe` on a Windows runner, publishes it with its SHA-256 as a GitHub release, and `scripts/install.ps1` picks up the latest one.
+The tag must be `v` plus the version in `Cargo.toml`: the app compares the two to decide whether a release is newer, and the release workflow stops on a mismatch. The workflow builds `krakendial.exe` on a Windows runner, publishes it with its SHA-256 as a GitHub release, and `scripts/install.ps1` picks up the latest one.

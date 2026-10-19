@@ -14,6 +14,13 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      # The app compares the release's tag with its own version, so a tag that differs from
+      # Cargo.toml would be offered as an update over and over.
+      - name: Tag matches the version
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches.Groups[1].Value
+          if ("v$version" -ne '${{ github.ref_name }}') { throw "tag ${{ github.ref_name }} does not match version $version in Cargo.toml" }
       - run: cargo test
       - run: node tests/web.js
       - run: cargo build --release
