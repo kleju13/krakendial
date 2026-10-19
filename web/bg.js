@@ -8,6 +8,7 @@
 //   back.set("aurora", animate);                   // or "media:<file>" from the media folder
 //   back.play(); back.pause(); back.speed(1.6); back.fps(10);
 //   back.look("ascii");                            // own media: "plain" (tinted), "raw" or "ascii"
+//   await back.bake(link, wanted);                 // camless mode: the background as a loop for camless
 (function () {
   // The drawn backgrounds; their names are in i18n.js under bg.<id>.
   const LIST = [
@@ -893,6 +894,135 @@
   // plain: tinted towards the theme; raw: untouched; ascii: as characters
   const LOOKS = { plain: paintMedia, raw: paintRaw, ascii: paintAscii };
 
+  // ---------- camless mode ----------
+  // camless (github.com/kleju13/camless) can play the background itself, under a dial drawn on
+  // nothing: baked once into a loop of frames, it costs the browser nothing, which then repaints
+  // only when the numbers change. A drawn background loops over 20 s with its end crossfaded into
+  // its start, a clip over its own length (cut and crossfaded when longer), a still one is a frame.
+
+  const LOOP_S = 20, MAX_FRAMES = 300, MAX_FADE = 10;
+
+  // The user's media for baking, once it can be drawn.
+  function openMedia(name) {
+    return new Promise((done, fail) => {
+      const m = mediaSource(name, () => {
+        clearTimeout(late);
+        done(m);
+      });
+      const late = setTimeout(() => {
+        m.stop();
+        fail(new Error(`${name} did not load`));
+      }, 20e3);
+    });
+  }
+
+  // Plays a clip up to `at` seconds and holds it there.
+  async function reach(node, at) {
+    if (node.currentTime < at) {
+      await node.play();
+      await new Promise((done) => {
+        const check = () => (node.currentTime >= at || node.ended ? done() : setTimeout(check, 4));
+        check();
+      });
+      node.pause();
+    }
+    if (node.currentTime < at) throw new Error("the clip ended early");
+  }
+
+  // Sends the loop through `link` (window.nzxt.v1.camless.background) as PNGs of the whole
+  // screen, the dial's gradient under the background as dial.css draws it; stops when `wanted()`
+  // turns false. True once camless plays it.
+  async function bake({ link, wanted, root, canvas, painter, type, look, fps, pal: p }) {
+    const W = innerWidth, H = innerHeight, box = root.getBoundingClientRect();
+    const out = document.createElement("canvas");
+    [out.width, out.height] = [W, H];
+    const o = out.getContext("2d");
+    const work = document.createElement("canvas");
+    work.width = work.height = canvas.width;
+    const w = work.getContext("2d");
+    // .kd: radial-gradient(circle at 50% 40%, --bg-hi 0%, --bg-hi 38%, --bg-lo 100%), out to the
+    // farthest corner, inside a circle
+    const cx = box.left + box.width / 2, cy = box.top + box.height * 0.4;
+    const under = o.createRadialGradient(cx, cy, 0, cx, cy, Math.hypot(box.width / 2, box.height * 0.6));
+    under.addColorStop(0, rgba(p.hi));
+    under.addColorStop(0.38, rgba(p.hi));
+    under.addColorStop(1, rgba(p.lo));
+    // One frame on `out`; without `paint`, the background is as it was.
+    function shoot(paint) {
+      if (paint) {
+        const s = work.width;
+        w.clearRect(0, 0, s, s);
+        w.save();
+        w.beginPath();
+        w.arc(s / 2, s / 2, s / 2, 0, TAU);
+        w.clip();
+        paint(w, s);
+        w.restore();
+      }
+      o.fillStyle = "#000";
+      o.fillRect(0, 0, W, H);
+      o.save();
+      o.beginPath();
+      o.arc(box.left + box.width / 2, box.top + box.height / 2, box.width / 2, 0, TAU);
+      o.clip();
+      o.fillStyle = under;
+      o.fillRect(box.left, box.top, box.width, box.height);
+      o.restore();
+      o.drawImage(work, box.left, box.top, box.width, box.height);
+    }
+
+    const src = /^media:/.test(type) ? await openMedia(type.slice(6)) : null;
+    try {
+      let n = 1, fade = 0, frameAt = () => shoot(src ? (c, s) => LOOKS[look](c, src, s, p) : () => {});
+      if (painter) {
+        [n, fade] = [Math.min(MAX_FRAMES, fps * LOOP_S), Math.min(fps, MAX_FADE)];
+        const st = {};
+        frameAt = (i) => {
+          const t = 7 + i / fps;
+          shoot(painter.idle && painter.idle(t, st) ? null : (c, s) => painter.paint(c, t, s, p, st));
+        };
+      } else if (src && src.video) {
+        src.node.loop = false;
+        const d = src.node.duration;
+        const whole = Number.isFinite(d) ? Math.floor(d * fps) : Infinity;
+        n = Math.max(1, Math.min(MAX_FRAMES, whole));
+        fade = Math.max(0, Math.min(fps, MAX_FADE, whole - n));
+        frameAt = async (i) => {
+          await reach(src.node, i / fps);
+          shoot((c, s) => LOOKS[look](c, src, s, p));
+        };
+      }
+      // The first `fade` frames wait, to be crossfaded under the frames after the last.
+      const heads = [];
+      await link.begin(fps, n);
+      for (let i = 0; i < n + fade; i++) {
+        if (!wanted()) return false;
+        await frameAt(i);
+        if (i < fade) {
+          const c = document.createElement("canvas");
+          [c.width, c.height] = [W, H];
+          c.getContext("2d").drawImage(out, 0, 0);
+          heads.push(c);
+          continue;
+        }
+        let at = i;
+        if (i >= n) {
+          at = i - n;
+          o.globalAlpha = at / fade;
+          o.drawImage(heads[at], 0, 0);
+          o.globalAlpha = 1;
+          heads[at] = null;
+        }
+        await link.frame(at, out.toDataURL("image/png"));
+      }
+      if (!wanted()) return false;
+      await link.end();
+      return true;
+    } finally {
+      if (src) src.stop();
+    }
+  }
+
   // ---------- the backdrop ----------
 
   function backdrop(canvas, root) {
@@ -968,6 +1098,18 @@
         if (l === look) return;
         look = l;
         if (media) draw();
+      },
+      // What the frames depend on: camless mode bakes them again when this changes.
+      key() {
+        return JSON.stringify([type, look, fps, pal, canvas.width]);
+      },
+      // Whether speed() moves it: a drawn background, not a clip.
+      paced() {
+        return !!painter;
+      },
+      // The background as a loop for camless; see bake() above.
+      bake(link, wanted) {
+        return bake({ link, wanted, root, canvas, painter, type, look, fps, pal });
       },
     };
     return self;

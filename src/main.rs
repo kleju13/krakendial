@@ -157,6 +157,9 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     if let Some(t) = patch["tray"].as_bool() {
         cfg["tray"] = json!(t);
     }
+    if let Some(c) = patch["camless"].as_bool() {
+        cfg["camless"] = json!(c);
+    }
     if let Some(ls) = patch["limits"].as_array() {
         let on: Vec<&str> = ls.iter().filter_map(Value::as_str).collect();
         cfg["limits"] = json!(LIMITS.into_iter().filter(|l| on.contains(l)).collect::<Vec<_>>());
@@ -386,6 +389,7 @@ fn main() {
     let mut config = json!({
         "layout": "cockpit", "theme": "ice", "bg": "liquid", "fps": 10, "units": "left", "look": "plain", "mascot": "kraken",
         "cost": "last24h", "bars": "load", "lang": "auto", "usage": usage, "limits": LIMITS, "tray": true,
+        "camless": false,
     });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
@@ -474,6 +478,15 @@ mod tests {
         assert_eq!(cfg["limits"], json!(["claude5h", "codex7d"]));
         merge_config(&mut cfg, &json!({ "limits": [] }));
         assert_eq!(cfg["limits"], json!([]));
+    }
+
+    #[test]
+    fn camless_mode_is_on_or_off() {
+        let mut cfg = json!({ "camless": false });
+        merge_config(&mut cfg, &json!({ "camless": "yes" }));
+        assert_eq!(cfg["camless"], false);
+        merge_config(&mut cfg, &json!({ "camless": true }));
+        assert_eq!(cfg["camless"], true);
     }
 
     #[test]

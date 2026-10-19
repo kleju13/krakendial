@@ -62,6 +62,7 @@ Przycisk **Configure** w CAM albo `http://127.0.0.1:30640/` w przeglądarce otwi
 - **Tło:** 18 rysowanych animacji, od cieczy i zorzy po `donut.c`, ogień, Grę w życie i rury. Przyspieszają razem z obciążeniem GPU.
 - **Własne tła:** film, GIF albo obrazek. Może być przyciemniony pod motyw, w oryginale albo narysowany znakami ASCII.
 - **Klatki tła na sekundę:** 10, 20 albo 30. CAM renderuje stronę bez GPU i każda klatka na sekundę kosztuje ok. 2–3% jednego rdzenia, więc domyślnie jest 10.
+- **Tryb camless:** domyślnie wyłączony. Tylko dla [camless](https://github.com/kleju13/camless), który może pokazywać tarczę zamiast CAM. KrakenDial przekazuje wtedy camless tło raz, jako pętlę, a przeglądarka rysuje tylko wtedy, gdy zmieniają się liczby: z filmem w tle przeglądarka i camless razem biorą ok. 8% jednego rdzenia zamiast ok. 38%. Rysowane tło powtarza się co 20 sekund albo częściej, gdy przyspiesza je obciążenie GPU. Nowe przygotowuje się kilka sekund, film mniej więcej tyle, ile trwa.
 - **Paski CPU i GPU:** obciążenie albo temperatura, w układach terminalowych.
 - **Język:** automatycznie (z przeglądarki), English albo Polski.
 - **Źródło limitów:** skąd przychodzą limity i koszty (niżej). Zostaw puste, jeśli chcesz tylko sprzęt.

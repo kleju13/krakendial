@@ -7,6 +7,7 @@
 //   dial.update({ now, hw, limits, costs, interval, mode }); // call about once a second
 //   dial.configure({ layout, theme, bg, fps, units, look, mascot, cost, bars, lang, face }); // switch variant live
 //   dial.setActivity(gpuLoad);                               // 0..1, speeds the background up under load
+//   dial.camless(on);                                        // camless mode: camless plays the background
 (function () {
   const NS = "http://www.w3.org/2000/svg";
   const C = 320;
@@ -1727,10 +1728,63 @@
 
     configure(cfg);
 
+    // camless mode: under camless, the background goes to camless once, as a loop it plays
+    // itself (bg.js bake()), and the dial is drawn on nothing, so the browser repaints only when
+    // the numbers change. Off, or under CAM, the dial draws its own background.
+    const bridge = window.nzxt && window.nzxt.v1 && window.nzxt.v1.camless;
+    let camless = false, handed = null, failed = null, busy = false, rate = 1, sentRate = NaN;
+    function bare(on) {
+      root.classList.toggle("is-bare", on);
+      if (on) back.pause();
+      else if (animate) back.play();
+    }
+    function sendRate() {
+      if (!handed || !back.paced() || Math.abs(rate - sentRate) < 0.05) return;
+      sentRate = rate;
+      bridge.background.speed(rate).catch(() => {});
+    }
+    // Brings camless in line with the setting and the background, one bake at a time.
+    async function handOver() {
+      if (busy || !bridge) return;
+      busy = true;
+      try {
+        for (;;) {
+          const want = camless ? back.key() : null;
+          if (want === handed || (want && want === failed)) return;
+          // the dial's own background shows while a new one bakes
+          bare(false);
+          handed = null;
+          if (!want) return await bridge.background.clear();
+          const done = await back.bake(bridge.background, () => camless && back.key() === want).catch((e) => {
+            console.warn(`camless mode: ${e.message}`);
+            return false;
+          });
+          if (done) {
+            [handed, sentRate] = [want, NaN];
+            bare(true);
+            sendRate();
+          } else {
+            if (camless && back.key() === want) failed = want;
+            await bridge.background.clear();
+          }
+        }
+      } catch (e) {
+        console.warn(`camless mode: ${e.message}`);
+      } finally {
+        busy = false;
+      }
+    }
+
     return {
       configure,
       setActivity(load) {
-        back.speed(1 + 2.2 * clamp(load || 0, 0, 1));
+        rate = 1 + 2.2 * clamp(load || 0, 0, 1);
+        back.speed(rate);
+        sendRate();
+      },
+      camless(on) {
+        camless = !!on && !!bridge;
+        handOver();
       },
       update(data) {
         const now = data.now ?? Date.now();

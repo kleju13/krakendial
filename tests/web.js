@@ -52,12 +52,15 @@ class Node {
   getComputedTextLength() { return 100; }
   getBBox() { return { x: 0, y: 0, width: 10, height: 10 }; }
   getContext() { return ctx; }
+  getBoundingClientRect() { return { left: 0, top: 0, width: 640, height: 640 }; }
+  toDataURL() { return "data:image/png;base64,"; }
   addEventListener() {}
   load() {}
   pause() {}
   play() { return Promise.resolve(); }
 }
 global.window = global;
+[global.innerWidth, global.innerHeight] = [640, 640];
 Object.defineProperty(global, "navigator", { value: { languages: ["en-GB"], language: "en-GB" }, configurable: true });
 global.document = { createElementNS: (ns, t) => new Node(t), createElement: (t) => new Node(t), createTextNode: () => new Node("#text") };
 global.getComputedStyle = () => ({ getPropertyValue: (k) => (k.includes("glow") ? "rgba(37, 99, 235, 0.16)" : "#2563eb") });
@@ -239,6 +242,56 @@ for (const tpl of F.TEMPLATES) {
   if (JSON.stringify(F.normalize(JSON.parse(JSON.stringify(a)))) !== JSON.stringify(a)) fail(`normalize: template ${tpl.id} changes on a second pass`);
 }
 
-for (const e of errors) fail(`console.error: ${e}`);
-console.log(`${built} dials built in ${languages.join(", ")}; ${failures ? `${failures} failures` : "all good"}`);
-process.exit(failures ? 1 : 0);
+// ---------- camless mode ----------
+// A background goes to camless as a whole loop, every frame once, and the dial goes bare; off
+// again, camless gets the screen back. Without camless the setting does nothing.
+
+async function camlessMode() {
+  const calls = [];
+  const background = Object.fromEntries(["begin", "frame", "end", "clear", "speed"].map((op) => [op, async (...a) => {
+    calls.push([op, ...a.filter((x) => typeof x !== "string")]);
+  }]));
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+  const cfg = { layout: "cockpit", theme: "deep", bg: "liquid", fps: 10, animate: false };
+
+  const alone = K.create(div(), cfg);
+  alone.camless(true);
+  await settle();
+  if (calls.length) fail("camless: messages without camless");
+
+  global.nzxt = { v1: { camless: { background } } };
+  const host = div();
+  const d = K.create(host, cfg);
+  const bare = () => host.children[0].classList.contains("is-bare");
+  d.camless(true);
+  await settle();
+  const frames = calls.filter((c) => c[0] === "frame").map((c) => c[1]).sort((a, b) => a - b);
+  if (JSON.stringify(calls[0]) !== JSON.stringify(["begin", 10, 200])) fail(`camless: began with ${JSON.stringify(calls[0])}`);
+  if (frames.join() !== [...Array(200).keys()].join()) fail("camless: not every frame of the loop went once");
+  if (!calls.some((c) => c[0] === "end") || !bare()) fail("camless: the loop did not start");
+  d.setActivity(1);
+  if (JSON.stringify(calls.at(-1)) !== JSON.stringify(["speed", 3.2])) fail(`camless: speed went as ${JSON.stringify(calls.at(-1))}`);
+
+  // nothing changed: nothing is sent; a still background is one frame
+  const before = calls.length;
+  d.configure(cfg);
+  d.camless(true);
+  await settle();
+  if (calls.length !== before) fail("camless: an unchanged background was sent again");
+  d.configure({ ...cfg, bg: "none" });
+  d.camless(true);
+  await settle();
+  const still = calls.slice(before).map((c) => c[0]).join();
+  if (still !== "begin,frame,end" || !bare()) fail(`camless: a still background went as ${still}`);
+
+  d.camless(false);
+  await settle();
+  if (calls.at(-1)[0] !== "clear" || bare()) fail("camless: switching it off did not give the screen back");
+  delete global.nzxt;
+}
+
+camlessMode().then(() => {
+  for (const e of errors) fail(`console.error: ${e}`);
+  console.log(`${built} dials built in ${languages.join(", ")}; ${failures ? `${failures} failures` : "all good"}`);
+  process.exit(failures ? 1 : 0);
+});
