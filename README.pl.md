@@ -22,7 +22,7 @@ Mała usługa w Ruście (`krakendial.exe`, bez okna, z ikoną w zasobniku, ok. 1
 
 - Słucha tylko na 127.0.0.1.
 - Ustawienia zmieniają tylko jej własne strony. Inne strony otwarte w przeglądarce nie mogą ich zmienić, a zapytania z inną nazwą hosta są odrzucane.
-- Nie łączy się z niczym poza źródłem limitów, które sam wpiszesz. Żadnej telemetrii.
+- Łączy się tylko ze źródłem limitów, które sam wpiszesz, i z GitHubem raz przy każdym starcie, żeby sprawdzić, czy jest nowe wydanie. Żadnej telemetrii.
 
 ## Instalacja
 
@@ -32,7 +32,7 @@ Windows z NZXT CAM i Krakenem Elite. W PowerShellu:
 irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
 ```
 
-To pobiera najnowsze [wydanie](https://github.com/kleju13/krakendial/releases), sprawdza je z opublikowaną sumą SHA-256, kopiuje do `%LOCALAPPDATA%\krakendial`, dodaje do menu Start i uruchamia teraz oraz przy każdym logowaniu. Exe nie jest podpisany. Ta sama linia aktualizuje.
+To pobiera najnowsze [wydanie](https://github.com/kleju13/krakendial/releases), sprawdza je z opublikowaną sumą SHA-256, kopiuje do `%LOCALAPPDATA%\krakendial`, dodaje do menu Start i uruchamia teraz oraz przy każdym logowaniu. Exe nie jest podpisany. Ta sama linia aktualizuje. Od wersji 0.3.0 robi to też *Aktualizacje* na stronie ustawień: pobiera nowe wydanie, sprawdza jego SHA-256 i uruchamia KrakenDial od nowa.
 
 Z klonu repo z zainstalowanym [Rustem](https://rustup.rs) `.\scripts\install.ps1` buduje zamiast pobierać. `.\scripts\uninstall.ps1` zatrzymuje usługę i usuwa autostart oraz wpis w menu Start; `-Purge` kasuje też ustawienia, tarcze i media. [ffmpeg](https://ffmpeg.org) jest opcjonalny: zmniejsza własne filmy do 640×640.
 

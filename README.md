@@ -22,7 +22,7 @@ A small Rust service (`krakendial.exe`, no window but an icon in the tray, about
 
 - It listens on 127.0.0.1 only.
 - Settings can be changed only from its own pages. Other sites open in your browser can't change them, and requests addressed to any other host name are refused.
-- It connects to nothing except the usage source you enter. No telemetry.
+- It connects only to the usage source you enter, and to GitHub once at each start to look for a new release. No telemetry.
 
 ## Install
 
@@ -32,7 +32,7 @@ Windows with NZXT CAM and a Kraken Elite. In PowerShell:
 irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
 ```
 
-This downloads the latest [release](https://github.com/kleju13/krakendial/releases), checks it against the SHA-256 published with it, copies it to `%LOCALAPPDATA%\krakendial`, adds it to the Start menu and starts it now and at every logon. The exe is not code-signed. Run the same line again to update.
+This downloads the latest [release](https://github.com/kleju13/krakendial/releases), checks it against the SHA-256 published with it, copies it to `%LOCALAPPDATA%\krakendial`, adds it to the Start menu and starts it now and at every logon. The exe is not code-signed. Running the same line again updates it. From 0.3.0 on, *Updates* on the settings page does too: it downloads the new release, checks its SHA-256 and restarts KrakenDial.
 
 From a clone with [Rust](https://rustup.rs) installed, `.\scripts\install.ps1` builds it instead of downloading. `.\scripts\uninstall.ps1` stops it and removes the autostart and the Start menu entry; `-Purge` also deletes settings, faces and media. [ffmpeg](https://ffmpeg.org) is optional; it shrinks your own videos to 640×640.
 

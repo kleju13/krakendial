@@ -40,6 +40,7 @@ The logo is drawn pixel by pixel in `src/logo.rs`, for the tray, the exe's icon 
 | `src/faces.rs` | Storing faces in `%LOCALAPPDATA%\krakendial\faces` |
 | `src/media.rs` | Own backgrounds: upload, ffmpeg, serving |
 | `src/tray.rs` | The tray icon: status, menu, hiding, and waking the running copy on a second start |
+| `src/update.rs` | Updates from GitHub releases: the check at start, the download, and the new exe taking over |
 | `src/logo.rs` | The logo, the dial's pixel kraken on a navy tile, at any size |
 | `build.rs` | Links the logo into the exe as its icon, and makes the favicon |
 | `web/index.html` | The page CAM shows on the cooler: takes CAM's sensor data, polls `/api/state`, drives the dial |

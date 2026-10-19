@@ -13,6 +13,7 @@ mod logo;
 mod media;
 #[cfg(windows)]
 mod tray;
+mod update;
 
 use serde_json::{json, Value};
 use std::io::{Read, Write};
@@ -284,9 +285,19 @@ fn handle(app: &App, mut req: Request) {
                 "limits": limits,
                 "costs": costs,
                 "hw": *app.hw.lock().unwrap(),
+                "version": env!("CARGO_PKG_VERSION"),
+                "update": update::state(),
             });
             reply_json(req, &v);
         }
+        (Method::Post, "/api/update/check") => match update::check() {
+            Ok(()) => reply_json(req, &json!({})),
+            Err(e) => reply(req, 409, "text/plain; charset=utf-8", e.into_bytes()),
+        },
+        (Method::Post, "/api/update/install") => match update::install(quit_for_update) {
+            Ok(()) => reply_json(req, &json!({})),
+            Err(e) => reply(req, 409, "text/plain; charset=utf-8", e.into_bytes()),
+        },
         (Method::Post, "/api/config") => {
             let Some(body) = read_body(&mut req, 64 * 1024) else { return reply(req, 400, "text/plain", b"bad json".to_vec()) };
             let mut cfg = app.config.lock().unwrap();
@@ -370,18 +381,35 @@ fn handle(app: &App, mut req: Request) {
     }
 }
 
+/// Ends this copy once an update has started the new one, which then takes the port.
+fn quit_for_update() {
+    #[cfg(windows)]
+    tray::leave();
+    #[cfg(not(windows))]
+    std::process::exit(0);
+}
+
 fn main() {
     // A second copy can't bind the port and quietly exits, so autostart plus a manual start is
-    // harmless. Starting it by hand is how a hidden tray icon comes back.
-    let server = match Server::http(ADDR) {
-        Ok(s) => s,
-        Err(e) => {
-            log(&format!("port {ADDR} busy, exiting: {e}"));
-            #[cfg(windows)]
-            tray::wake();
-            return;
+    // harmless. Starting it by hand is how a hidden tray icon comes back. The copy an update
+    // starts waits up to 30 s for the old one to quit instead.
+    let mut tries = if std::env::args().any(|a| a == update::TAKE_OVER) { 120 } else { 0 };
+    let server = loop {
+        match Server::http(ADDR) {
+            Ok(s) => break s,
+            Err(_) if tries > 0 => {
+                tries -= 1;
+                std::thread::sleep(Duration::from_millis(250));
+            }
+            Err(e) => {
+                log(&format!("port {ADDR} busy, exiting: {e}"));
+                #[cfg(windows)]
+                tray::wake();
+                return;
+            }
         }
     };
+    update::tidy();
     adopt_old_data();
     let state_path = data_dir().join("state.json");
     // KRAKENDIAL_USAGE sets the usage source until one is saved in the settings
@@ -400,7 +428,8 @@ fn main() {
         hw: Mutex::new(Value::Null),
         build: limits::now_ms(),
     });
-    log(&format!("listening on http://{ADDR}"));
+    log(&format!("listening on http://{ADDR}, version {}", env!("CARGO_PKG_VERSION")));
+    let _ = update::check();
 
     #[cfg(windows)]
     {
