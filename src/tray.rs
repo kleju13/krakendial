@@ -7,6 +7,7 @@
 use crate::{limits, log, logo, save_config, App, ADDR};
 use serde_json::json;
 use std::cell::Cell;
+use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use windows_sys::Win32::Foundation::{GlobalFree, FILETIME, HWND, LPARAM, LRESULT, SYSTEMTIME, WPARAM};
 use windows_sys::Win32::Globalization::GetUserDefaultUILanguage;
@@ -24,6 +25,8 @@ const CLASS: &str = "KrakenDialTray";
 const WM_TRAY: u32 = WM_APP + 1;
 /// A second start: show the icon again and say that KrakenDial already runs.
 const WM_WAKE: u32 = WM_APP + 2;
+/// An update started the new copy: take the icon away and end this one.
+const WM_LEAVE: u32 = WM_APP + 3;
 const CF_UNICODETEXT: u32 = 13;
 /// Enter or Space on the icon. Windows sends it twice for Enter; the second one finds the menu
 /// already open.
@@ -38,6 +41,8 @@ const QUIT: usize = 5;
 
 static APP: OnceLock<Arc<App>> = OnceLock::new();
 static TASKBAR_CREATED: OnceLock<u32> = OnceLock::new();
+/// The hidden window, for other threads to post to.
+static POST_TO: AtomicIsize = AtomicIsize::new(0);
 
 // Only the tray thread touches these. Cells, because the menu and the message box run message
 // loops of their own, which call back into `wndproc`.
@@ -406,6 +411,14 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             _ => {}
         },
         WM_WAKE => woken(),
+        WM_LEAVE => {
+            if SHOWN.get() {
+                Shell_NotifyIconW(NIM_DELETE, &data());
+            }
+            // a save of the limits that is under way finishes first
+            let _saving = APP.get().map(|app| app.store.lock());
+            std::process::exit(0);
+        }
         // Explorer restarted and lost every icon
         m if TASKBAR_CREATED.get() == Some(&m) => {
             SHOWN.set(false);
@@ -431,6 +444,7 @@ fn window() -> bool {
         // a hidden top-level window rather than a message-only one: only those hear TaskbarCreated
         let hwnd = CreateWindowExW(WS_EX_TOOLWINDOW, class.as_ptr(), class.as_ptr(), WS_POPUP, 0, 0, 0, 0, 0, 0, instance, std::ptr::null());
         WINDOW.set(hwnd);
+        POST_TO.store(hwnd, Ordering::Relaxed);
         let _ = TASKBAR_CREATED.set(RegisterWindowMessageW(wide("TaskbarCreated").as_ptr()));
         hwnd != 0
     }
@@ -451,6 +465,14 @@ pub fn run(app: Arc<App>) {
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
+    }
+}
+
+/// Ends the process from any thread, through the tray thread, so the icon does not linger.
+pub fn leave() {
+    let hwnd = POST_TO.load(Ordering::Relaxed);
+    if hwnd == 0 || unsafe { PostMessageW(hwnd, WM_LEAVE, 0, 0) } == 0 {
+        std::process::exit(0);
     }
 }
 

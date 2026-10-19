@@ -128,6 +128,8 @@
       <div class="hint" data-t="cfg.costHint"></div></section>
     <section><h2 data-t="cfg.tray"></h2><div class="chips" id="tray"></div>
       <div class="hint" data-t="cfg.trayHint"></div></section>
+    <section><h2 data-t="cfg.update"></h2><div class="chips" id="update"></div>
+      <div class="hint" id="update-hint"></div></section>
   </div>
 </main>
 <script src="bg.js"></script>
@@ -484,6 +486,45 @@
     const machines = byId("s-machines");
     machines.textContent = off.length ? t("cfg.machinesOffline", { names: off.map((m) => m.name).join(", ") }) : t("cfg.machinesOnline", { n: ms.length });
     machines.className = off.length ? "bad" : "";
+    renderUpdate();
+  }
+
+  // ---------- updates ----------
+
+  // What the last check found, and a button for the next step: check, or update.
+  function renderUpdate() {
+    const u = state.update || {}, box = byId("update"), hint = byId("update-hint");
+    const key = `${u.busy}|${u.available}|${u.latest}|${I.lang}`;
+    if (box.dataset.key !== key) {
+      box.dataset.key = key;
+      box.replaceChildren();
+      if (u.available && !u.busy) chip(box, t("cfg.updateInstall", { v: u.latest }), () => updateDo("install"));
+      else if (!u.busy) chip(box, t("cfg.updateCheck"), () => updateDo("check"));
+    }
+    if (hint.dataset.failed) return;
+    const bad = !!(u.error && !u.busy);
+    let text;
+    if (u.busy) text = t(`cfg.update_${u.busy}`, { v: u.latest });
+    else if (bad) text = t("cfg.updateFailed", { err: u.error });
+    else if (u.available) text = t("cfg.updateAvailable", { v: u.latest });
+    else text = [t("cfg.updateVersion", { v: state.version || "?" }), u.latest ? t("cfg.updateLatest") : "", t("cfg.updateWhen")].filter(Boolean).join(" ");
+    hint.textContent = text;
+    hint.classList.toggle("bad", bad);
+  }
+
+  async function updateDo(what) {
+    const hint = byId("update-hint");
+    try {
+      const r = await fetch(`/api/update/${what}`, { method: "POST" });
+      if (!r.ok) throw new Error(await r.text());
+      delete hint.dataset.failed;
+    } catch (e) {
+      // shown until the next click, over what the service says
+      hint.dataset.failed = "1";
+      hint.textContent = e.message;
+      hint.classList.add("bad");
+    }
+    poll();
   }
 
   let serviceBuild = null;
