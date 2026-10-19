@@ -9,6 +9,8 @@
 <link rel="stylesheet" href="dial.css">
 <style>
   html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  /* camless mode: camless plays the background under the page */
+  html:has(.kd.is-bare), html:has(.kd.is-bare) body { background: transparent; }
   body { display: grid; place-items: center; }
   #dial { width: 100vmin; height: 100vmin; }
 </style>
@@ -38,6 +40,8 @@
   const forced = {};
   for (const k of ["layout", "theme", "bg", "units", "look", "mascot", "cost", "bars", "lang", "limits"]) if (params.get(k)) forced[k] = params.get(k);
   if (params.get("fps")) forced.fps = Number(params.get("fps"));
+  // camless=on|off
+  if (params.get("camless")) forced.camless = params.get("camless") === "on";
 
   // Adaptive switching: game after 20 s of a busy GPU, back to work after 60 s of calm.
   const GAME_LOAD = 0.6, GAME_AFTER = 20, CALM_LOAD = 0.35, CALM_AFTER = 60;
@@ -100,6 +104,7 @@
     if (!polled) return;
     const cfg = { ...(state.config || {}), ...forced };
     dial.configure({ ...cfg, face: forced.layout ? forcedFace : state.face });
+    dial.camless(cfg.camless === true && !mock);
     dial.update({ now: Date.now(), hw, limits: state.limits, costs: state.costs, interval: state.interval, mode });
   }
 

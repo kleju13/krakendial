@@ -304,3 +304,6 @@
 /* ---------- background canvas (painted by bg.js) ---------- */
 
 .kd-bg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* camless mode: camless plays the background, so the dial is drawn on nothing */
+.kd.is-bare { background: none; }
+.kd.is-bare > .kd-bg { display: none; }

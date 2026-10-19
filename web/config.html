@@ -115,6 +115,8 @@
       <div class="hint" id="media-hint" data-t="cfg.mediaHint"></div></section>
     <section><h2 data-t="cfg.fps"></h2><div class="chips" id="fps"></div>
       <div class="hint" data-t="cfg.fpsHint"></div></section>
+    <section><h2 data-t="cfg.camless"></h2><div class="chips" id="camless"></div>
+      <div class="hint" data-t="cfg.camlessHint"></div></section>
     <section><h2 data-t="cfg.source"></h2>
       <form class="row" id="usage-form"><input class="field" id="usage" type="url" placeholder="https://…/api/summary" spellcheck="false" autocomplete="off">
         <button class="chip" data-t="cfg.sourceSave"></button></form>
@@ -142,11 +144,12 @@
   const BARS = [["load", "cfg.barsLoad"], ["temp", "cfg.barsTemp"]];
   const LOOKS = [["plain", "cfg.lookPlain"], ["raw", "cfg.lookRaw"], ["ascii", "cfg.lookAscii"]];
   const TRAY = [[true, "cfg.trayOn"], [false, "cfg.trayOff"]];
+  const CAMLESS = [[false, "cfg.camlessOff"], [true, "cfg.camlessOn"]];
   let state = { limits: {}, costs: null, interval: 60e3, config: null, hw: null };
   const ALL_LIMITS = K.LIMITS.map((def) => def.key);
   const cfg = () => ({
     layout: "cockpit", theme: "ice", bg: "liquid", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h",
-    bars: "load", lang: "auto", usage: "", limits: ALL_LIMITS, tray: true, ...(state.config || {}),
+    bars: "load", lang: "auto", usage: "", limits: ALL_LIMITS, tray: true, camless: false, ...(state.config || {}),
   });
   const byId = (id) => document.getElementById(id);
 
@@ -228,6 +231,8 @@
     opts.look = LOOKS.map(([key, label]) => ({ key, b: chip(looks, t(label), () => save({ look: key })) }));
     const fps = host("fps");
     opts.fps = FPS.map(([key, label]) => ({ key, b: chip(fps, label, () => save({ fps: key })) }));
+    const camless = host("camless");
+    opts.camless = CAMLESS.map(([key, label]) => ({ key, b: chip(camless, t(label), () => save({ camless: key })) }));
     const costs = host("costs");
     opts.cost = K.COSTS.map((co) => ({ key: co.id, b: chip(costs, co.name, () => save({ cost: co.id })) }));
     const tray = host("tray");
