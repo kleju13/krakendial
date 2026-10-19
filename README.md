@@ -62,7 +62,7 @@ CAM's **Configure** button, or `http://127.0.0.1:30640/` in a browser, opens the
 - **Background:** 18 drawn animations, from liquid and aurora to `donut.c`, fire, Game of Life and pipes. They speed up with GPU load.
 - **Own backgrounds:** a video, GIF or picture of your own. It can be drawn tinted to the theme, as it is, or as ASCII characters.
 - **Frame rate:** 10, 20 or 30 fps. CAM renders the page without the GPU and spends about 2–3% of one core per frame per second, so 10 is the default.
-- **Camless mode:** off by default. Only for [camless](https://github.com/kleju13/camless), which can show the dial instead of CAM. KrakenDial then hands camless its background once, as a loop, and the browser draws only when the numbers change: with a video background, about 8% of one core for the browser and camless together instead of about 38%. A drawn background repeats every 20 seconds, and a new one takes a few seconds to prepare, a video about as long as it plays.
+- **Camless mode:** off by default. Only for [camless](https://github.com/kleju13/camless), which can show the dial instead of CAM. KrakenDial then hands camless its background once, as a loop, and the browser draws only when the numbers change: with a video background, about 8% of one core for the browser and camless together instead of about 38%. A drawn background repeats every 20 seconds, or sooner while GPU load speeds it up. A new one takes a few seconds to prepare, a video about as long as it plays.
 - **CPU and GPU bars:** load or temperature, in the terminal layouts.
 - **Language:** automatic (from the browser), English or Polski.
 - **Usage source:** where the limits and costs come from (see below). Leave it empty if you only want hardware.
