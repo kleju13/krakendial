@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "split",
+  "name": "Split",
+  "group": "minimal",
+  "theme": "dracula",
+  "bg": "none",
+  "widgets": [
+    { "type": "arc", "source": "cpu.temp", "r": 290, "start": -84, "end": 84, "width": 12, "rounded": true },
+    { "type": "arc", "source": "gpu.temp", "r": 290, "start": 264, "end": 96, "width": 12, "rounded": true, "color": "accent2" },
+    { "type": "value", "source": "cpu.temp", "y": 236, "size": 118 },
+    { "type": "value", "source": "gpu.temp", "y": 474, "size": 118 },
+    { "type": "shape", "kind": "line", "w": 560, "h": 0, "stroke": 2, "color": "track" },
+    { "type": "shape", "kind": "rect", "w": 116, "h": 42, "stroke": 0, "color": "track" },
+    { "type": "text", "text": "{time}", "y": 328, "size": 22, "bold": true, "color": "ink" }
+  ]
+}

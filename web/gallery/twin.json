@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "id": "twin",
+  "name": "Twin gauges",
+  "group": "gauge",
+  "theme": "deep",
+  "bg": "liquid",
+  "widgets": [
+    { "type": "arc", "source": "cpu.temp", "r": 284, "start": -150, "end": -30, "width": 14, "ticks": 8 },
+    { "type": "arc", "source": "gpu.temp", "r": 284, "start": 150, "end": 30, "width": 14, "ticks": 8 },
+    { "type": "text", "text": "{time}", "y": 96, "size": 30, "color": "ink2" },
+    { "type": "value", "source": "cpu.temp", "x": 226, "y": 290, "size": 106 },
+    { "type": "value", "source": "gpu.temp", "x": 414, "y": 290, "size": 106 },
+    { "type": "shape", "kind": "line", "y": 230, "w": 0, "h": 140, "stroke": 2 },
+    { "type": "value", "source": "liquid", "x": 226, "y": 450, "size": 70, "sub": false },
+    { "type": "value", "source": "power", "x": 414, "y": 450, "size": 70, "sub": false }
+  ]
+}

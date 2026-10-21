@@ -51,8 +51,8 @@
   // a face forced by the URL is fetched once; the saved one comes with the state
   let forcedFace = null;
   if (KrakenDial.isFace(forced.layout))
-    fetch("/api/faces", { cache: "no-store" }).then((r) => r.json()).then((list) => {
-      forcedFace = list.find((f) => `face:${f.id}` === forced.layout) || null;
+    fetch(forced.layout.startsWith("gallery:") ? "/api/gallery" : "/api/faces", { cache: "no-store" }).then((r) => r.json()).then((list) => {
+      forcedFace = list.find((f) => forced.layout.endsWith(`:${f.id}`)) || null;
       render();
     }).catch(() => {});
   let hw = KrakenDial.emptyHw();

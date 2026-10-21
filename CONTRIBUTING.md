@@ -29,7 +29,7 @@ node tests/web.js
 
 The logo is drawn pixel by pixel in `src/logo.rs`, for the tray, the exe's icon and the favicon. After changing it, run `cargo test logo -- --ignored` to write `assets/icon.svg` again; until you do, a test fails.
 
-`tests/web.js` needs only Node. It builds every layout, face template and widget variant in English and Polish on a fake DOM, and checks that bad faces are cleaned up rather than thrown on. It catches crashes and missing translations, not how things look, so look at your change in a browser too: on the dial, in the settings and in the editor.
+`tests/web.js` needs only Node. It builds every layout, gallery face, editor block and widget variant in English and Polish on a fake DOM, checks the gallery files, and checks that bad faces are cleaned up rather than thrown on. It catches crashes and missing translations, not how things look, so look at your change in a browser too: on the dial, in the settings and in the editor.
 
 ## How it fits together
 
@@ -37,16 +37,17 @@ The logo is drawn pixel by pixel in `src/logo.rs`, for the tray, the exe's icon 
 |---|---|
 | `src/main.rs` | HTTP server on 127.0.0.1:30640, settings, the API, the poller for the usage source |
 | `src/limits.rs` | Reading the usage source, limit history and burn rate |
-| `src/faces.rs` | Storing faces in `%LOCALAPPDATA%\krakendial\faces` |
+| `src/faces.rs` | Storing faces in `%LOCALAPPDATA%\krakendial\faces`, and the gallery |
 | `src/media.rs` | Own backgrounds: upload, ffmpeg, serving |
 | `src/tray.rs` | The tray icon: status, menu, hiding, and waking the running copy on a second start |
 | `src/update.rs` | Updates from GitHub releases: the check at start, the download, and the new exe taking over |
 | `src/logo.rs` | The logo, the dial's pixel kraken on a navy tile, at any size |
-| `build.rs` | Links the logo into the exe as its icon, and makes the favicon |
+| `build.rs` | Links the logo into the exe as its icon, makes the favicon, and packs `web/gallery` into one list |
 | `web/index.html` | The page CAM shows on the cooler: takes CAM's sensor data, polls `/api/state`, drives the dial |
 | `web/dial.js` | Layouts (`scene*` functions), themes, mascots, the parts they are drawn with, and `KrakenDial.create()` |
 | `web/bg.js` | Animated backgrounds, drawn on a canvas |
-| `web/faces.js` | Faces: the widgets, their sources and properties, checking and drawing |
+| `web/faces.js` | Faces: the widgets, their sources and properties, the editor's ready blocks, checking and drawing |
+| `web/gallery/*.json` | The gallery's faces, one file each |
 | `web/i18n.js` | Every piece of text, in English and Polish |
 | `web/config.html` | Settings page |
 | `web/editor.html`, `web/editor.js` | Face editor |
@@ -97,22 +98,31 @@ Ids are short English words, never shown to users. Names and descriptions go in 
 
 Add an entry to `WIDGETS` in `web/faces.js`:
 
-- `icon`: a character or two for the editor's palette.
+- `icon`: a character or two for the editor's palette, and `group`, the palette group it goes in: `text`, `gauge`, `clock` or `decor`.
 - `props`: its properties. The editor makes the controls from these, and `normalize` checks them. Kinds:
   - `number` with `min`, `max` and optionally `step`;
   - `text` and `longtext`;
   - `bool`;
   - `select` with `options`;
-  - `source`, with `gauged` if it needs a range;
+  - `source`, with `gauged` if it needs a range, or `digits` if it spells the value in seven segments;
   - `color`, `media` and `mascot`.
 
   Give each a `default`. `label`, `hint` and `when(w)` are optional.
 - `resize(w, k)`: what changes when it is scaled `k` times by the corner handle.
 - `build(g, w, env)`: draws the widget into the SVG group `g` and returns an updater `(d) => …`, or nothing for something static.
 
-Then add `w.<type>` and any new `p.<prop>` keys to `web/i18n.js`. Widgets need no changes on the Rust side: the service stores faces as they come and the pages check them.
+Then add `w.<type>`, `wd.<type>` (a line on what it is, shown as the palette's tooltip) and any new `p.<prop>` keys to `web/i18n.js`. Widgets need no changes on the Rust side: the service stores faces as they come and the pages check them.
 
 A new source goes in `SOURCES` in `web/faces.js`, with `src.<id>` in `web/i18n.js`. Its `read(d)` returns at least `n`, the text to show; add `frac` (0–1) if it can fill a gauge.
+
+### A gallery face
+
+1. Make the face in the editor, starting from a gallery face or a blank one, and **Export** it.
+2. Save it as `web/gallery/<id>.json`, with the file name as its `id`. Give it a `group` (`clock`, `gauge`, `retro`, `minimal`, or `ai` if it shows limits or costs) and, usually, its own `theme` and `bg`. A face that uses an own background can't go in the gallery, since the file isn't there for others.
+3. Add `gal.<id>` with the Polish name to the Polish dictionary in `web/i18n.js`. The English name is the face's `name`.
+4. Run `node tests/web.js`: it checks that every widget and value survives the checks unchanged, and that a face outside `ai` doesn't use the usage source.
+
+With `KRAKENDIAL_WEB` set, the service reads `web/gallery` from disk, so a reload of the settings page shows the change. The release build packs the files into the exe. Keep faces inside the circle: the corners of the 640×640 square show in the square thumbnails, not on the cooler. Look at the face in the settings, where its thumbnail is small, and on the dial, `/lcd?mock&layout=gallery:<id>&theme=<its theme>&bg=<its background>` (a layout forced in the URL leaves the look to the URL and the settings).
 
 ### A language
 

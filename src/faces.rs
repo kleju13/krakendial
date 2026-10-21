@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
-//! Faces made in the editor, one JSON file each in %LOCALAPPDATA%\krakendial\faces. The page
-//! checks every widget when it draws a face; here a face only has to be a small JSON object
-//! with a list of widgets, saved under a plain id.
+//! Faces made in the editor, one JSON file each in %LOCALAPPDATA%\krakendial\faces, and the
+//! gallery's, which come with KrakenDial (web/gallery). The page checks every widget when it
+//! draws a face; here a face only has to be a small JSON object with a list of widgets, saved
+//! under a plain id.
 
 use serde_json::{json, Value};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
 /// Big enough for a couple of hundred widgets.
 pub const MAX_BYTES: usize = 256 * 1024;
@@ -43,6 +45,37 @@ pub fn list() -> Value {
         .collect();
     faces.sort_by_key(|f| f["name"].as_str().unwrap_or("").to_lowercase());
     Value::Array(faces)
+}
+
+/// The gallery's faces. While KRAKENDIAL_WEB points at web/ they are read from web/gallery,
+/// so a face being drawn shows up without a rebuild; otherwise build.rs put them in the exe.
+pub fn gallery() -> Vec<Value> {
+    from_disk().unwrap_or_else(|| built_in().to_vec())
+}
+
+fn from_disk() -> Option<Vec<Value>> {
+    let dir = std::env::var_os("KRAKENDIAL_WEB").map(|d| PathBuf::from(d).join("gallery")).filter(|d| d.is_dir())?;
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir).into_iter().flatten().flatten().map(|e| e.path()).collect();
+    files.retain(|p| p.extension().is_some_and(|x| x == "json"));
+    files.sort();
+    Some(files.iter().filter_map(|p| serde_json::from_str(&std::fs::read_to_string(p).ok()?).ok()).filter(Value::is_object).collect())
+}
+
+fn built_in() -> &'static [Value] {
+    static FACES: OnceLock<Vec<Value>> = OnceLock::new();
+    FACES.get_or_init(|| serde_json::from_str(include_str!(concat!(env!("OUT_DIR"), "/gallery.json"))).unwrap_or_default())
+}
+
+/// A face of the gallery, by its id. The state carries the face on the dial on every poll, so
+/// only that one is copied.
+pub fn gallery_face(id: &str) -> Option<Value> {
+    if !valid_id(id) {
+        return None;
+    }
+    match from_disk() {
+        Some(faces) => faces.into_iter().find(|f| f["id"] == id),
+        None => built_in().iter().find(|f| f["id"] == id).cloned(),
+    }
 }
 
 /// An id made from the name: "My face!" -> "my-face", then "my-face-2" if that is taken.
@@ -117,5 +150,26 @@ mod tests {
         for bad in ["", "../x", "a/b", "A", "a.json", "a b", &"x".repeat(41)] {
             assert!(!valid_id(bad), "{bad}");
         }
+    }
+
+    /// Every file in web/gallery made it into the exe, named after its face, with a name and widgets.
+    #[test]
+    fn gallery_faces_are_whole() {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web/gallery");
+        let mut files: Vec<String> = std::fs::read_dir(dir).unwrap().flatten().filter_map(|e| e.file_name().into_string().ok()).collect();
+        files.retain(|f| f.ends_with(".json"));
+        files.sort();
+        let faces = built_in();
+        assert_eq!(faces.len(), files.len(), "a face in web/gallery is not valid JSON");
+        for (face, file) in faces.iter().zip(&files) {
+            let id = face["id"].as_str().unwrap_or("");
+            assert!(valid_id(id), "{file}: id {id:?}");
+            assert_eq!(format!("{id}.json"), *file, "a face's file is named after its id");
+            assert!(face["name"].as_str().is_some_and(|n| !n.trim().is_empty() && n.chars().count() <= 60), "{file}: name");
+            assert!(face["widgets"].as_array().is_some_and(|w| !w.is_empty() && w.len() <= MAX_WIDGETS), "{file}: widgets");
+            assert!(face.to_string().len() <= MAX_BYTES, "{file}: too big");
+            assert_eq!(gallery_face(id).as_ref(), Some(face));
+        }
+        assert!(gallery_face("../x").is_none() && gallery_face("no-such-face").is_none());
     }
 }

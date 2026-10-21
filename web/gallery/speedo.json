@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "speedo",
+  "name": "Speedometer",
+  "group": "gauge",
+  "theme": "night",
+  "bg": "none",
+  "widgets": [
+    { "type": "shape", "kind": "arc", "w": 560, "start": 81, "end": 135, "stroke": 12, "color": "warn" },
+    { "type": "ticks", "r": 292, "length": 12, "count": 51, "start": -135, "end": 135, "width": 2, "color": "ink3" },
+    { "type": "ticks", "r": 292, "length": 30, "count": 11, "start": -135, "end": 135, "width": 4.5, "color": "ink" },
+    { "type": "numerals", "kind": "scale", "r": 226, "size": 28, "from": 0, "to": 100, "count": 11, "start": -135, "end": 135, "bold": true, "color": "ink" },
+    { "type": "needle", "source": "gpu.load", "length": 258, "tail": 44, "width": 11, "hub": 22 },
+    { "type": "value", "source": "gpu.load", "y": 476, "size": 66, "showLabel": false, "sub": false },
+    { "type": "text", "text": "GPU", "y": 514, "size": 17, "bold": true, "spacing": 0.3, "color": "ink2" }
+  ]
+}

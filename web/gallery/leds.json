@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "id": "leds",
+  "name": "LED ring",
+  "group": "gauge",
+  "theme": "neon",
+  "bg": "none",
+  "widgets": [
+    { "type": "dots", "source": "gpu.temp", "count": 46, "r": 288, "start": -135, "end": 135, "size": 5, "shape": "dash" },
+    { "type": "dots", "source": "cpu.temp", "count": 40, "r": 250, "start": -135, "end": 135, "size": 4, "color": "accent2" },
+    { "type": "value", "source": "gpu.temp", "y": 340, "size": 124 },
+    { "type": "value", "source": "cpu.temp", "y": 482, "size": 44, "sub": false, "color": "ink2" }
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "limits",
+  "name": "Limits",
+  "group": "ai",
+  "theme": "deep",
+  "bg": "flow",
+  "widgets": [
+    { "type": "arc", "source": "limit.claude5h", "r": 290, "start": -135, "end": 135, "width": 16, "ticks": 10 },
+    { "type": "arc", "source": "limit.claude7d", "r": 258, "start": -135, "end": 135, "width": 10 },
+    { "type": "arc", "source": "limit.codex7d", "r": 234, "start": -135, "end": 135, "width": 10, "color": "accent2" },
+    { "type": "text", "text": "{time}", "y": 140, "size": 30, "color": "ink2" },
+    { "type": "value", "source": "limit.claude5h", "y": 360, "size": 150 },
+    { "type": "text", "text": "7d {limit.claude7d} · codex {limit.codex7d}", "y": 470, "size": 22, "color": "ink2" },
+    { "type": "status", "y": 560 }
+  ]
+}

@@ -8,7 +8,8 @@ An open-source dial for the NZXT Kraken Elite LCD (640×640), shown through the 
 
 - CPU, GPU and liquid temperatures, CPU and GPU load and power, RAM and the time;
 - optionally, your Claude (5h, 7d) and Codex (7d) usage limits with a pace marker, and what they cost, from a usage source you run yourself;
-- your own faces, built in the editor from values, gauges, bars, graphs, text, pictures and mascots.
+- 22 ready faces in the gallery, from watch dials and a speedometer to a VFD clock and a CRT terminal;
+- your own faces, built in the editor from values, gauges and lamps, needles, seven-segment digits, clock hands, text, pictures and mascots.
 
 The dial and the settings are in English or Polish.
 
@@ -54,10 +55,11 @@ A hidden icon comes back with **Tray icon** → **Shown** in the settings, or wh
 
 CAM's **Configure** button, or `http://127.0.0.1:30640/` in a browser, opens the settings with a live preview. A choice reaches the cooler within about 3 seconds.
 
-- **Layout:** 17 built-in layouts, plus your own faces.
+- **Layout:** 17 built-in layouts, plus faces from the gallery and your own.
   - Round dials: Cockpit, Chronograph, Columns, Clock, One number, Limits only, Hardware only.
   - Rotation (limits and hardware in turns) and Adaptive (hardware while the GPU is busy). These two and Limits only need a usage source.
   - Terminal-style: Terminal, htop, btop, neofetch, fastfetch, pfetch, macchina, cpufetch. The fetch layouts have a mascot (Kraken, Crab, Ghost, Cat or Robot) that blinks, looks around and walks a little.
+- **Gallery:** 22 ready faces in five groups: clocks (Classic, Roman, Diver, Pilot, Alarm clock, VFD, Orbit), gauges (Speedometer, Twin needles, Activity rings, LED ring and more), retro and terminal, minimal, and two for AI limits that show up once there is a usage source. A gallery face brings its own theme and background; picking it puts them on, and you can change them afterwards. **Edit a copy** opens it in the editor as a face of your own.
 - **Theme:** 22 themes, among them Nord, Tokyo Night, Catppuccin, Dracula, Solarized, Gruvbox and Synthwave.
 - **Background:** 18 drawn animations, from liquid and aurora to `donut.c`, fire, Game of Life and pipes. They speed up with GPU load.
 - **Own backgrounds:** a video, GIF or picture of your own. It can be drawn tinted to the theme, as it is, or as ASCII characters.
@@ -71,16 +73,18 @@ CAM's **Configure** button, or `http://127.0.0.1:30640/` in a browser, opens the
   - **Limits show:** what is left, or what is used.
   - **Cost:** last 24 h, today, last 7 days, this month, or off.
 
+![Twenty of the gallery's faces](docs/img/gallery.png)
+
 ## Face editor
 
-`http://127.0.0.1:30640/editor`, or **My faces** in the settings. Start from a template or a blank face:
+`http://127.0.0.1:30640/editor`, or **My faces** in the settings. A new face starts from one in the gallery or from a blank one; the gallery face stays as it is and you change a copy.
 
-- add widgets from the palette;
-- drag them on the dial; they snap to the centre and to each other;
-- resize them by the corner handle;
-- change everything else in the properties panel.
+- **Look:** the face's own theme and background, picked from thumbnails, or left to the settings. Own videos, GIFs and pictures can be added right there.
+- **Add:** ready blocks (a ring gauge, a speedometer, a watch, a digital clock, CPU and GPU side by side, an LED ring) and single elements in four groups: text and numbers, gauges, clock, decoration. Click one to add it in the middle, or drag it where you want it.
+- **On the dial:** drag to move; things snap to the centre and to each other. The corner handle resizes. Drag across empty space to select several, then move, line up, recolour, copy or remove them together.
+- **Element:** everything else about what is selected. **Layers** lists it all in drawing order.
 
-Undo, redo, layers, duplicating, and import and export as JSON are all there. Changes save as you go. **Show on the cooler** puts the face on the dial.
+Undo and redo, copy and paste between faces, nudging with the arrow keys, and import and export as JSON are all there. Changes save as you go. **Show on the cooler** puts the face on the dial with its look.
 
 ![The face editor](docs/img/editor.png)
 
@@ -98,9 +102,9 @@ Each layout shows the limits that are switched on and that the source sends, and
 
 - `http://127.0.0.1:30640/lcd?mock` is the bare dial with made-up hardware readings.
 
-  `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `limits`, `fps` and `lang` force a variant, e.g. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. A face goes as `layout=face:<id>`. `limits=claude5h,codex7d` picks limits, `limits=none` switches them all off.
+  `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `limits`, `fps` and `lang` force a variant, e.g. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. A face goes as `layout=face:<id>`, a gallery face as `layout=gallery:<id>`. `limits=claude5h,codex7d` picks limits, `limits=none` switches them all off.
 - Start the exe with `KRAKENDIAL_WEB=<repo>\web` to serve the web files from disk, without rebuilding. Open pages reload themselves when the service restarts.
-- `cargo test` runs the service tests. `node tests/web.js` builds every layout, template and widget in both languages on a fake DOM.
+- `cargo test` runs the service tests. `node tests/web.js` builds every layout, gallery face and widget in both languages on a fake DOM.
 - Logs, settings, faces and media are in `%LOCALAPPDATA%\krakendial`.
 
 How the code is laid out, and how to add a layout, theme, background, widget or language: [CONTRIBUTING.md](CONTRIBUTING.md).

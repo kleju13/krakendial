@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "rings",
+  "name": "Activity rings",
+  "group": "gauge",
+  "theme": "night",
+  "bg": "none",
+  "widgets": [
+    { "type": "arc", "source": "cpu.load", "r": 272, "start": 0, "end": 360, "width": 36, "rounded": true, "color": "#fa114f" },
+    { "type": "arc", "source": "gpu.load", "r": 230, "start": 0, "end": 360, "width": 36, "rounded": true, "color": "#92e82a" },
+    { "type": "arc", "source": "ram.pct", "r": 188, "start": 0, "end": 360, "width": 36, "rounded": true, "color": "#1eeaef" },
+    { "type": "value", "source": "time", "y": 336, "size": 82, "showLabel": false, "sub": false },
+    { "type": "text", "text": "CPU {cpu.load}", "x": 242, "y": 388, "size": 15, "bold": true, "color": "#fa114f" },
+    { "type": "text", "text": "GPU {gpu.load}", "x": 320, "y": 388, "size": 15, "bold": true, "color": "#92e82a" },
+    { "type": "text", "text": "RAM {ram.pct}", "x": 398, "y": 388, "size": 15, "bold": true, "color": "#1eeaef" }
+  ]
+}

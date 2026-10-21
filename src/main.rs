@@ -121,7 +121,8 @@ fn valid_url(u: &str) -> bool {
 
 /// Applies the valid fields of `patch` on top of `cfg`; unknown values are ignored.
 fn merge_config(cfg: &mut Value, patch: &Value) {
-    let face = |l: &str| l.strip_prefix("face:").is_some_and(faces::exists);
+    // a face of your own, or one of the gallery's
+    let face = |l: &str| l.strip_prefix("face:").is_some_and(faces::exists) || l.strip_prefix("gallery:").is_some_and(|id| faces::gallery_face(id).is_some());
     if let Some(l) = patch["layout"].as_str().map(legacy).filter(|l| LAYOUTS.contains(l) || face(l)) {
         cfg["layout"] = json!(l);
     }
@@ -275,7 +276,12 @@ fn handle(app: &App, mut req: Request) {
                 (store.limits_json(), store.costs_json())
             };
             // the face on the dial travels with the state, so the LCD redraws as soon as it is edited
-            let face = cfg["layout"].as_str().and_then(|l| l.strip_prefix("face:")).and_then(faces::get);
+            let layout = cfg["layout"].as_str().unwrap_or("");
+            let face = match layout.split_once(':') {
+                Some(("face", id)) => faces::get(id),
+                Some(("gallery", id)) => faces::gallery_face(id),
+                _ => None,
+            };
             let v = json!({
                 "now": limits::now_ms(),
                 "build": app.build,
@@ -308,6 +314,7 @@ fn handle(app: &App, mut req: Request) {
             reply_json(req, &out);
         }
         (Method::Get, "/api/faces") => reply_json(req, &faces::list()),
+        (Method::Get, "/api/gallery") => reply_json(req, &Value::Array(faces::gallery())),
         (Method::Post, "/api/faces") => {
             let Some(body) = read_body(&mut req, faces::MAX_BYTES) else { return reply(req, 400, "text/plain", b"bad json".to_vec()) };
             match faces::save(body) {
@@ -494,6 +501,17 @@ mod tests {
         merge_config(&mut cfg, &json!({ "usage": "  ", "lang": "pl" }));
         assert_eq!(cfg["usage"], "");
         assert_eq!(cfg["lang"], "pl");
+    }
+
+    #[test]
+    fn gallery_faces_can_be_picked() {
+        let id = faces::gallery()[0]["id"].as_str().unwrap().to_string();
+        let mut cfg = json!({ "layout": "pfetch" });
+        merge_config(&mut cfg, &json!({ "layout": "gallery:no-such-face" }));
+        merge_config(&mut cfg, &json!({ "layout": "gallery:../x" }));
+        assert_eq!(cfg["layout"], "pfetch");
+        merge_config(&mut cfg, &json!({ "layout": format!("gallery:{id}") }));
+        assert_eq!(cfg["layout"], format!("gallery:{id}"));
     }
 
     #[test]

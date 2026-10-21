@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 // node tests/web.js
-// Builds every layout, face template and widget variant in every language on a fake DOM, and
+// Builds every layout, gallery face, block and widget variant in every language on a fake DOM, and
 // checks that translations exist and that bad faces are cleaned up instead of thrown on. It
 // catches crashes and missing text, not looks: check those in a browser.
 const fs = require("fs");
@@ -73,6 +73,13 @@ const web = path.join(__dirname, "..", "web");
 for (const f of ["bg.js", "i18n.js", "dial.js", "faces.js"]) eval(fs.readFileSync(path.join(web, f), "utf8"));
 const K = window.KrakenDial, F = window.KrakenFaces, I = window.KrakenI18n;
 
+// the gallery, as the service embeds it
+const galleryDir = path.join(web, "gallery");
+const gallery = fs.readdirSync(galleryDir).filter((f) => f.endsWith(".json")).sort()
+  .map((f) => ({ file: f, face: JSON.parse(fs.readFileSync(path.join(galleryDir, f), "utf8")) }));
+const GROUPS = ["clock", "gauge", "retro", "minimal", "ai"];
+const PALETTE = ["text", "gauge", "clock", "decor"];
+
 let failures = 0;
 const fail = (msg) => {
   failures++;
@@ -109,9 +116,15 @@ for (const lang of languages) {
   for (const x of K.COSTS) need(`cost.${x.id}`);
   for (const id of Object.keys(F.SOURCES)) need(`src.${id}`);
   for (const id of Object.keys(F.ROLES)) need(`c.${id}`);
-  for (const tpl of F.TEMPLATES) need(`tpl.${tpl.id}`);
+  for (const b of F.BLOCKS) need(`blk.${b.id}`);
+  for (const g of GROUPS) need(`galg.${g}`);
+  for (const g of PALETTE) need(`grp.${g}`);
+  // gallery faces are named in English in their file and translated into the other languages
+  if (lang !== "en") for (const { face } of gallery) need(`gal.${face.id}`);
   for (const [type, def] of Object.entries(F.WIDGETS)) {
     need(`w.${type}`);
+    need(`wd.${type}`);
+    if (!PALETTE.includes(def.group)) fail(`${type}: group ${def.group} is not in the palette`);
     for (const [k, spec] of Object.entries(def.props)) {
       need(spec.label || `p.${k}`);
       if (spec.hint) need(spec.hint);
@@ -126,7 +139,34 @@ for (const f of fs.readdirSync(web).filter((f) => /\.(js|html)$/.test(f))) {
   for (const k of new Set(keys)) if (I.t(k) === k) fail(`${f}: no English text for ${k}`);
 }
 
-// ---------- layouts, templates, widgets ----------
+// ---------- the gallery files ----------
+// Each face is whole as written: normalize keeps every widget and every value, so a typo in a
+// prop or a value out of range shows up here rather than as a widget quietly missing.
+
+const THEMES = K.THEMES.map((x) => x.id), BGS = K.BGS.map((x) => x.id);
+const ids = new Set();
+for (const { file, face } of gallery) {
+  const at = `gallery ${file}`;
+  if (face.id !== file.replace(/.json$/, "")) fail(`${at}: id ${face.id} is not the file name`);
+  if (ids.has(face.id)) fail(`${at}: id used twice`);
+  ids.add(face.id);
+  if (face.version !== 1 || !face.name) fail(`${at}: no version or name`);
+  if (!GROUPS.includes(face.group)) fail(`${at}: group ${face.group}`);
+  if (face.theme && !THEMES.includes(face.theme)) fail(`${at}: theme ${face.theme}`);
+  if (face.bg && !BGS.includes(face.bg)) fail(`${at}: background ${face.bg}`);
+  if ((face.group === "ai") !== F.usesSource(face)) fail(`${at}: in group ${face.group} but ${F.usesSource(face) ? "uses" : "doesn't use"} the usage source`);
+  const n = F.normalize(face);
+  if (n.id !== face.id || n.name !== face.name || n.theme !== face.theme || n.bg !== face.bg) fail(`${at}: normalize changed the face itself`);
+  if (n.widgets.length !== face.widgets.length) fail(`${at}: ${face.widgets.length - n.widgets.length} widgets dropped`);
+  face.widgets.forEach((w, i) => {
+    const out = n.widgets[i] || {};
+    for (const [k, v] of Object.entries(w)) if (JSON.stringify(out[k]) !== JSON.stringify(v)) fail(`${at}: widget ${i} (${w.type}) ${k} ${JSON.stringify(v)} came out as ${JSON.stringify(out[k])}`);
+  });
+  if (JSON.stringify(F.normalize(JSON.parse(JSON.stringify(n)))) !== JSON.stringify(n)) fail(`${at}: changes on a second pass`);
+}
+if (gallery.length < 12) fail(`only ${gallery.length} gallery faces`);
+
+// ---------- layouts, gallery, blocks, widgets ----------
 
 for (const lang of languages) {
   for (const l of K.LAYOUTS) {
@@ -145,13 +185,22 @@ for (const lang of languages) {
   const old = K.create(div(), { layout: "zegar", theme: "grafit", bg: "ciecz", animate: false, lang });
   if (old.layout !== "clock") fail(`old id zegar came out as ${old.layout}`);
 
-  for (const tpl of F.TEMPLATES) {
-    const face = F.normalize({ id: "t", widgets: tpl.widgets() });
-    if (!face.widgets.length && tpl.id !== "blank") fail(`template ${tpl.id} is empty`);
-    const d = K.create(div(), { layout: "face:t", face, theme: "ice", bg: "none", animate: false, lang });
-    if (d.layout !== "face") fail(`template ${tpl.id} came out as ${d.layout}`);
-    for (let i = 0; i < 30; i++) d.update({ now: now + i * 2000, hw, limits, costs, interval: 60e3 });
-    d.update({ now, hw: K.emptyHw(), limits: unset, costs: null, interval: 60e3 });
+  // each gallery face in its own theme and in another, as picked and as a copy of your own
+  for (const { face: g } of gallery) {
+    for (const [layout, theme] of [[`gallery:${g.id}`, g.theme || "ice"], ["face:t", "deep"]]) {
+      const face = F.normalize(g);
+      const d = K.create(div(), { layout, face, theme, bg: "none", animate: false, lang });
+      if (d.layout !== "face") fail(`gallery ${g.id} as ${layout} came out as ${d.layout}`);
+      for (let i = 0; i < 30; i++) d.update({ now: now + i * 2000, hw, limits, costs, interval: 60e3 });
+      d.update({ now, hw: K.emptyHw(), limits: unset, costs: null, interval: 60e3 });
+      built++;
+    }
+  }
+  for (const b of F.BLOCKS) {
+    const face = F.normalize({ id: "b", widgets: b.widgets() });
+    if (face.widgets.length !== b.widgets().length) fail(`block ${b.id}: widgets dropped`);
+    const d = K.create(div(), { layout: "face:b", face, theme: "ice", bg: "none", animate: false, lang });
+    for (let i = 0; i < 10; i++) d.update({ now: now + i * 2000, hw, limits, costs, interval: 60e3 });
     built++;
   }
 
@@ -160,7 +209,7 @@ for (const lang of languages) {
     const variants = [{}];
     for (const [k, spec] of Object.entries(def.props)) {
       if (spec.kind === "select") for (const [v] of spec.options) variants.push({ [k]: v });
-      if (spec.kind === "source") for (const s of Object.keys(F.SOURCES)) if (!spec.gauged || F.GAUGED.includes(s)) variants.push({ [k]: s });
+      if (spec.kind === "source") for (const s of spec.gauged ? F.GAUGED : spec.digits ? F.DIGITAL : Object.keys(F.SOURCES)) variants.push({ [k]: s });
       if (spec.kind === "bool") variants.push({ [k]: !spec.default });
       if (spec.kind === "number") variants.push({ [k]: spec.min }, { [k]: spec.max });
       if (spec.kind === "color") variants.push({ [k]: "#ff00aa" }, { [k]: "warn" });
@@ -202,14 +251,15 @@ for (const l of K.LAYOUTS) {
   if (/codex/i.test(shown(l.id, claude, undefined, true))) fail(`${l.id}: shows Codex the source doesn't send`);
   if (/codex/i.test(shown(l.id, limits, ["claude5h", "claude7d"]))) fail(`${l.id}: shows Codex switched off`);
 }
-// the templates other than the limits one are hardware only, and a face's status line gives way
-// to the date when there is no usage source
-for (const tpl of F.TEMPLATES.filter((x) => x.id !== "limits")) {
+// the gallery faces outside the AI group are hardware only, and their status line gives way to
+// the date when there is no usage source
+for (const { face: g } of gallery) {
   const box = div();
-  const face = F.normalize({ id: "t", widgets: tpl.widgets() });
-  K.create(box, { layout: "face:t", face, theme: "ice", bg: "none", animate: false, lang: "en" }).update({ now, hw, limits: unset, costs: null, interval: 60e3 });
+  K.create(box, { layout: `gallery:${g.id}`, face: F.normalize(g), theme: "ice", bg: "none", animate: false, lang: "en" }).update({ now, hw, limits: unset, costs: null, interval: 60e3 });
   const s = textOf(box);
-  if (/claude|codex/i.test(s) || s.includes(I.t("st.noSource"))) fail(`template ${tpl.id}: mentions AI with no usage source`);
+  if (g.group === "ai") continue;
+  if (/claude|codex/i.test(s)) fail(`gallery ${g.id}: mentions AI`);
+  if (s.includes(I.t("st.noSource"))) fail(`gallery ${g.id}: shows "${I.t("st.noSource")}" with no usage source`);
 }
 
 // ---------- bad faces ----------
@@ -237,9 +287,9 @@ for (const j of junk) {
 }
 const big = F.normalize({ widgets: [{ type: "value", size: 1e9 }] }).widgets[0];
 if (big.size !== F.WIDGETS.value.props.size.max) fail(`normalize: size ${big.size} not clamped`);
-for (const tpl of F.TEMPLATES) {
-  const a = F.normalize({ id: "x", name: "n", widgets: tpl.widgets() });
-  if (JSON.stringify(F.normalize(JSON.parse(JSON.stringify(a)))) !== JSON.stringify(a)) fail(`normalize: template ${tpl.id} changes on a second pass`);
+for (const b of F.BLOCKS) {
+  const a = F.normalize({ id: "x", name: "n", widgets: b.widgets() });
+  if (JSON.stringify(F.normalize(JSON.parse(JSON.stringify(a)))) !== JSON.stringify(a)) fail(`normalize: block ${b.id} changes on a second pass`);
 }
 
 // ---------- camless mode ----------

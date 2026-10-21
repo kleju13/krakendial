@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "graphs",
+  "name": "Graphs",
+  "group": "gauge",
+  "theme": "tokyo",
+  "bg": "none",
+  "widgets": [
+    { "type": "value", "source": "cpu.temp", "x": 222, "y": 214, "size": 66, "sub": false },
+    { "type": "value", "source": "gpu.temp", "x": 418, "y": 214, "size": 66, "sub": false, "color": "accent2" },
+    { "type": "graph", "source": "cpu.temp", "y": 320, "w": 440, "h": 92, "minutes": 5 },
+    { "type": "graph", "source": "gpu.temp", "y": 448, "w": 400, "h": 92, "minutes": 5, "style": "line", "color": "accent2" },
+    { "type": "text", "text": "{time}", "y": 552, "size": 20, "color": "ink3" }
+  ]
+}

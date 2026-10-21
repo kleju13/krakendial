@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "vfd",
+  "name": "VFD",
+  "group": "clock",
+  "theme": "graphite",
+  "bg": "none",
+  "widgets": [
+    { "type": "shape", "kind": "rect", "y": 336, "w": 528, "h": 272, "stroke": 0, "color": "#04130f" },
+    { "type": "text", "text": "{date}", "y": 232, "size": 16, "font": "mono", "color": "#2a8f7c" },
+    { "type": "segment", "source": "time", "y": 362, "size": 108, "color": "#4ff0d2" },
+    { "type": "segment", "source": "cpu.temp", "prefix": "CPU ", "x": 210, "y": 436, "size": 32, "color": "#4ff0d2" },
+    { "type": "segment", "source": "gpu.temp", "prefix": "GPU ", "x": 430, "y": 436, "size": 32, "color": "#4ff0d2" }
+  ]
+}
