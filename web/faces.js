@@ -628,6 +628,15 @@
         widget("text", { text: "{time.seconds}", x: 320, y: 540, size: 18, font: "mono", color: "ink3" }),
       ],
     },
+    // few things, large enough to read on the smallest screens
+    {
+      id: "big",
+      widgets: () => [
+        widget("text", { text: "{time}", x: 320, y: 124, size: 44, color: "ink2" }),
+        widget("value", { source: "cpu.temp", x: 320, y: 296, size: 140, sub: false }),
+        widget("value", { source: "gpu.temp", x: 320, y: 500, size: 140, sub: false }),
+      ],
+    },
     {
       id: "clock",
       widgets: () => [

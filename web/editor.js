@@ -52,14 +52,44 @@
   const groupOf = (id) => dialHost.querySelector(`[data-w="${id}"]`);
   function draw() {
     dial.configure({ ...cfg(), layout: "face", face: face || { widgets: [] } });
+    drawActual();
     tick();
   }
   function tick() {
     const d = data();
     dial.update(d);
+    if (actual) actual.update(d);
     byId("caption").textContent = t(d.live ? "ed.preview" : "ed.previewMock");
     if (!drag) drawOverlay();
   }
+
+  // The face on a Kraken screen smaller than the stage, as many pixels across as it has (as the
+  // LCD page last reported it; screen=240 shows another size): what reads here reads on the cooler.
+  const actualHost = byId("actual-dial");
+  let actual = null;
+  function screenPx() {
+    const forced = Number(params.get("screen")) || 0;
+    const s = forced ? { w: forced, h: forced } : state.config && state.config.screen;
+    return s ? Math.min(s.w, s.h) : 0;
+  }
+  function drawActual() {
+    const px = screenPx();
+    const show = K.sizeOf(px) !== "large";
+    byId("actual").hidden = !show;
+    if (!show) {
+      // a dial off the page stops drawing its background
+      if (actual) actualHost.replaceChildren();
+      actual = null;
+      return;
+    }
+    actualHost.style.width = `${px / devicePixelRatio}px`;
+    byId("actual-hint").textContent = t("ed.actualHint", { px });
+    const c = { ...cfg(), layout: "face", face: face || { widgets: [] }, screen: px };
+    if (actual) actual.configure(c);
+    else actual = K.create(actualHost, c);
+  }
+  // the browser's zoom changes how many pixels a CSS pixel is
+  addEventListener("resize", () => actual && drawActual());
 
   // Where a widget is on the dial, in its own 640×640 units.
   function boxOf(id) {
@@ -897,7 +927,10 @@
           return location.reload();
         }
         serviceBuild = next.build;
-        const restyle = !state.config || ["theme", "bg", "look", "mascot", "units", "cost", "bars", "lang"].some((k) => state.config[k] !== next.config[k]);
+        const restyle =
+          !state.config ||
+          ["theme", "bg", "look", "mascot", "units", "cost", "bars", "lang"].some((k) => state.config[k] !== next.config[k]) ||
+          JSON.stringify(state.config.screen) !== JSON.stringify(next.config.screen);
         state = next;
         if (I.resolve(state.config.lang) !== builtLang) {
           I.use(state.config.lang);

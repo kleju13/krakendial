@@ -99,9 +99,14 @@
   .actions .btn { padding: 6px 11px; font-size: 13px; }
   .xy { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .xy input { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1.5px solid var(--line); background: var(--panel); }
+  #actual h2 + * { margin-bottom: 0; }
+  /* up to the panel's edges, so a 320 px screen still fits pixel for pixel */
+  .actual { display: flex; justify-content: center; }
+  .actual > div { flex: none; max-width: calc(100% + 32px); aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #0b0f16; }
+  .actual-hint { margin: 12px 0 26px; font-size: 12px; color: var(--dim); line-height: 1.4; }
 
   .pop { position: absolute; z-index: 10; padding: 14px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line);
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); display: grid; grid-template-columns: repeat(5, 110px); gap: 10px; }
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); display: grid; grid-template-columns: repeat(3, 110px); gap: 10px; }
   .pop[hidden] { display: none; }
   .tpl { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 8px; padding: 10px 6px; border-radius: 12px; font-size: 13px; }
   .tpl:hover, .tpl:focus-visible { background: var(--panel-2); }
@@ -144,6 +149,12 @@
     <div class="caption" data-t="ed.keys"></div>
   </div>
   <aside class="side right">
+    <!-- the face pixel for pixel, when the Kraken's screen is smaller than the stage -->
+    <section id="actual" hidden>
+      <h2 data-t="ed.actual"></h2>
+      <div class="actual"><div id="actual-dial"></div></div>
+      <p class="actual-hint" id="actual-hint"></p>
+    </section>
     <h2 data-t="ed.props"></h2>
     <div class="props" id="props"></div>
   </aside>

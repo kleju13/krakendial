@@ -167,6 +167,15 @@ fn merge_config(cfg: &mut Value, patch: &Value) {
     }
 }
 
+/// The size of the Kraken's screen as the LCD page reports it, in pixels and round or square;
+/// `None` for anything that isn't one. The settings and the editor preview the dial at this size.
+fn valid_screen(v: &Value) -> Option<Value> {
+    let side = |k: &str| v[k].as_i64().filter(|n| (64..=2048).contains(n));
+    let (w, h) = (side("w")?, side("h")?);
+    let shape = if v["shape"].as_str() == Some("square") { "square" } else { "circle" };
+    Some(json!({ "w": w, "h": h, "shape": shape }))
+}
+
 fn log(msg: &str) {
     let path = data_dir().join("log.txt");
     if std::fs::metadata(&path).is_ok_and(|m| m.len() > 256 * 1024) {
@@ -329,6 +338,15 @@ fn handle(app: &App, mut req: Request) {
         }
         (Method::Post, "/api/hw") => {
             if let Some(mut body) = read_body(&mut req, 64 * 1024) {
+                // the screen's size is remembered, for the settings to preview the dial at while
+                // the LCD is off; written only when it changes
+                if let Some(screen) = valid_screen(&body["screen"]) {
+                    let mut cfg = app.config.lock().unwrap();
+                    if cfg["screen"] != screen {
+                        cfg["screen"] = screen;
+                        save_config(&cfg);
+                    }
+                }
                 body["at"] = json!(limits::now_ms());
                 *app.hw.lock().unwrap() = body;
             }
@@ -421,6 +439,10 @@ fn main() {
     });
     if let Some(saved) = std::fs::read_to_string(data_dir().join("config.json")).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok()) {
         merge_config(&mut config, &saved);
+        // only the LCD page sets the screen, so it is not among the settings merge_config takes
+        if let Some(screen) = valid_screen(&saved["screen"]) {
+            config["screen"] = screen;
+        }
     }
     let app = Arc::new(App {
         store: Mutex::new(limits::Store::load(&state_path)),
@@ -525,6 +547,23 @@ mod tests {
         assert_eq!(cfg["tray"], true);
         merge_config(&mut cfg, &json!({ "tray": false }));
         assert_eq!(cfg["tray"], false);
+    }
+
+    #[test]
+    fn screen_is_a_size_and_a_shape() {
+        assert_eq!(valid_screen(&json!({ "w": 240, "h": 240, "shape": "circle" })), Some(json!({ "w": 240, "h": 240, "shape": "circle" })));
+        assert_eq!(valid_screen(&json!({ "w": 320, "h": 320, "shape": "square" })), Some(json!({ "w": 320, "h": 320, "shape": "square" })));
+        assert_eq!(valid_screen(&json!({ "w": 640, "h": 640, "shape": "hexagon" })).unwrap()["shape"], "circle", "unknown shapes are round");
+        assert_eq!(valid_screen(&json!({ "w": 640, "h": 640 })), Some(json!({ "w": 640, "h": 640, "shape": "circle" })));
+        assert_eq!(valid_screen(&json!({ "w": 0, "h": 640 })), None);
+        assert_eq!(valid_screen(&json!({ "w": 640, "h": 99999 })), None);
+        assert_eq!(valid_screen(&json!({ "w": "640", "h": 640 })), None);
+        assert_eq!(valid_screen(&json!({ "w": 640.5, "h": 640 })), None);
+        assert_eq!(valid_screen(&Value::Null), None);
+        // a settings page can't set it
+        let mut cfg = json!({ "theme": "ice" });
+        merge_config(&mut cfg, &json!({ "screen": { "w": 240, "h": 240 } }));
+        assert_eq!(cfg.get("screen"), None);
     }
 
     #[test]

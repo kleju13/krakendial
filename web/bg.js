@@ -62,7 +62,8 @@
     const n = (v.match(/[\d.]+/g) || []).map(Number);
     return [n[0] || 0, n[1] || 0, n[2] || 0, n.length > 3 ? n[3] : 1];
   }
-  function palette(root) {
+  // thick: how much heavier lines are drawn, for a screen too coarse for hairlines.
+  function palette(root, thick = 1) {
     const cs = getComputedStyle(root);
     const get = (k) => parseColor(cs.getPropertyValue(k));
     const lo = get("--bg-lo");
@@ -75,6 +76,7 @@
       lo,
       hi: get("--bg-hi"),
       dark: 0.3 * lo[0] + 0.59 * lo[1] + 0.11 * lo[2] < 128,
+      thick,
     };
   }
   function glow(ctx, x, y, r, c) {
@@ -179,8 +181,12 @@
   const CONTOUR = [[], [3, 2], [2, 1], [3, 1], [0, 1], [3, 0, 2, 1], [0, 2], [3, 0], [3, 0], [0, 2], [0, 1, 3, 2], [0, 1], [3, 1], [2, 1], [3, 2], []];
   let field = null;
 
+  // A glyph needs about 7 px to read as one: on a small screen, fewer and larger cells.
+  const MIN_CELL = 7;
+  const fewer = (s, n) => Math.max(1, Math.min(n, Math.floor(s / MIN_CELL)));
   // Character cells like a terminal's: w wide, 1.7 w tall.
   const grid = (s, cols) => {
+    cols = fewer(s, cols);
     const w = s / cols, h = w * 1.7;
     return { w, h, cols, rows: Math.ceil(s / h) };
   };
@@ -252,7 +258,7 @@
           ctx.arc(c, c, r, 0, TAU);
           ctx.fill();
           ctx.strokeStyle = rgba(p.b, k);
-          ctx.lineWidth = Math.max(0.6, r / 160);
+          ctx.lineWidth = Math.max(0.6, r / 160) * p.thick;
           ctx.stroke();
         }
       },
@@ -330,7 +336,7 @@
           ctx.restore();
         }
         ctx.globalCompositeOperation = "source-over";
-        stars(ctx, t, s, p, 70, s / 640);
+        stars(ctx, t, s, p, 70, (s / 640) * p.thick);
       },
     },
     // stars: a slowly turning sky, twinkling, with a meteor now and then
@@ -340,7 +346,7 @@
         const c = s / 2;
         glow(ctx, c * 1.3, c * 0.7, s * 0.5, p.a);
         glow(ctx, c * 0.6, c * 1.4, s * 0.38, p.b);
-        stars(ctx, t, s, p, STARS.length, s / 512);
+        stars(ctx, t, s, p, STARS.length, (s / 512) * p.thick);
         const cycle = Math.floor(t / 19), q = t - cycle * 19;
         if (q > 1.3) return;
         const k = q / 1.3, star = p.dark ? p.ink : p.line;
@@ -353,7 +359,7 @@
         g.addColorStop(0, rgba(star, 0));
         g.addColorStop(1, rgba(star, 0.9 * Math.sin(Math.PI * k)));
         ctx.strokeStyle = g;
-        ctx.lineWidth = s / 300;
+        ctx.lineWidth = (s / 300) * p.thick;
         ctx.lineCap = "round";
         ctx.beginPath();
         ctx.moveTo(hx - dx * len, hy - dy * len);
@@ -386,7 +392,7 @@
     silk: {
       res: 512,
       paint(ctx, t, s, p) {
-        ctx.lineWidth = s / 400;
+        ctx.lineWidth = (s / 400) * p.thick;
         const N = 48;
         for (const [cy, amp, wid, w1, w2, ph, col] of [[0.43, 0.15, 0.3, 0.17, 0.23, 0, p.line], [0.6, 0.12, 0.24, -0.13, 0.19, 2.1, p.line2]]) {
           for (let i = 0; i < 16; i++) {
@@ -439,7 +445,7 @@
           }
           const major = li % 4 === 1;
           ctx.strokeStyle = rgba(p.line, (major ? 0.42 : 0.2) * (p.dark ? 1 : 0.85));
-          ctx.lineWidth = ((major ? 1.7 : 1) * s) / 512;
+          ctx.lineWidth = (((major ? 1.7 : 1) * s) / 512) * p.thick;
           ctx.stroke();
         }
       },
@@ -460,7 +466,7 @@
           const len = Math.min(1.3, rate * 1.7);
           const k = Math.min(1, q * 8, (1 - q) * 4);
           ctx.strokeStyle = rgba(m.second ? p.line2 : p.line, 0.5 * k * (p.dark ? 1 : 0.8));
-          ctx.lineWidth = (m.w * s) / 384;
+          ctx.lineWidth = ((m.w * s) / 384) * p.thick;
           ctx.beginPath();
           ctx.arc(c, c, r, a - len, a);
           ctx.stroke();
@@ -487,7 +493,7 @@
           }
         }
         ctx.strokeStyle = rgba(p.line, p.dark ? 0.16 : 0.13);
-        ctx.lineWidth = s / 512;
+        ctx.lineWidth = (s / 512) * p.thick;
         ctx.stroke();
         lit.forEach((cells, i) => {
           if (!cells.length) return;
@@ -503,7 +509,7 @@
       res: 512,
       paint(ctx, t, s, p) {
         const hz = s * 0.6, vx = s / 2, f = s * 0.5, zn = f / (s - hz);
-        stars(ctx, t, s, p, 90, s / 512, (x, y) => y < hz - 6);
+        stars(ctx, t, s, p, 90, (s / 512) * p.thick, (x, y) => y < hz - 6);
         ctx.save();
         ctx.translate(vx, hz);
         ctx.scale(1, 0.3);
@@ -515,7 +521,7 @@
         g.addColorStop(0.3, rgba(p.line, 0.2));
         g.addColorStop(1, rgba(p.line, p.dark ? 0.5 : 0.38));
         ctx.strokeStyle = g;
-        ctx.lineWidth = s / 400;
+        ctx.lineWidth = (s / 400) * p.thick;
         ctx.beginPath();
         for (let k = -16; k <= 16; k++) {
           ctx.moveTo(vx + (f * k * 0.5) / zn, s);
@@ -612,7 +618,7 @@
       res: 512,
       idle: (t, st) => st.cells && t - st.t < LIFE_STEP,
       paint(ctx, t, s, p, st) {
-        const N = 56, c = s / N;
+        const N = fewer(s, 56), c = s / N;
         if (!st.cells || t - st.born > 90) {
           st.cells = lifeSeed(N);
           st.born = st.t = t;
@@ -1029,6 +1035,18 @@
     const ctx = canvas.getContext("2d");
     let type = null, painter = null, media = null, pal = null, state = {}, look = "plain";
     let t = 7, last = null, speed = 1, fps = 10, timer = null;
+    // The screen's size in pixels, when known: a canvas finer than the screen is work for nothing,
+    // and below 480 px lines get heavier, as the dial's own do (1.5× at 320, 2× at 240).
+    let cap = 0;
+    const thick = () => (cap ? Math.min(2, Math.max(1, 480 / cap)) : 1);
+    // Sizes the canvas for what it shows; a new size starts the painter afresh.
+    function fit() {
+      const res = Math.min(media ? 640 : painter ? painter.res || 256 : 16, cap || Infinity);
+      if (canvas.width === res) return false;
+      canvas.width = canvas.height = res;
+      state = {};
+      return true;
+    }
     function draw() {
       const s = canvas.width;
       ctx.clearRect(0, 0, s, s);
@@ -1062,10 +1080,9 @@
           painter = PAINT[next] || null;
           state = {};
           media = /^media:/.test(next) ? mediaSource(next.slice(6), () => draw()) : null;
-          const res = media ? 640 : painter ? painter.res || 256 : 16;
-          if (canvas.width !== res) canvas.width = canvas.height = res;
+          fit();
         }
-        pal = palette(root);
+        pal = palette(root, thick());
         draw();
         if (animate) self.play();
         else self.pause();
@@ -1092,6 +1109,16 @@
       },
       fps(n) {
         fps = n > 0 ? n : 10;
+      },
+      // The screen's size in pixels (0 when unknown), which the canvas never exceeds.
+      screen(px) {
+        const c = px > 0 ? Math.round(px) : 0;
+        if (c === cap) return;
+        cap = c;
+        if (type == null) return;
+        pal = palette(root, thick());
+        fit();
+        draw();
       },
       look(l) {
         l = LOOKS[l] ? l : "plain";
