@@ -10,5 +10,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+      # Restores the compiled dependencies from the last run on main. Only main saves, so pull requests
+      # read that cache but don't fill the repository's 10 GB with their own.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo test
       - run: node tests/web.js
