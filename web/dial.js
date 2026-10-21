@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
-// Kraken Elite LCD dial (640×640, round). SVG over a canvas background (bg.js), no dependencies.
+// Kraken LCD dial (round; 640×640 on the Kraken Elite, smaller on other Krakens). SVG over a canvas
+// background (bg.js), no dependencies.
 // CAM renders web integrations without a GPU, so everything here keeps the CPU idle: scenes are
 // separate layers so fades are composited, and the DOM is only touched when a value really changes.
-//   const dial = KrakenDial.create(container, { layout, theme, bg, fps, units, look });
+//   const dial = KrakenDial.create(container, { layout, theme, bg, fps, units, look, screen });
 //   dial.update({ now, hw, limits, costs, interval, mode }); // call about once a second
-//   dial.configure({ layout, theme, bg, fps, units, look, mascot, cost, bars, lang, face }); // switch variant live
+//   dial.configure({ layout, theme, bg, fps, units, look, mascot, cost, bars, lang, face, screen }); // switch variant live
 //   dial.setActivity(gpuLoad);                               // 0..1, speeds the background up under load
 //   dial.camless(on);                                        // camless mode: camless plays the background
 (function () {
@@ -22,21 +23,22 @@
     items.map((it) => Object.defineProperty({ ...it }, "name", { get: () => t(`${prefix}.${it.id}`), enumerable: true }));
 
   // needsLimits: the layout is the hardware one while there are no limits to show. hwDesc: it
-  // reads differently without limits, so descHw says what it shows then.
+  // reads differently without limits, so descHw says what it shows then. dense: its text stays
+  // as small as it is drawn, too small to read on a small screen (see SIZES).
   const LAYOUTS = named("layout", [
     { id: "rotation", needsLimits: true },
     { id: "adaptive", needsLimits: true },
     { id: "cockpit", hwDesc: true },
     { id: "chronograph", hwDesc: true },
     { id: "columns" },
-    { id: "terminal" },
-    { id: "htop", hwDesc: true },
-    { id: "btop" },
+    { id: "terminal", dense: true },
+    { id: "htop", hwDesc: true, dense: true },
+    { id: "btop", dense: true },
     { id: "neofetch", mascot: true },
-    { id: "fastfetch", mascot: true },
+    { id: "fastfetch", mascot: true, dense: true },
     { id: "pfetch", mascot: true },
-    { id: "macchina", mascot: true },
-    { id: "cpufetch", mascot: true },
+    { id: "macchina", mascot: true, dense: true },
+    { id: "cpufetch", mascot: true, dense: true },
     { id: "clock", hwDesc: true },
     { id: "one" },
     { id: "limits", needsLimits: true },
@@ -79,6 +81,13 @@
   // What Claude and Codex cost, as the usage source counts it; the period is a setting.
   const COSTS = named("cost", [{ id: "last24h" }, { id: "today" }, { id: "last7d" }, { id: "month" }, { id: "off" }]).map((c) =>
     Object.defineProperty(c, "short", { get: () => t(`cost.${c.id}.short`), enumerable: true }));
+  // The cooler's screen, by how many pixels across it has: 640 on the Kraken Elite, 320 on the
+  // Kraken Z3, 240 on the Kraken 2023. Everything is drawn in 640×640 units and scaled to the
+  // screen, so on a smaller one the small print shrinks with it. Below 480 px it grows to a floor
+  // in dial.css, higher below 300 px, and the built-in layouts leave the least needed lines out
+  // to make room for it. Faces are drawn as they were made.
+  const SIZES = [{ id: "large", from: 480 }, { id: "mid", from: 300 }, { id: "small", from: 0 }];
+  const sizeOf = (px) => (Number(px) > 0 ? SIZES.find((s) => px >= s.from).id : "large");
 
   // ---------- helpers ----------
 
@@ -367,20 +376,22 @@
   }
 
   // When the limits were synced, with a pie filling until the next sync, then the cost.
-  function meta(p, y, x = C) {
-    const line = el(p, "text", { x: x + 10, y, "text-anchor": "middle", class: "t-meta" });
-    const pi = pie(p);
+  // `short` leaves the cadence out; `k` scales the pie, for the larger print of small screens.
+  function meta(p, y, x = C, { short = false, k = 1 } = {}) {
+    const line = el(p, "text", { x: x + 10 * k, y, "text-anchor": "middle", class: "t-meta" });
+    const pi = pie(p, 6.5 * k);
     let lastKey = null;
     return (d) => {
       const m = d.meta, c = d.cost;
       // with no usage source there is nothing to report, so the date stands in (in faces; the
       // layouts don't build this line then)
       const none = m.none && !c;
-      const key = none ? dateText(d.now, "date") : `${m.text}|${c ? c.value + c.dim : ""}`;
+      const text = short ? m.short : m.text;
+      const key = none ? dateText(d.now, "date") : `${text}|${c ? c.value + c.dim : ""}`;
       if (key !== lastKey) {
-        setSpans(line, none ? [["", key]] : c ? [["", `${m.short} · `], [c.dim ? "" : "t-cost", c.value], ["", ` ${c.short}`]] : [["", m.text]]);
+        setSpans(line, none ? [["", key]] : c ? [["", `${m.short} · `], [c.dim ? "" : "t-cost", c.value], ["", ` ${c.short}`]] : [["", text]]);
         line.classList.toggle("is-warn", !none && m.state === "error");
-        pi.move(x + 10 - line.getComputedTextLength() / 2 - 14, y - 5.5);
+        pi.move(x + 10 * k - line.getComputedTextLength() / 2 - 14 * k, y - 5.5 * k);
         pi.show(!none);
         lastKey = key;
       }
@@ -388,9 +399,11 @@
     };
   }
 
-  // The status line when there is a usage source to report on; the date when there isn't.
+  // The status line when there is a usage source to report on; the date when there isn't. The
+  // larger print of smaller screens has room for the short status only.
+  const metaOpts = (env) => (env.size === "large" ? {} : { short: true, k: env.size === "small" ? 1.6 : 1.2 });
   function footer(p, y, env) {
-    if (env.status) return meta(p, y);
+    if (env.status) return meta(p, y, C, metaOpts(env));
     const line = el(p, "text", { x: C, y, "text-anchor": "middle", class: "t-meta" });
     return (d) => setText(line, dateText(d.now, "date"));
   }
@@ -423,16 +436,17 @@
     };
   }
 
-  // The line under it is the load and power, or the model when the load is shown elsewhere.
+  // The line under it is the load and power, the model when the load is shown elsewhere, or
+  // nothing.
   function tempBlock(p, key, cx, y, size, under = "load") {
     el(p, "text", { x: cx, y: y - size * 0.86, "text-anchor": "middle", class: size > 80 ? "t-lbl" : "t-lbl-s" }, key.toUpperCase());
     const val = num(p, cx + size * 0.09, y, size);
-    const sub = el(p, "text", { x: cx, y: y + 34, "text-anchor": "middle", class: "t-sub" });
+    const sub = under ? el(p, "text", { x: cx, y: y + 34, "text-anchor": "middle", class: "t-sub" }) : null;
     return (d) => {
       const h = d.hw[key];
       setNum(val, int(h.temp), "°", size * 0.5, size);
       val.classList.toggle("is-warn", isHot(h, key));
-      setText(sub, under === "model" ? fit(model(h.name, ""), 18) : `${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
+      if (sub) setText(sub, under === "model" ? fit(model(h.name, ""), 18) : `${h.load == null ? "—" : Math.round(h.load * 100)}% · ${int(h.power)} W`);
     };
   }
 
@@ -489,8 +503,10 @@
     el(p, "line", { x1: C, x2: C, y1: 160, y2: 300, class: "rule" });
     up.push(statBlock(p, t("lbl.liquid"), 226, 444, 74, readLiquid));
     up.push(statBlock(p, t("lbl.power"), 414, 444, 74, readPower));
-    up.push(ramLine(p, 500));
-    up.push(footer(p, 552, env));
+    // the larger print of a small screen ends where the arcs do, so the last lines move up
+    const small = env.size === "small";
+    up.push(ramLine(p, small ? 480 : 500));
+    up.push(footer(p, small ? 516 : 552, env));
     return up;
   }
 
@@ -499,10 +515,14 @@
   // below name the chips instead of repeating the load.
   function sceneCockpit(p, layer, env) {
     const n = env.limits.length;
+    // The larger print of smaller screens has no room for the lines under the values, so
+    // everything under the top row moves up into theirs, and the limits go by their shortest names.
+    const small = env.size !== "large";
+    const Y = small ? { rule: 270, temp: 380, stat: 466, statSize: 42, foot: 512 } : { rule: 292, temp: 398, stat: 500, statSize: 38, foot: 554 };
     const up = [clock(p, 90), tempArcs(p)];
     // [label, bar's fill 0..100, value, unit, line under it, the limit's view]
     const cols = n
-      ? env.limits.map((def) => [def.short, (d) => d.views[def.key]])
+      ? env.limits.map((def) => [small ? def.tiny : def.short, (d) => d.views[def.key]])
       : [
           ["CPU", (d) => d.hw.cpu.load, (d) => `${int(d.hw.cpu.power)} W`],
           ["GPU", (d) => d.hw.gpu.load, (d) => `${int(d.hw.gpu.power)} W`],
@@ -517,29 +537,30 @@
       el(p, "text", { x, y: 158, "text-anchor": "middle", class: "t-lbl-xs" }, label);
       const val = num(p, x + 6, 216, 60);
       const bar = barGauge(p, x - half, x + half, 238, 6);
-      const sub = el(p, "text", { x, y: 266, "text-anchor": "middle", class: "t-sub-s" });
+      const sub = small ? null : el(p, "text", { x, y: 266, "text-anchor": "middle", class: "t-sub-s" });
       up.push((d) => {
         if (n) {
           const v = read(d);
           limitGauge(bar, v);
           setNum(val, v.value, "%", 26, 60);
           val.classList.toggle("is-dim", v.dim);
-          setParts(sub, v.sub);
+          if (sub) setParts(sub, v.sub);
           return;
         }
         const f = read(d);
         bar.set(f == null ? 0 : clamp(f, 0, 1) * 100, null, null);
         setNum(val, f == null ? "—" : `${Math.round(f * 100)}`, "%", 26, 60);
-        setText(sub, under(d));
+        if (sub) setText(sub, under(d));
       });
     });
-    el(p, "line", { x1: 170, x2: 470, y1: 292, y2: 292, class: "rule" });
-    up.push(tempBlock(p, "cpu", 226, 398, 92, n ? "load" : "model"));
-    up.push(tempBlock(p, "gpu", 414, 398, 92, n ? "load" : "model"));
+    el(p, "line", { x1: 170, x2: 470, y1: Y.rule, y2: Y.rule, class: "rule" });
+    const under = small ? null : n ? "load" : "model";
+    up.push(tempBlock(p, "cpu", 226, Y.temp, 92, under));
+    up.push(tempBlock(p, "gpu", 414, Y.temp, 92, under));
     // the RAM is in the top row when there are no limits
     const stats = [[t("lbl.liquid"), readLiquid], [t("lbl.power"), readPower], ...(n ? [[t("lbl.ram"), readRam]] : [])];
-    stats.forEach(([label, read], i) => up.push(statBlock(p, label, spread(stats.length, i, C, 120 + 20 * (3 - stats.length)), 500, 38, read, "t-lbl-xs")));
-    up.push(footer(p, 554, env));
+    stats.forEach(([label, read], i) => up.push(statBlock(p, label, spread(stats.length, i, C, 120 + 20 * (3 - stats.length)), Y.stat, Y.statSize, read, "t-lbl-xs")));
+    up.push(footer(p, Y.foot, env));
     return up;
   }
 
@@ -553,21 +574,25 @@
       const [x1, y1] = polar(290, i * 30);
       el(p, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "hour" });
     }
+    // The larger print of smaller screens: the limits go by their shortest names, and on the
+    // smallest the subdials lose the line under them, and the window and the line under it hold less.
+    const small = env.size === "small";
     const dials = [
-      ...env.limits.map((def) => ({ id: def.key, label: def.short, limit: def.key })),
+      ...env.limits.map((def) => ({ id: def.key, label: env.size === "large" ? def.short : def.tiny, limit: def.key })),
       { id: "cpu", label: "CPU", temp: "cpu" },
       { id: "gpu", label: "GPU", temp: "gpu" },
       { id: "liquid", label: t("lbl.liquid") },
     ].slice(0, 3);
     dials.forEach((it, i) => {
-      const [cx, cy] = [[182, 322], [458, 322], [320, 452]][i];
+      // on a small screen the third subdial moves up, for the status line under it
+      const [cx, cy] = [[182, 322], [458, 322], [320, small ? 440 : 452]][i];
       el(p, "circle", { cx, cy, r: 82, class: "face" });
       ticks(p, 72, 79, -135, 135, 10, cx, cy, 1.4);
       const g = arcGauge(p, 60, -135, 135, 8, cx, cy);
       if (it.temp) g.notch.classList.add("is-peak");
       el(p, "text", { x: cx, y: cy - 14, "text-anchor": "middle", class: "t-lbl-xxs" }, it.label);
       const val = num(p, cx + 6, cy + 28, 42);
-      const sub = el(p, "text", { x: cx, y: cy + 64, "text-anchor": "middle", class: "t-sub-xs" });
+      const sub = small ? null : el(p, "text", { x: cx, y: cy + 64, "text-anchor": "middle", class: "t-sub-xs" });
       up.push((d) => {
         if (it.limit) {
           const v = d.views[it.limit];
@@ -575,13 +600,13 @@
           setNum(val, v.value, "%", 20, 42);
           val.classList.toggle("is-dim", v.dim);
           val.classList.toggle("is-warn", !!v.hot);
-          setParts(sub, v.sub);
+          if (sub) setParts(sub, v.sub);
         } else if (it.temp) {
           const h = d.hw[it.temp];
           tempGauge(g, h, it.temp);
           setNum(val, int(h.temp), "°", 21, 42);
           val.classList.toggle("is-warn", isHot(h, it.temp));
-          setText(sub, `${int(h.power)} W`);
+          if (sub) setText(sub, `${int(h.power)} W`);
         } else {
           g.set(scale(d.hw.liquid, 20, 50), null, null);
           setNum(val, dec(d.hw.liquid), "°", 21, 42);
@@ -591,21 +616,22 @@
     const used = dials.map((it) => it.id);
     const win = [["cpu", "CPU", readTemp("cpu")], ["gpu", "GPU", readTemp("gpu")], ["liquid", t("lbl.liquid"), readLiquid], ["power", t("lbl.power"), readPower], ["ram", t("lbl.ram"), readRam]]
       .filter(([id]) => !used.includes(id))
-      .slice(0, 3);
+      .slice(0, small ? 2 : 3);
     // "21.4 GB" is the widest, so the window grows a little around it
     const ww = win.some(([id]) => id === "ram") ? 268 : 244;
     el(p, "rect", { x: C - ww / 2, y: 128, width: ww, height: 78, rx: 18, class: "window" });
-    win.forEach(([, label, read], i) => up.push(statBlock(p, label, spread(win.length, i, C, win.length === 3 ? (ww > 244 ? 84 : 78) : 100) + 3, 192, 32, read, "t-lbl-xxs")));
+    const step = win.length === 3 ? (ww > 244 ? 84 : 78) : small ? 112 : 100;
+    win.forEach(([, label, read], i) => up.push(statBlock(p, label, spread(win.length, i, C, step) + 3, 192, 32, read, "t-lbl-xxs")));
     const shown = used.concat(win.map(([id]) => id));
     const extras = [
       ["power", (d) => `${int(power(d.hw))} W`],
       ["ram", (d) => `RAM ${ramGb(ram(d.hw))} GB`],
       ["cpu.load", (d) => `CPU ${loadText(d.hw.cpu)}`],
       ["gpu.load", (d) => `GPU ${loadText(d.hw.gpu)}`],
-    ].filter(([id]) => !shown.includes(id)).slice(0, 2);
-    const extra = el(p, "text", { x: C, y: 232, "text-anchor": "middle", class: "t-sub-s" });
+    ].filter(([id]) => !shown.includes(id)).slice(0, small ? 1 : 2);
+    const extra = el(p, "text", { x: C, y: small ? 240 : 232, "text-anchor": "middle", class: "t-sub-s" });
     up.push((d) => setText(extra, extras.map(([, f]) => f(d)).join(" · ")));
-    up.push(footer(p, 566, env));
+    up.push(footer(p, small ? 552 : 566, env));
     // hands last, so they pass over everything
     const hand = (len, tail, cls) => {
       const g = el(p, "g", { class: cls });
@@ -632,6 +658,9 @@
   // are none; then CPU, GPU, liquid and power.
   function sceneColumns(p, layer, env) {
     const up = [clock(p, 96)];
+    // The larger labels of smaller screens need wider gaps, which leave room for one column less:
+    // the power. The numbers grow a little too.
+    const small = env.size !== "large", vs = small ? 32 / 28 : 1;
     const pct = (f) => [f == null ? "—" : `${Math.round(f * 100)}`, "%", 13];
     const left = env.limits.length
       ? env.limits.map((def) => ({ label: def.tiny, limit: def.key, claude: def.key.startsWith("claude") }))
@@ -645,38 +674,39 @@
       { label: "CPU", temp: "cpu" },
       { label: "GPU", temp: "gpu" },
       { label: t("lbl.liquid"), read: (d) => [int(d.hw.liquid), "°", 14], f: (d) => scale(d.hw.liquid, 20, 50) },
-      { label: t("lbl.power"), read: (d) => [int(power(d.hw)), "W", 12], f: (d) => scale(power(d.hw), 0, 600) },
+      ...(small ? [] : [{ label: t("lbl.power"), read: (d) => [int(power(d.hw)), "W", 12], f: (d) => scale(power(d.hw), 0, 600) }]),
     ];
-    // 58 apart, the two groups further apart, all of it centred
-    const k = left.length;
-    const X = cols.map((_, i) => C + (i - (cols.length - 1) / 2) * 58 + (i < k ? -14 : 14));
+    // 58 apart (80 on a small screen), the two groups further apart, all of it centred
+    const k = left.length, gap = small ? 80 : 58;
+    const X = cols.map((_, i) => C + (i - (cols.length - 1) / 2) * gap + (i < k ? -14 : 14));
     const top = 238, bottom = 436;
     const lx = (X[0] + X[k - 1]) / 2;
     if (env.limits.length) up.push(unitHead(p, lx, 150));
     else el(p, "text", { x: lx, y: 150, "text-anchor": "middle", class: "t-head" }, t("lbl.load"));
-    el(p, "text", { x: (X[k + 1] + X[k + 2]) / 2, y: 150, "text-anchor": "middle", class: "t-head" }, t("lbl.hardware"));
+    el(p, "text", { x: (X[k] + X[X.length - 1]) / 2, y: 150, "text-anchor": "middle", class: "t-head" }, t("lbl.hardware"));
     cols.forEach((col, i) => {
       const x = X[i];
       const bar = columnGauge(p, x, bottom, top, 30);
       if (col.temp) bar.notch.classList.add("is-peak");
-      const val = num(p, x + 3, 214, 28);
+      const vn = 28 * vs;
+      const val = num(p, x + 3, 214, vn);
       el(p, "text", { x, y: 466, "text-anchor": "middle", class: "t-lbl-xxs" }, col.label);
       up.push((d) => {
         if (col.limit) {
           const v = d.views[col.limit];
           limitGauge(bar, v);
-          setNum(val, v.value, "%", 13, 28);
+          setNum(val, v.value, "%", 13 * vs, vn);
           val.classList.toggle("is-dim", v.dim);
           val.classList.toggle("is-warn", !!v.hot);
         } else if (col.temp) {
           const h = d.hw[col.temp];
           tempGauge(bar, h, col.temp);
-          setNum(val, int(h.temp), "°", 14, 28);
+          setNum(val, int(h.temp), "°", 14 * vs, vn);
           val.classList.toggle("is-warn", isHot(h, col.temp));
         } else {
           const [n, u, us] = col.read(d);
           bar.set(col.f(d), null, null);
-          setNum(val, n, u, us, 28);
+          setNum(val, n, u, us * vs, vn);
         }
       });
     });
@@ -1262,7 +1292,9 @@
   const limitClass = (v) => (v.dim ? "tm-d" : v.hot ? "tm-w" : "");
   const memFrac = (r) => (r.used != null && r.total ? r.used / r.total : null);
   const memText = (r) => `${r.used == null ? "—" : dec(r.used / 1024)}/${r.total == null ? "—" : Math.round(r.total / 1024)}G`;
-  const noteSpans = (d) => [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]];
+  // The status line under or over the fetch output; a small screen has the larger, short one.
+  const noteSpans = (d, short = false) => [[d.meta.state === "error" ? "tm-w" : "tm-d", short ? d.meta.short : d.meta.text]];
+  const noteSize = (env, size) => (env.size === "small" ? 24 : size);
   // "AMD Ryzen 7 5800X3D 8-Core Processor" → "Ryzen 7 5800X3D", "NVIDIA GeForce RTX 4070 SUPER" → "RTX 4070 SUPER"
   const model = (name, fallback) =>
     (name || "")
@@ -1276,7 +1308,7 @@
   // block stays centred above the mascot.
   function sceneNeofetch(p, layer, env) {
     const S = 26, x = 136, n = env.limits.length;
-    const note = env.status ? term(p, C, 80, 15, "middle") : null;
+    const note = env.status ? term(p, C, 80, noteSize(env, 15), "middle") : null;
     // six lines of hardware, the limits after a gap, then the cost
     const at = [0, 31, 62, 93, 124, 155, ...env.limits.map((_, i) => 192 + i * 31), ...(env.cost ? [n ? 192 + n * 31 : 186] : [])];
     const y0 = Math.round(283 - (at[at.length - 1] - 58) / 2);
@@ -1305,7 +1337,7 @@
           gauges[i](v);
         });
         if (cost) setSpans(cost, [["tm-p", "Cost: "], ...costSpans(d.cost)]);
-        if (note) setSpans(note, [[d.meta.state === "error" ? "tm-w" : "tm-d", d.meta.text]]);
+        if (note) setSpans(note, noteSpans(d, env.size === "small"));
       },
     ];
   }
@@ -1400,7 +1432,7 @@
     const L = Y.map((y) => term(p, x, y, S));
     const bars = Y.slice(0, 3).map((y) => fracBar(p, x, y, S, 12, n, "■"));
     const gauges = env.limits.map((_, i) => limitBar(p, x, Y[5 + i], S, 12, n, "■"));
-    const note = env.status ? term(p, C, Y[rows - 1] + 42, 15, "middle") : null;
+    const note = env.status ? term(p, C, Y[rows - 1] + 42, noteSize(env, 15), "middle") : null;
     const key = (k) => ["tm-p", k.padEnd(7)];
     return [
       (d) => {
@@ -1423,7 +1455,7 @@
         });
         if (env.cost) setSpans(L[rows - 1], [key("cost"), ...costSpans(d.cost)]);
         setSpans(clock, [["tm-t", hhmmss(d.now)]]);
-        if (note) setSpans(note, noteSpans(d));
+        if (note) setSpans(note, noteSpans(d, env.size === "small"));
       },
     ];
   }
@@ -1515,16 +1547,19 @@
   // With no limits the time moves up into their room.
   function sceneClock(p, layer, env) {
     const n = env.limits.length, dy = n ? 0 : -40;
+    // The larger print of smaller screens: the limits go by their shortest names, a little further
+    // apart, and on the smallest three readings are left under the time instead of four.
+    const compact = env.size !== "large", small = env.size === "small";
     const up = n ? [unitHead(p, C, 102)] : [];
     env.limits.forEach((def, i) => {
-      const x = spread(n, i, C, 104);
-      el(p, "text", { x, y: 130, "text-anchor": "middle", class: "t-lbl-xs" }, def.short);
-      const val = num(p, x + 5, 170, 36);
-      const bar = barGauge(p, x - 34, x + 34, 188, 4);
+      const x = spread(n, i, C, compact ? 124 : 104), vn = compact ? 42 : 36, half = compact ? 40 : 34;
+      el(p, "text", { x, y: 130, "text-anchor": "middle", class: "t-lbl-xs" }, compact ? def.tiny : def.short);
+      const val = num(p, x + 5, compact ? 174 : 170, vn);
+      const bar = barGauge(p, x - half, x + half, compact ? 194 : 188, compact ? 6 : 4);
       up.push((d) => {
         const v = d.views[def.key];
         limitGauge(bar, v);
-        setNum(val, v.value, "%", 16, 36);
+        setNum(val, v.value, "%", (16 * vn) / 36, vn);
         val.classList.toggle("is-dim", v.dim);
         val.classList.toggle("is-warn", !!v.hot);
       });
@@ -1538,12 +1573,10 @@
       setText(date, dateText(d.now, "date"));
       setAttr(sec, "transform", `rotate(${t.getSeconds() * 6} ${C} ${C})`);
     });
-    up.push(statBlock(p, "CPU", 194, 492 + dy, 30, readTemp("cpu"), "t-lbl-xs"));
-    up.push(statBlock(p, "GPU", 278, 492 + dy, 30, readTemp("gpu"), "t-lbl-xs"));
-    up.push(statBlock(p, t("lbl.liquid"), 362, 492 + dy, 30, readLiquid, "t-lbl-xs"));
-    up.push(statBlock(p, t("lbl.power"), 446, 492 + dy, 30, readPower, "t-lbl-xs"));
+    const stats = [["CPU", readTemp("cpu")], ["GPU", readTemp("gpu")], [t("lbl.liquid"), readLiquid], ...(small ? [] : [[t("lbl.power"), readPower]])];
+    stats.forEach(([label, read], i) => up.push(statBlock(p, label, spread(stats.length, i, C, small ? 124 : 84), (small ? 498 : 492) + dy, small ? 38 : 30, read, "t-lbl-xs")));
     // the date is already under the time, so without a source there is no footer
-    if (env.status) up.push(meta(p, 550));
+    if (env.status) up.push(meta(p, 550, C, metaOpts(env)));
     return up;
   }
 
@@ -1601,7 +1634,9 @@
       });
       return g;
     });
-    const dots = items.map((_, i) => el(p, "circle", { cx: C + (i - (items.length - 1) / 2) * 20, cy: 490, r: 4.5, class: "dot" }));
+    // a small screen's dots would be specks
+    const [dr, dg] = env.size === "small" ? [7.5, 30] : [4.5, 20];
+    const dots = items.map((_, i) => el(p, "circle", { cx: C + (i - (items.length - 1) / 2) * dg, cy: 490, r: dr, class: "dot" }));
     up.push((d) => {
       const active = Math.floor(d.now / CAROUSEL_MS) % items.length;
       groups.forEach((g, i) => g.classList.toggle("is-off", i !== active));
@@ -1656,30 +1691,34 @@
     canvas.className = "kd-bg";
     root.appendChild(canvas);
     const rim = el(root, "svg", { viewBox: "0 0 640 640" });
+    const rimTicks = [];
     for (let i = 0; i < 60; i++) {
       const major = i % 5 === 0;
       const [x0, y0] = polar(major ? 302 : 307, i * 6);
       const [x1, y1] = polar(313, i * 6);
-      el(rim, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "tick", "stroke-width": major ? 2.2 : 1.1 });
+      rimTicks.push(el(rim, "line", { x1: x0, y1: y0, x2: x1, y2: y1, class: "tick", "stroke-width": major ? 2.2 : 1.1 }));
     }
     container.replaceChildren(root);
     const back = window.KrakenBg.backdrop(canvas, root);
     const animate = cfg.animate !== false;
 
     let layout = null, theme = null, bgType = null, left = true, mascot = null, cost = null, bars = "load";
-    let face = null, faceKey = null, builtLang = null;
+    let face = null, faceKey = null, builtLang = null, size = null;
     // the limits switched on, and what of them and of the cost there is to show; see update()
     let on = limitIds(), shown = { limits: [], cost: false }, shownKey = "";
     let scenes = {}, updaters = [];
     // Every scene is its own <svg>, so switching between them is a composited fade, not a repaint.
-    const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: "scene" });
+    // The built-in layouts' layers carry the screen's size, for the floor under their small print.
+    let layerClass = "scene";
+    const layer = () => el(root, "svg", { viewBox: "0 0 640 640", class: layerClass });
 
     function buildLayout() {
       for (const n of root.querySelectorAll("svg.scene")) n.remove();
       const both = layout === "rotation" || layout === "adaptive";
       // the layouts made of limits are the hardware alone while there are none to show
       const names = !shown.limits.length && LAYOUTS.find((x) => x.id === layout)?.needsLimits ? ["hardware"] : both ? ["limits", "hardware"] : [layout];
-      const env = { animate, mascot, face, limits: shown.limits, cost: shown.cost, status: shown.limits.length > 0 || shown.cost };
+      const env = { animate, mascot, face, size, limits: shown.limits, cost: shown.cost, status: shown.limits.length > 0 || shown.cost };
+      layerClass = layout === "face" || size === "large" ? "scene" : `scene is-${size}`;
       scenes = {};
       updaters = [];
       for (const name of names) {
@@ -1701,6 +1740,7 @@
       bars = next.bars === "temp" ? "temp" : "load";
       back.fps(next.fps);
       back.look(next.look);
+      back.screen(next.screen);
       const m = mascotById(next.mascot).id;
       const c = COSTS.some((x) => x.id === next.cost) ? next.cost : COSTS[0].id;
       on = limitIds(next.limits);
@@ -1719,8 +1759,11 @@
       // face; limits and the cost coming or going do too, in update()
       const fk = l === "face" ? JSON.stringify(next.face) : null;
       const withMascot = l === "face" || LAYOUTS.find((x) => x.id === l).mascot;
-      if (l !== layout || (m !== mascot && withMascot) || fk !== faceKey || builtLang !== I18N.lang) {
-        [layout, mascot, cost, faceKey, face] = [l, m, c, fk, l === "face" ? next.face : null];
+      // the rim's hairlines would all but vanish on a small screen
+      const sz = sizeOf(next.screen);
+      if (sz !== size) rimTicks.forEach((n, i) => n.setAttribute("stroke-width", (i % 5 ? 1.1 : 2.2) * (sz === "small" ? 2 : sz === "mid" ? 1.5 : 1)));
+      if (l !== layout || (m !== mascot && withMascot) || fk !== faceKey || builtLang !== I18N.lang || sz !== size) {
+        [layout, mascot, cost, faceKey, face, size] = [l, m, c, fk, l === "face" ? next.face : null, sz];
         buildLayout();
       }
       [mascot, cost] = [m, c];
@@ -1820,7 +1863,7 @@
   }
 
   // A bare background in a theme, for swatches: a still frame until play() is called.
-  function background(container, { theme, bg, look }) {
+  function background(container, { theme, bg, look, screen }) {
     const root = document.createElement("div");
     root.className = `kd th-${theme}`;
     const canvas = document.createElement("canvas");
@@ -1829,6 +1872,7 @@
     container.replaceChildren(root);
     const back = window.KrakenBg.backdrop(canvas, root);
     back.look(look);
+    back.screen(screen);
     back.set(bg, false);
     return back;
   }
@@ -1841,5 +1885,5 @@
     mascotById, money, loadText, memFrac, LIMITS, COSTS,
   };
 
-  window.KrakenDial = { create, background, mascotIcon, money, errText, shownLimits, limitIds, LAYOUTS, THEMES, BGS, MASCOTS, LIMITS, COSTS, LEGACY, isFace, emptyHw, kit };
+  window.KrakenDial = { create, background, mascotIcon, money, errText, shownLimits, limitIds, sizeOf, LAYOUTS, THEMES, BGS, MASCOTS, LIMITS, COSTS, LEGACY, isFace, emptyHw, kit };
 })();

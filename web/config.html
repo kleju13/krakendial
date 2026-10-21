@@ -96,11 +96,13 @@
       <div><span data-t="cfg.cooler"></span> <b id="s-lcd">…</b></div>
       <div><span data-t="cfg.usage"></span> <b id="s-usage">…</b></div>
       <div id="s-machines-row" hidden><span data-t="cfg.machines"></span> <b id="s-machines">…</b></div>
+      <div id="s-screen-row" hidden><span data-t="cfg.screen"></span> <b id="s-screen">…</b></div>
     </div>
     <div class="chips langs" id="langs"></div>
   </aside>
   <div>
-    <section><h2 data-t="cfg.layout"></h2><div class="grid layouts" id="layouts"></div></section>
+    <section><h2 data-t="cfg.layout"></h2><div class="grid layouts" id="layouts"></div>
+      <div class="hint" id="layout-hint" hidden></div></section>
     <section><h2 data-t="cfg.faces"></h2><div class="grid layouts faces" id="faces"></div>
       <div class="hint" data-t="cfg.facesHint"></div></section>
     <section><h2 data-t="cfg.mascot"></h2><div class="chips" id="mascots"></div>
@@ -154,8 +156,16 @@
     bars: "load", lang: "auto", usage: "", limits: ALL_LIMITS, tray: true, camless: false, ...(state.config || {}),
   });
   const byId = (id) => document.getElementById(id);
+  // The Kraken's screen, as the LCD page last reported it; screen=240 previews another size.
+  // Everything here is drawn for it.
+  const forcedScreen = Number(new URLSearchParams(location.search).get("screen")) || 0;
+  const screen = () => (forcedScreen ? { w: forcedScreen, h: forcedScreen } : (state.config && state.config.screen) || null);
+  const screenPx = () => {
+    const s = screen();
+    return s ? Math.min(s.w, s.h) : 0;
+  };
 
-  const preview = K.create(byId("preview"), cfg());
+  const preview = K.create(byId("preview"), { ...cfg(), screen: screenPx() });
 
   function option(parent, cls, html, onPick) {
     const b = document.createElement("button");
@@ -421,7 +431,8 @@
     const c = cfg();
     const now = Date.now();
     const face = faceOf(c.layout);
-    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}|${c.bars}|${c.lang}|${c.limits}|${face ? JSON.stringify(face) : ""}`;
+    const px = screenPx();
+    const key = `${c.layout}|${c.theme}|${c.bg}|${c.units}|${c.look}|${c.mascot}|${c.cost}|${c.bars}|${c.lang}|${c.limits}|${px}|${face ? JSON.stringify(face) : ""}`;
     const minis = key !== minisKey || now - minisAt > 5e3;
     if (minis) {
       minisKey = key;
@@ -430,9 +441,9 @@
     const live = state.hw && state.hw.at && now - state.hw.at < 15e3;
     const data = { now, hw: live ? state.hw : K.emptyHw(), limits: state.limits, costs: state.costs, interval: state.interval, mode: live ? state.hw.mode : "work" };
 
-    preview.configure({ ...c, face });
+    preview.configure({ ...c, face, screen: px });
     preview.update(data);
-    const same = { units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars, limits: c.limits };
+    const same = { units: c.units, mascot: c.mascot, cost: c.cost, bars: c.bars, limits: c.limits, screen: px };
     if (minis) {
       for (const o of opts.layout || []) {
         o.dial.configure({ layout: o.key, theme: c.theme, bg: "none", ...same });
@@ -452,10 +463,9 @@
     for (const o of bgOpts.concat(mediaOpts)) {
       o.b.setAttribute("aria-pressed", String(o.key === c.bg));
       const look = o.key.startsWith("media:") ? c.look : "plain";
-      if (o.theme !== c.theme || o.look !== look) {
-        o.back = K.background(o.el, { theme: c.theme, bg: o.key, look });
-        o.theme = c.theme;
-        o.look = look;
+      if (o.theme !== c.theme || o.look !== look || o.screen !== px) {
+        o.back = K.background(o.el, { theme: c.theme, bg: o.key, look, screen: px });
+        [o.theme, o.look, o.screen] = [c.theme, look, px];
       }
     }
     for (const [setting, list] of Object.entries(opts)) for (const o of list) o.b.setAttribute("aria-pressed", String(o.key === c[setting]));
@@ -469,6 +479,10 @@
       const desc = hwOnly ? o.l.descHw : o.l.desc, small = o.b.querySelector("small");
       if (small.textContent !== desc) small.textContent = desc;
     }
+    // a smaller screen than the Elite's: what changes, and which layouts suffer most
+    const layoutHint = byId("layout-hint");
+    layoutHint.hidden = K.sizeOf(px) === "large";
+    if (!layoutHint.hidden) layoutHint.textContent = t("cfg.layoutSmall", { px, names: K.LAYOUTS.filter((l) => l.dense).map((l) => l.name).join(", ") });
     for (const s of document.querySelectorAll("section.sourced")) s.hidden = !c.usage;
     if (document.activeElement !== usageInput && usageInput.value !== c.usage) usageInput.value = c.usage;
 
@@ -491,6 +505,9 @@
     const machines = byId("s-machines");
     machines.textContent = off.length ? t("cfg.machinesOffline", { names: off.map((m) => m.name).join(", ") }) : t("cfg.machinesOnline", { n: ms.length });
     machines.className = off.length ? "bad" : "";
+    const sc = screen();
+    byId("s-screen-row").hidden = !sc;
+    if (sc) byId("s-screen").textContent = t("cfg.screenSize", sc);
     renderUpdate();
   }
 

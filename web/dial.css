@@ -208,6 +208,22 @@
 .kd .dot { fill: var(--track); transition: fill 0.6s var(--ease); }
 .kd .dot.is-on { fill: var(--ink-2); }
 
+/* Smaller screens (see SIZES in dial.js). The built-in layouts are drawn in 640×640 units at any
+   size, so their small print grows to a floor: 17 units, 8.5 px, on a 320 px screen; 25 units,
+   about 9.5 px, on a 240 px one. Faces are drawn as they were made. */
+.kd .is-mid .t-meta, .kd .is-mid .t-head, .kd .is-mid .t-lbl-xs, .kd .is-mid .t-lbl-xxs,
+.kd .is-mid .t-sub-s, .kd .is-mid .t-sub-xs { font-size: 17px; }
+.kd .is-small .t-lbl, .kd .is-small .t-lbl-s, .kd .is-small .t-sub, .kd .is-small .t-meta, .kd .is-small .t-head,
+.kd .is-small .t-lbl-xs, .kd .is-small .t-lbl-xxs, .kd .is-small .t-sub-s, .kd .is-small .t-sub-xs, .kd .is-small .t-date { font-size: 25px; }
+.kd .is-small .t-clock { font-size: 36px; }
+.kd .is-small .t-lbl, .kd .is-small .t-lbl-s, .kd .is-small .t-lbl-xs { letter-spacing: 0.08em; }
+.kd .is-small .t-lbl-xxs { letter-spacing: 0.04em; }
+.kd .is-small .t-head { letter-spacing: 0.14em; }
+/* and the hairlines thicken, so they don't vanish */
+.kd .is-small .tick, .kd .is-small .rule, .kd .is-small .window { stroke-width: 3.5px; }
+.kd .is-small .notch path, .kd .is-small .pie-ring { stroke-width: 3.5px; }
+.kd .is-mid .notch path, .kd .is-mid .pie-ring { stroke-width: 2.5px; }
+
 /* ---------- gauges ---------- */
 
 .kd .g-track { stroke: var(--track); fill: none; }

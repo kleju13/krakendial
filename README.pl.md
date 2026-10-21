@@ -4,7 +4,7 @@
 
 [English](README.md)
 
-Otwartoźródłowa tarcza na LCD NZXT Kraken Elite (640×640), wyświetlana przez tryb Web Integration w NZXT CAM. Pokazuje:
+Otwartoźródłowa tarcza na LCD chłodzeń NZXT Kraken, wyświetlana przez tryb Web Integration w NZXT CAM albo przez [camless](https://github.com/kleju13/camless). Pokazuje:
 
 - temperatury CPU, GPU i cieczy, obciążenie i moc CPU i GPU, RAM i godzinę;
 - opcjonalnie limity Claude (5h, 7d) i Codexa (7d) z kreską tempa oraz ich koszt, ze źródła, które uruchamiasz u siebie;
@@ -24,9 +24,25 @@ Mała usługa w Ruście (`krakendial.exe`, bez okna, z ikoną w zasobniku, ok. 1
 - Ustawienia zmieniają tylko jej własne strony. Inne strony otwarte w przeglądarce nie mogą ich zmienić, a zapytania z inną nazwą hosta są odrzucane.
 - Łączy się tylko ze źródłem limitów, które sam wpiszesz, i z GitHubem raz przy każdym starcie, żeby sprawdzić, czy jest nowe wydanie. Żadnej telemetrii.
 
+## Ekrany
+
+Tarcza jest rysowana pod ekran, na którym jest, w rozmiarze, który podaje CAM albo camless:
+
+| Ekran | Krakeny |
+| --- | --- |
+| 640×640 | Kraken Elite 2023 i 2024 |
+| 320×320 | Kraken Z3 |
+| 240×240 | Kraken 2023 |
+
+Kraken Plus 2024 dostaje rozmiar, który sam podaje. Pod camlessem ekran Z3 pokazuje tylko własny wyświetlacz, więc KrakenDial trafia na niego tylko przez CAM.
+
+Poniżej 480 px drobny tekst rośnie, żeby dało się go przeczytać, a wbudowane układy pomijają kilka szczegółów, żeby zrobić mu miejsce, np. godziny resetu pod limitami. Im mniejszy ekran, tym więcej pomijają. Układy w stylu terminala mają najwięcej tekstu i najlepiej czyta się je na ekranie 640 px. Tarcze z edytora są rysowane tak, jak zostały zrobione. Ustawienia pokazują wszystko w rozmiarze ekranu chłodzenia, a edytor tarcz pokazuje tarczę także w rzeczywistym rozmiarze.
+
+Na razie KrakenDial działał tylko na Krakenie Elite 2024 z ekranem 640 px. Mniejsze ekrany były sprawdzane w przeglądarce rysującej w ich rozmiarze, nie na chłodzeniu.
+
 ## Instalacja
 
-Windows z NZXT CAM i Krakenem Elite. W PowerShellu:
+Windows z NZXT CAM (albo camlessem) i Krakenem z ekranem LCD. W PowerShellu:
 
 ```powershell
 irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
@@ -36,7 +52,7 @@ To pobiera najnowsze [wydanie](https://github.com/kleju13/krakendial/releases), 
 
 Z klonu repo z zainstalowanym [Rustem](https://rustup.rs) `.\scripts\install.ps1` buduje zamiast pobierać. `.\scripts\uninstall.ps1` zatrzymuje usługę i usuwa autostart oraz wpis w menu Start; `-Purge` kasuje też ustawienia, tarcze i media. [ffmpeg](https://ffmpeg.org) jest opcjonalny: zmniejsza własne filmy do 640×640.
 
-W NZXT CAM: **Lighting** → przy Krakenie **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`.
+W NZXT CAM: **Lighting** → przy Krakenie **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`. W camlessie: tryb web ekranu z tym samym URL-em (szczegóły w [jego README](https://github.com/kleju13/camless#readme)).
 
 ## Ikona w zasobniku
 
@@ -99,6 +115,8 @@ Każdy układ pokazuje te limity, które są włączone i które źródło wysy�
 - `http://127.0.0.1:30640/lcd?mock` to sama tarcza ze zmyślonymi odczytami sprzętu.
 
   Parametry `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `limits`, `fps` i `lang` wymuszają wariant, np. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. Tarcza z edytora to `layout=face:<id>`. `limits=claude5h,codex7d` wybiera limity, `limits=none` wyłącza wszystkie.
+
+  Bez CAM i camlessa tarcza jest rysowana pod ekran wielkości okna. `screen=240` rysuje ją pod ekran 240 px w oknie dowolnej wielkości. `/settings?screen=240` i `/editor?screen=240` pokazują podgląd w tym rozmiarze.
 - Exe uruchomione z `KRAKENDIAL_WEB=<repo>\web` serwuje pliki strony z dysku, bez przebudowy. Otwarte strony same się przeładowują po restarcie usługi.
 - `cargo test` testuje usługę. `node tests/web.js` buduje każdy układ, szablon i widżet w obu językach na sztucznym DOM-ie.
 - Logi, ustawienia, tarcze i media są w `%LOCALAPPDATA%\krakendial`.

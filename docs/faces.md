@@ -23,6 +23,8 @@ A face is a JSON file in `%LOCALAPPDATA%\krakendial\faces\<id>.json`. The editor
 
 The dial is 640×640 units, with (320, 320) in the middle. The visible part is the circle of radius 320 around it.
 
+The units are scaled to the screen: a unit is a pixel on a 640 px Kraken Elite, half a pixel on a 320 px Kraken Z3 and 0.375 of one on a 240 px Kraken 2023. A face is drawn the same on all of them, so text sized 22 is about 8 px tall on a 240 px screen, too small to read. For the smaller screens, keep text at 30 or more and values at 100 or more, or start from the *Big print* template. The editor shows the face at the screen's real size next to the properties.
+
 Every widget has `type`, `id` (1–16 characters of `a-z0-9`), `x` and `y` (−320 to 960). `x` and `y` are the widget's anchor: the centre of gauges, bars, graphs, shapes and pictures, and the baseline of a value or of the first line of text. Optional fields:
 
 - `hidden: true` keeps a widget in the file but doesn't draw it.
