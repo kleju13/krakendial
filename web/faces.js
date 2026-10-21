@@ -717,11 +717,12 @@
       },
       resize: scaled("r", "length"),
       build(g, w) {
-        // a full turn would put the last tick on the first
+        // count is the number of ticks, as with lamps and numerals; K.ticks takes the gaps
+        // between them. A full turn would put the last tick on the first, so it stops a gap short.
         const full = Math.abs(w.end - w.start) >= 360;
         const n = Math.round(w.count);
-        const end = full ? w.start + ((w.end - w.start) * (n - 1)) / n : w.end;
-        K.ticks(g, w.r - w.length, w.r, w.start, end, full ? n - 1 : n, w.x, w.y, w.width);
+        const end = n === 1 ? w.start : full ? w.start + ((w.end - w.start) * (n - 1)) / n : w.end;
+        K.ticks(g, w.r - w.length, w.r, w.start, end, Math.max(1, n - 1), w.x, w.y, w.width);
         if (colorOf(w.color)) for (const l of g.children || []) l.style && (l.style.stroke = colorOf(w.color));
         return null;
       },

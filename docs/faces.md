@@ -31,7 +31,7 @@ The faces in the **Gallery** use the same format. They come with KrakenDial, fro
 
 A gallery face is picked as the layout `gallery:<id>`. Its file has one more field, `group`, which places it in the gallery: `clock`, `gauge`, `retro`, `minimal` or `ai`. The `ai` group is for faces that show limits or costs; the settings and the editor only offer it once a usage source is set. Faces in the other groups must not use the usage source. `node tests/web.js` checks that, and that every widget and value in each file comes through the checks below unchanged.
 
-See [CONTRIBUTING.md](../CONTRIBUTING.md#adding-a-gallery-face) for adding one.
+See [CONTRIBUTING.md](../CONTRIBUTING.md#a-gallery-face) for adding one.
 
 ## Coordinates
 
