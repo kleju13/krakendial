@@ -645,7 +645,7 @@
   // ---------- the look: theme and background ----------
 
   const LOOKS = [["plain", "cfg.lookPlain"], ["raw", "cfg.lookRaw"], ["ascii", "cfg.lookAscii"]];
-  let lookKey = "", lookOpts = [], uploading = null, pendingMedia = null, uploadError = "";
+  let lookKey = "", lookOpts = [], uploading = null, pendingMedia = null, pendingFace = null, uploadError = "";
   // Sets the face's own theme, background or look; null hands it back to the settings.
   function setLook(patch) {
     change((f) => {
@@ -760,6 +760,7 @@
       const r = await fetch(`/api/media?name=${encodeURIComponent(name)}`, { method: "POST", body: f });
       if (!r.ok) throw new Error(await r.text());
       pendingMedia = (await r.json()).name;
+      pendingFace = face;
     } catch (e) {
       uploadError = t("cfg.addFailed", { name, msg: e.message });
     }
@@ -771,11 +772,13 @@
       const r = await fetch("/api/media", { cache: "no-store" });
       if (r.ok) media = await r.json();
     } catch (_) {}
-    // a converted upload shows up under its final name once ffmpeg is done; then it goes on
+    // a converted upload shows up under its final name once ffmpeg is done; then it goes on the
+    // face it was added to, if that one is still open
     if (pendingMedia && media.some((m) => m.name === pendingMedia)) {
       const id = `media:${pendingMedia}`;
-      pendingMedia = null;
-      if (face) setLook({ bg: id, look: face.look || cfg().look });
+      const same = face && pendingFace && (face === pendingFace || (face.id && face.id === pendingFace.id));
+      pendingMedia = pendingFace = null;
+      if (same) setLook({ bg: id, look: face.look || cfg().look });
     }
     renderLook();
   }
