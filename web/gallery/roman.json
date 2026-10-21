@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "roman",
+  "name": "Roman",
+  "group": "clock",
+  "theme": "paper",
+  "bg": "none",
+  "widgets": [
+    { "type": "shape", "kind": "ring", "w": 572, "stroke": 1.5, "color": "ink2" },
+    { "type": "shape", "kind": "ring", "w": 532, "stroke": 1, "color": "ink3" },
+    { "type": "ticks", "r": 285, "length": 19, "count": 60, "width": 1, "color": "ink3" },
+    { "type": "ticks", "r": 285, "length": 19, "count": 12, "width": 2.5, "color": "ink" },
+    { "type": "numerals", "kind": "roman", "r": 228, "size": 42, "font": "serif", "upright": false, "color": "ink" },
+    { "type": "arctext", "text": "{date}", "r": 128, "angle": 180, "size": 15, "font": "serif", "spacing": 0.12, "bold": false, "flip": true, "color": "ink2" },
+    { "type": "hands", "size": 236, "style": "thin", "color": "ink", "second": "warn" }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "id": "orbit",
+  "name": "Orbit",
+  "group": "clock",
+  "theme": "deep",
+  "bg": "nebula",
+  "widgets": [
+    { "type": "dots", "source": "time.seconds", "count": 60, "r": 284, "start": 0, "end": 360, "size": 4.5, "color": "accent2" },
+    { "type": "value", "source": "time", "y": 362, "size": 150, "font": "light", "showLabel": false, "sub": false },
+    { "type": "text", "text": "{date}", "y": 424, "size": 22, "color": "ink2" },
+    { "type": "text", "text": "CPU {cpu.temp}   GPU {gpu.temp}", "y": 486, "size": 18, "spacing": 0.06, "color": "ink3" }
+  ]
+}

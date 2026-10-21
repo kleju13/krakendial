@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "thermo",
+  "name": "Thermometers",
+  "group": "gauge",
+  "theme": "frost",
+  "bg": "bubbles",
+  "widgets": [
+    { "type": "value", "source": "cpu.temp", "x": 200, "y": 160, "size": 42, "sub": false },
+    { "type": "value", "source": "gpu.temp", "x": 320, "y": 160, "size": 42, "sub": false },
+    { "type": "value", "source": "liquid", "x": 440, "y": 160, "size": 42, "sub": false },
+    { "type": "bar", "source": "cpu.temp", "x": 200, "y": 340, "length": 290, "width": 28, "vertical": true, "rounded": true },
+    { "type": "bar", "source": "gpu.temp", "x": 320, "y": 340, "length": 290, "width": 28, "vertical": true, "rounded": true },
+    { "type": "bar", "source": "liquid", "x": 440, "y": 340, "length": 290, "width": 28, "vertical": true, "rounded": true, "color": "accent2" },
+    { "type": "text", "text": "{time}", "y": 548, "size": 24, "color": "ink2" }
+  ]
+}

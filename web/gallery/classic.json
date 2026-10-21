@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": "classic",
+  "name": "Classic",
+  "group": "clock",
+  "theme": "porcelain",
+  "bg": "none",
+  "widgets": [
+    { "type": "ticks", "r": 296, "length": 10, "count": 60, "width": 1.5, "color": "ink3" },
+    { "type": "ticks", "r": 296, "length": 26, "count": 12, "width": 5, "color": "ink" },
+    { "type": "numerals", "r": 238, "size": 40, "font": "serif", "color": "ink" },
+    { "type": "arctext", "text": "KRAKENDIAL", "r": 162, "size": 15, "spacing": 0.35, "color": "ink2" },
+    { "type": "text", "text": "{cpu.temp}", "x": 250, "y": 456, "size": 24, "font": "serif", "color": "ink" },
+    { "type": "text", "text": "CPU", "x": 250, "y": 478, "size": 11, "spacing": 0.25, "color": "ink3" },
+    { "type": "text", "text": "{gpu.temp}", "x": 390, "y": 456, "size": 24, "font": "serif", "color": "ink" },
+    { "type": "text", "text": "GPU", "x": 390, "y": 478, "size": 11, "spacing": 0.25, "color": "ink3" },
+    { "type": "hands", "size": 232, "style": "classic", "color": "ink", "second": "warn" }
+  ]
+}

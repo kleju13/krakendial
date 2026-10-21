@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "id": "big-print",
+  "name": "Big print",
+  "group": "minimal",
+  "widgets": [
+    { "type": "text", "text": "{time}", "y": 118, "size": 44, "color": "ink2" },
+    { "type": "text", "text": "CPU", "y": 176, "size": 30, "spacing": 0.2, "color": "ink2" },
+    { "type": "value", "source": "cpu.temp", "y": 300, "size": 140, "showLabel": false, "sub": false },
+    { "type": "text", "text": "GPU", "y": 384, "size": 30, "spacing": 0.2, "color": "ink2" },
+    { "type": "value", "source": "gpu.temp", "y": 508, "size": 140, "showLabel": false, "sub": false }
+  ]
+}

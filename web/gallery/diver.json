@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "diver",
+  "name": "Diver",
+  "group": "clock",
+  "theme": "ocean",
+  "bg": "ripples",
+  "widgets": [
+    { "type": "shape", "kind": "ring", "w": 604, "stroke": 34, "color": "track" },
+    { "type": "numerals", "kind": "scale", "r": 302, "size": 21, "from": 0, "to": 50, "count": 6, "start": 0, "end": 300, "upright": false, "bold": true, "color": "ink" },
+    { "type": "ticks", "r": 302, "length": 10, "count": 60, "width": 2, "color": "ink2", "start": 0, "end": 360 },
+    { "type": "ticks", "r": 268, "length": 12, "count": 60, "width": 1.5, "color": "ink3" },
+    { "type": "ticks", "r": 268, "length": 36, "count": 12, "width": 11, "color": "ink" },
+    { "type": "value", "source": "liquid", "y": 446, "size": 34, "sub": false },
+    { "type": "hands", "size": 226, "style": "sport", "color": "ink", "second": "warn" }
+  ]
+}

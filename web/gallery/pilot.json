@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "pilot",
+  "name": "Pilot",
+  "group": "clock",
+  "theme": "mono",
+  "bg": "none",
+  "widgets": [
+    { "type": "ticks", "r": 302, "length": 14, "count": 60, "width": 2, "color": "ink2" },
+    { "type": "numerals", "r": 246, "size": 54, "bold": true, "color": "ink" },
+    { "type": "text", "text": "KRAKENDIAL", "y": 214, "size": 14, "bold": true, "spacing": 0.35, "color": "ink2" },
+    { "type": "text", "text": "{gpu.temp}", "y": 448, "size": 22, "color": "ink2" },
+    { "type": "hands", "size": 222, "style": "sport", "color": "ink", "second": "ink2" }
+  ]
+}

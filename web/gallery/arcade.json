@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "arcade",
+  "name": "Arcade",
+  "group": "retro",
+  "theme": "synthwave",
+  "bg": "grid",
+  "widgets": [
+    { "type": "arctext", "text": "HIGH SCORE", "r": 236, "size": 22, "font": "mono", "spacing": 0.3, "color": "accent2" },
+    { "type": "segment", "source": "gpu.temp", "y": 300, "size": 124, "color": "accent2" },
+    { "type": "text", "text": "1UP  CPU {cpu.temp}  LOAD {gpu.load}", "y": 362, "size": 19, "font": "mono", "color": "accent" },
+    { "type": "mascot", "y": 498, "px": 8, "walk": 300 },
+    { "type": "text", "text": "{time}", "y": 560, "size": 20, "font": "mono", "color": "ink3" }
+  ]
+}

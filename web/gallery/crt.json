@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "id": "crt",
+  "name": "CRT",
+  "group": "retro",
+  "theme": "phosphor",
+  "bg": "none",
+  "widgets": [
+    { "type": "text", "text": "KRAKEN OS 1.0 READY", "x": 128, "y": 172, "size": 20, "font": "mono", "align": "start", "color": "ink2" },
+    { "type": "text", "text": "CPU {cpu.temp}\nGPU {gpu.temp}\nRAM {ram}\nH2O {liquid}", "x": 128, "y": 232, "size": 26, "font": "mono", "align": "start", "color": "ink" },
+    { "type": "cells", "source": "cpu.load", "x": 322, "y": 232, "size": 26, "cells": 8, "glyph": "block" },
+    { "type": "cells", "source": "gpu.load", "x": 322, "y": 263.2, "size": 26, "cells": 8, "glyph": "block" },
+    { "type": "cells", "source": "ram.pct", "x": 322, "y": 294.4, "size": 26, "cells": 8, "glyph": "block" },
+    { "type": "graph", "source": "cpu.temp", "y": 420, "w": 380, "h": 70, "style": "braille", "minutes": 4 },
+    { "type": "text", "text": "> _", "x": 128, "y": 518, "size": 26, "font": "mono", "align": "start", "color": "accent" },
+    { "type": "text", "text": "{time.seconds}", "x": 512, "y": 518, "size": 20, "font": "mono", "align": "end", "color": "ink3" }
+  ]
+}

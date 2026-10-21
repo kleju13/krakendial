@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "ai-desk",
+  "name": "AI desk",
+  "group": "ai",
+  "theme": "catppuccin",
+  "bg": "flow",
+  "widgets": [
+    { "type": "text", "text": "{time}", "y": 158, "size": 44, "color": "ink" },
+    { "type": "text", "text": "Claude 5h", "x": 140, "y": 246, "size": 18, "align": "start", "color": "ink2" },
+    { "type": "text", "text": "{limit.claude5h}", "x": 500, "y": 246, "size": 18, "align": "end", "bold": true, "color": "ink" },
+    { "type": "bar", "source": "limit.claude5h", "y": 266, "length": 360, "width": 14, "rounded": true },
+    { "type": "text", "text": "Claude 7d", "x": 140, "y": 318, "size": 18, "align": "start", "color": "ink2" },
+    { "type": "text", "text": "{limit.claude7d}", "x": 500, "y": 318, "size": 18, "align": "end", "bold": true, "color": "ink" },
+    { "type": "bar", "source": "limit.claude7d", "y": 338, "length": 360, "width": 14, "rounded": true },
+    { "type": "text", "text": "Codex 7d", "x": 140, "y": 390, "size": 18, "align": "start", "color": "ink2" },
+    { "type": "text", "text": "{limit.codex7d}", "x": 500, "y": 390, "size": 18, "align": "end", "bold": true, "color": "ink" },
+    { "type": "bar", "source": "limit.codex7d", "y": 410, "length": 360, "width": 14, "rounded": true, "color": "accent2" },
+    { "type": "value", "source": "cost", "y": 510, "size": 46 }
+  ]
+}

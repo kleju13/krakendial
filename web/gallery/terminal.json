@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "id": "terminal",
+  "name": "Terminal",
+  "group": "retro",
+  "theme": "tokyo",
+  "bg": "none",
+  "widgets": [
+    { "type": "mascot", "y": 214, "px": 7, "walk": 220 },
+    { "type": "text", "text": "kraken@dial", "x": 138, "y": 262, "size": 24, "font": "mono", "align": "start", "color": "accent", "bold": true },
+    { "type": "text", "text": "cpu    {cpu.temp}\ngpu    {gpu.temp}\nliquid {liquid}\npower  {power}", "x": 138, "y": 300, "size": 24, "font": "mono", "align": "start", "color": "ink" },
+    { "type": "cells", "source": "cpu.load", "x": 330, "y": 300, "size": 24, "cells": 7, "value": false },
+    { "type": "cells", "source": "gpu.load", "x": 330, "y": 328.8, "size": 24, "cells": 7, "value": false },
+    { "type": "text", "text": "ram", "x": 138, "y": 448, "size": 24, "font": "mono", "align": "start", "color": "ink" },
+    { "type": "cells", "source": "ram.pct", "x": 210, "y": 448, "size": 24, "cells": 10 },
+    { "type": "text", "text": "{date}", "x": 138, "y": 480, "size": 24, "font": "mono", "align": "start", "color": "ink2" },
+    { "type": "text", "text": "{time.seconds}", "y": 540, "size": 18, "font": "mono", "color": "ink3" }
+  ]
+}

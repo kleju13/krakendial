@@ -1675,7 +1675,8 @@
     gwiazdy: "stars", linie: "silk", topografia: "contours", wir: "vortex", plaster: "honeycomb", siatka: "grid",
     kod: "rain", brak: "none",
   };
-  const isFace = (l) => /^face:[a-z0-9-]+$/.test(l || "");
+  // a face of your own (face:<id>) or one from the gallery (gallery:<id>)
+  const isFace = (l) => /^(face|gallery):[a-z0-9-]+$/.test(l || "");
   function normLayout(l, face) {
     if (isFace(l) || l === "face") return face ? "face" : "cockpit";
     const id = LEGACY[l] || l;

@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "big-temp",
+  "name": "Big numbers",
+  "group": "minimal",
+  "theme": "deep",
+  "bg": "aurora",
+  "widgets": [
+    { "type": "value", "source": "cpu.temp", "y": 338, "size": 230, "font": "light", "sub": false },
+    { "type": "value", "source": "gpu.temp", "y": 492, "size": 82, "font": "light", "sub": false, "color": "ink2" }
+  ]
+}

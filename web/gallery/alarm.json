@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "id": "alarm",
+  "name": "Alarm clock",
+  "group": "clock",
+  "theme": "mono",
+  "bg": "none",
+  "widgets": [
+    { "type": "segment", "source": "time", "y": 370, "size": 150, "slant": false, "color": "#ff3b30" },
+    { "type": "text", "text": "{date}", "y": 440, "size": 22, "spacing": 0.06, "color": "ink2" },
+    { "type": "segment", "source": "cpu.temp", "prefix": "CPU ", "x": 200, "y": 528, "size": 38, "slant": false, "color": "#ff3b30" },
+    { "type": "segment", "source": "gpu.temp", "prefix": "GPU ", "x": 440, "y": 528, "size": 38, "slant": false, "color": "#ff3b30" }
+  ]
+}

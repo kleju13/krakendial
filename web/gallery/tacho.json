@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "id": "tacho",
+  "name": "Twin needles",
+  "group": "gauge",
+  "theme": "graphite",
+  "bg": "none",
+  "widgets": [
+    { "type": "text", "text": "{time}", "y": 160, "size": 36, "color": "ink" },
+    { "type": "text", "text": "{date}", "y": 190, "size": 16, "color": "ink3" },
+    { "type": "ticks", "x": 190, "y": 344, "r": 122, "length": 10, "count": 21, "start": -120, "end": 120, "width": 1.5, "color": "ink3" },
+    { "type": "ticks", "x": 190, "y": 344, "r": 122, "length": 20, "count": 6, "start": -120, "end": 120, "width": 3, "color": "ink" },
+    { "type": "numerals", "kind": "scale", "x": 190, "y": 344, "r": 84, "size": 18, "from": 0, "to": 100, "count": 6, "start": -120, "end": 120, "color": "ink2" },
+    { "type": "needle", "source": "cpu.temp", "x": 190, "y": 344, "length": 112, "tail": 22, "width": 7, "hub": 11, "start": -120, "end": 120 },
+    { "type": "value", "source": "cpu.temp", "x": 190, "y": 452, "size": 34, "sub": false },
+    { "type": "ticks", "x": 450, "y": 344, "r": 122, "length": 10, "count": 21, "start": -120, "end": 120, "width": 1.5, "color": "ink3" },
+    { "type": "ticks", "x": 450, "y": 344, "r": 122, "length": 20, "count": 6, "start": -120, "end": 120, "width": 3, "color": "ink" },
+    { "type": "numerals", "kind": "scale", "x": 450, "y": 344, "r": 84, "size": 18, "from": 0, "to": 100, "count": 6, "start": -120, "end": 120, "color": "ink2" },
+    { "type": "needle", "source": "gpu.temp", "x": 450, "y": 344, "length": 112, "tail": 22, "width": 7, "hub": 11, "start": -120, "end": 120 },
+    { "type": "value", "source": "gpu.temp", "x": 450, "y": 452, "size": 34, "sub": false },
+    { "type": "text", "text": "{liquid}  ·  {power}", "y": 540, "size": 18, "color": "ink2" }
+  ]
+}

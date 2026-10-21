@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "id": "time-only",
+  "name": "Just the time",
+  "group": "minimal",
+  "theme": "mono",
+  "bg": "silk",
+  "widgets": [
+    { "type": "value", "source": "time", "y": 372, "size": 186, "font": "light", "showLabel": false, "sub": false },
+    { "type": "text", "text": "{date}", "y": 440, "size": 26, "font": "light", "color": "ink2" }
+  ]
+}

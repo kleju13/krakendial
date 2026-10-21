@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: 2026 kleju13 and KrakenDial contributors
 //! Draws the logo of src/logo.rs at the sizes Windows picks from and links it into the exe as
 //! its icon, and writes the pages' favicon, OUT_DIR/favicon.ico. The resource file is written
-//! here too, so the build needs no resource compiler.
+//! here too, so the build needs no resource compiler. It also gathers the gallery's faces,
+//! web/gallery/*.json, into one list, OUT_DIR/gallery.json.
 
 #[path = "src/logo.rs"]
 mod logo;
@@ -17,6 +18,7 @@ const SIZES: [usize; 8] = [16, 20, 24, 32, 40, 48, 64, 256];
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/logo.rs");
+    println!("cargo:rerun-if-changed=web/gallery");
     let images: Vec<(usize, Vec<u8>)> = SIZES
         .iter()
         .map(|&n| {
@@ -29,6 +31,7 @@ fn main() {
     // a browser tab wants 16 or 32 px, a shortcut to the page 48
     let tab: Vec<_> = images.iter().filter(|(n, _)| [16, 32, 48].contains(n)).cloned().collect();
     std::fs::write(out.join("favicon.ico"), ico(&tab)).unwrap();
+    std::fs::write(out.join("gallery.json"), gallery()).unwrap();
     let target = |key: &str| std::env::var(key).unwrap_or_default();
     // link.exe takes a .res as it is; the GNU linker would need windres
     if target("CARGO_CFG_TARGET_OS") == "windows" && target("CARGO_CFG_TARGET_ENV") == "msvc" {
@@ -36,6 +39,17 @@ fn main() {
         std::fs::write(&path, res(&images)).unwrap();
         println!("cargo:rustc-link-arg-bins={}", path.display());
     }
+}
+
+/// The gallery's faces as one JSON list, in the order of their file names. src/faces.rs checks
+/// them in its tests.
+fn gallery() -> String {
+    let mut files: Vec<PathBuf> = std::fs::read_dir("web/gallery")
+        .map(|d| d.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "json")).collect())
+        .unwrap_or_default();
+    files.sort();
+    let faces: Vec<String> = files.iter().map(|p| std::fs::read_to_string(p).unwrap().trim().to_string()).collect();
+    format!("[{}]", faces.join(",\n"))
 }
 
 /// The part of a directory entry that an .ico file and an icon group share.

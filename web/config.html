@@ -58,6 +58,9 @@
   .media { grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); }
   .media .thumb { max-width: 92px; }
   .media .opt, .faces .opt { position: relative; }
+  .gallery h3 { margin: 18px 0 10px; font-size: 11.5px; font-weight: 500; letter-spacing: 0.2em; color: var(--dim); }
+  .gallery h3:first-child { margin-top: 0; }
+  .gallery [hidden] { display: none; }
   .media .opt b, .faces .opt b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .del, .edit { position: absolute; top: 8px; right: 8px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; color: var(--muted);
     background: rgba(8, 16, 31, 0.85); text-decoration: none; opacity: 0; transition: opacity 0.2s; }
@@ -103,6 +106,8 @@
   <div>
     <section><h2 data-t="cfg.layout"></h2><div class="grid layouts" id="layouts"></div>
       <div class="hint" id="layout-hint" hidden></div></section>
+    <section><h2 data-t="cfg.gallery"></h2><div class="gallery" id="gallery"></div>
+      <div class="hint" data-t="cfg.galleryHint"></div></section>
     <section><h2 data-t="cfg.faces"></h2><div class="grid layouts faces" id="faces"></div>
       <div class="hint" data-t="cfg.facesHint"></div></section>
     <section><h2 data-t="cfg.mascot"></h2><div class="chips" id="mascots"></div>
@@ -142,7 +147,7 @@
 <script src="faces.js"></script>
 <script>
 (() => {
-  const K = KrakenDial, I = KrakenI18n, t = I.t;
+  const K = KrakenDial, F = KrakenFaces, I = KrakenI18n, t = I.t;
   const FPS = [[10, "10 fps"], [20, "20 fps"], [30, "30 fps"]];
   const UNITS = [["left", "cfg.left"], ["used", "cfg.used"]];
   const BARS = [["load", "cfg.barsLoad"], ["temp", "cfg.barsTemp"]];
@@ -252,6 +257,7 @@
     usageHint.classList.remove("bad");
     buildMedia();
     buildFaces();
+    buildGallery();
     minisKey = "";
   }
 
@@ -263,6 +269,24 @@
       if (r.ok) state.config = await r.json();
     } catch (_) {}
     render();
+    syncFace(patch);
+  }
+
+  // ---------- faces with a look of their own ----------
+
+  // What a face sets of the look itself; picking it puts that on.
+  const ownLook = (f) => Object.fromEntries(["theme", "bg", "look"].filter((k) => f && f[k]).map((k) => [k, f[k]]));
+  // A face of your own that has a look keeps the one picked here, so it comes back the same.
+  async function syncFace(patch) {
+    const m = /^face:(.+)$/.exec(cfg().layout || "");
+    const f = m && faces.find((x) => x.id === m[1]);
+    if (!f) return;
+    const next = { ...f };
+    for (const k of ["theme", "bg", "look"]) if (k in patch && (f[k] || (k === "look" && f.bg))) next[k] = patch[k];
+    if (!/^media:/.test(next.bg || "")) delete next.look;
+    if (JSON.stringify(next) === JSON.stringify(f)) return;
+    await fetch("/api/faces", { method: "POST", body: JSON.stringify(next) }).catch(() => {});
+    loadFaces();
   }
 
   // ---------- backgrounds ----------
@@ -367,21 +391,22 @@
 
   const facesHost = byId("faces");
   let faces = [], facesKey = null, faceOpts = [];
-  const faceOf = (layout) => faces.find((f) => `face:${f.id}` === layout) || (state.face && `face:${state.face.id}` === layout ? state.face : null);
+  const faceOf = (layout) =>
+    faces.find((f) => `face:${f.id}` === layout) || gallery.find((f) => `gallery:${f.id}` === layout) || (state.face && K.isFace(layout) && layout.endsWith(`:${state.face.id}`) ? state.face : null);
 
   function buildFaces() {
     facesHost.replaceChildren();
     const c = cfg();
     faceOpts = faces.map((f) => {
       const key = `face:${f.id}`;
-      const b = card(facesHost, f.name, null, () => save({ layout: key }));
+      const b = card(facesHost, f.name, null, () => save({ layout: key, ...ownLook(f) }));
       const edit = document.createElement("a");
       edit.className = "edit";
       edit.href = `/editor?face=${encodeURIComponent(f.id)}`;
       edit.textContent = t("cfg.edit");
       edit.onclick = (e) => e.stopPropagation();
       b.appendChild(edit);
-      return { key, b, face: f, dial: K.create(b.querySelector(".thumb"), { layout: key, face: f, theme: c.theme, bg: "none", animate: false }) };
+      return { key, b, face: f, dial: K.create(b.querySelector(".thumb"), { layout: key, face: f, theme: f.theme || c.theme, bg: "none", animate: false }) };
     });
     const add = document.createElement("a");
     add.className = "opt add";
@@ -404,6 +429,52 @@
       facesKey = key;
       buildFaces();
     }
+  }
+
+  // ---------- the gallery ----------
+
+  const GROUPS = ["clock", "gauge", "retro", "minimal", "ai"];
+  const galleryHost = byId("gallery");
+  let gallery = [], galleryOpts = [];
+  const galleryName = (g) => (t(`gal.${g.id}`) === `gal.${g.id}` ? g.name : t(`gal.${g.id}`));
+
+  // Each face in its own look, its background as a still picture.
+  function buildGallery() {
+    galleryHost.replaceChildren();
+    const c = cfg();
+    galleryOpts = [];
+    for (const g of GROUPS) {
+      const items = gallery.filter((f) => (GROUPS.includes(f.group) ? f.group : "minimal") === g);
+      if (!items.length) continue;
+      const h = document.createElement("h3");
+      h.textContent = t(`galg.${g}`).toUpperCase();
+      const grid = document.createElement("div");
+      grid.className = "grid layouts faces";
+      galleryHost.append(h, grid);
+      const opts = items.map((f) => {
+        const key = `gallery:${f.id}`;
+        const b = card(grid, galleryName(f), null, () => save({ layout: key, ...ownLook(f) }));
+        const edit = document.createElement("a");
+        edit.className = "edit";
+        edit.href = `/editor?from=${encodeURIComponent(key)}`;
+        edit.textContent = t("cfg.copy");
+        edit.onclick = (e) => e.stopPropagation();
+        b.appendChild(edit);
+        const dial = K.create(b.querySelector(".thumb"), { layout: key, face: f, theme: f.theme || c.theme, bg: f.bg || "none", animate: false });
+        return { key, b, face: f, dial, sourced: F.usesSource(f) };
+      });
+      galleryOpts.push({ h, grid, opts });
+    }
+    minisKey = "";
+    render();
+  }
+
+  async function loadGallery() {
+    try {
+      const r = await fetch("/api/gallery", { cache: "no-store" });
+      if (r.ok) gallery = await r.json();
+    } catch (_) {}
+    buildGallery();
   }
 
   // ---------- usage source ----------
@@ -455,11 +526,23 @@
         o.dial.update(data);
       }
       for (const o of faceOpts) {
-        o.dial.configure({ layout: o.key, face: o.face, theme: c.theme, bg: "none", ...same });
+        o.dial.configure({ layout: o.key, face: o.face, theme: o.face.theme || c.theme, bg: "none", ...same });
+        o.dial.update(data);
+      }
+      for (const grp of galleryOpts) for (const o of grp.opts) {
+        o.dial.configure({ layout: o.key, face: o.face, theme: o.face.theme || c.theme, bg: o.face.bg || "none", look: o.face.look || "plain", ...same });
         o.dial.update(data);
       }
     }
     for (const o of faceOpts) o.b.setAttribute("aria-pressed", String(o.key === c.layout));
+    // faces of limits and costs only once there is a usage source to show them (or when picked)
+    for (const grp of galleryOpts) {
+      for (const o of grp.opts) {
+        o.b.setAttribute("aria-pressed", String(o.key === c.layout));
+        o.b.hidden = o.sourced && !c.usage && o.key !== c.layout;
+      }
+      grp.h.hidden = grp.grid.hidden = grp.opts.every((o) => o.b.hidden);
+    }
     for (const o of bgOpts.concat(mediaOpts)) {
       o.b.setAttribute("aria-pressed", String(o.key === c.bg));
       const look = o.key.startsWith("media:") ? c.look : "plain";
@@ -571,6 +654,7 @@
   poll().then(() => {
     loadMedia();
     loadFaces();
+    loadGallery();
   });
   setInterval(poll, 2000);
   setInterval(loadMedia, 3000);
