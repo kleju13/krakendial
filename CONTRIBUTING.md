@@ -17,6 +17,7 @@ Only one copy can listen on port 30640, so stop an installed one first (`Get-Pro
 - `http://127.0.0.1:30640/lcd?mock` is the dial with made-up hardware, and URL parameters force a variant (see the README).
 - `http://127.0.0.1:30640/` is the settings page.
 - `http://127.0.0.1:30640/editor` is the face editor.
+- `screen=240` (or `320`) on any of the three draws for a smaller Kraken screen; see below.
 
 Before a pull request:
 
@@ -55,6 +56,17 @@ The logo is drawn pixel by pixel in `src/logo.rs`, for the tray, the exe's icon 
 
 The release exe embeds the web files, so a release build is a single file.
 
+### Screen sizes
+
+Krakens have 640, 320 or 240 px screens, and CAM and camless tell the page which (`window.nzxt.v1.width`). The dial is always drawn in 640×640 units and scaled to the screen, so on a small one the small print shrinks with it. `SIZES` in `dial.js` sorts screens into `large` (480 px and up), `mid` (300 to 479) and `small`:
+
+- On `mid` and `small`, the scene `<svg>` gets `is-mid` or `is-small`, and `dial.css` raises the small print (labels, units, the sync status) to a floor and thickens hairlines. Faces don't get these: they are drawn as made.
+- Layouts also leave things out to make room, more on `small` than on `mid`: the reset times under the limits, the subdials' notes, a column. `env.size` says which size a layout is built for.
+- Backgrounds are never drawn finer than the screen. Below 480 px their lines get heavier and character backgrounds use fewer, larger cells (`bg.js`, `backdrop().screen()`).
+- The LCD page reports the size to the service with the hardware readings, and the settings and the editor preview the dial at it.
+
+Check a layout change at 240, 320 and 640, in both languages: `/lcd?mock&screen=240&layout=<id>` in any browser window. A 640 screen must look exactly as before.
+
 ### Performance
 
 CAM renders the page without a GPU and captures every changed frame, so CPU time on the page is what the user pays for.
@@ -71,14 +83,15 @@ Ids are short English words, never shown to users. Names and descriptions go in 
 
 1. Write `sceneYourLayout(p, layer, env)` in `web/dial.js`.
    - `p` is the `<svg>` to draw into (640×640 units).
-   - `env` has `animate`, `mascot`, `face`, and what there is to show of the usage source:
+   - `env` has `animate`, `mascot`, `face`, `size` (`large`, `mid` or `small`, see Screen sizes), and what there is to show of the usage source:
      - `limits`: the entries of `LIMITS` to draw, 0 to 3 of them (switched on and sent by the source);
      - `cost`: whether a cost is shown;
      - `status`: whether there is a sync status to show (limits or a cost); `footer()` shows the date instead when there isn't.
    - Lay the layout out for any number of limits, with or without a cost, and give the room to the hardware when there are none. The layout is built again when what there is to show changes. `node tests/web.js` checks that a layout without a source says nothing about AI.
    - Return a list of updaters `(d) => …`. Each is called about once a second with `d = { now, hw, views, left, bars, unitWord, meta, cost, costs }`.
    - Build with the parts in `dial.js`, e.g. `num`, `arcGauge`, `barGauge`, `limitGauge`, `meta`, `footer`, `term`.
-2. Register it in `SCENES` and `LAYOUTS` (`mascot: true` if it has a mascot, `needsLimits: true` if it is made of limits only, `hwDesc: true` if it reads differently without them).
+   - Its text is drawn in the classes of `dial.css` (`t-lbl`, `t-sub`, …), so it gets the floor on small screens. Text that can't grow without breaking the layout, like a terminal's grid of characters, stays as drawn: mark the layout `dense`.
+2. Register it in `SCENES` and `LAYOUTS` (`mascot: true` if it has a mascot, `needsLimits: true` if it is made of limits only, `hwDesc: true` if it reads differently without them, `dense: true` if its text stays small on small screens; the settings say so there).
 3. Add its id to `LAYOUTS` in `src/main.rs`.
 4. Add `layout.<id>` and `layout.<id>.desc` to `web/i18n.js`, and `layout.<id>.descHw` with `hwDesc`.
 
@@ -90,7 +103,7 @@ Ids are short English words, never shown to users. Names and descriptions go in 
 
 ### A background
 
-1. Add a painter to `PAINT` in `web/bg.js`: `paint(ctx, t, s, p)` draws one frame at time `t` (seconds) on an `s`×`s` canvas, with the theme's colours in `p`. Optional `res` sets the canvas size.
+1. Add a painter to `PAINT` in `web/bg.js`: `paint(ctx, t, s, p)` draws one frame at time `t` (seconds) on an `s`×`s` canvas, with the theme's colours in `p`. Optional `res` sets the canvas size; on a smaller screen the canvas is the screen's size instead, so draw in fractions of `s`. Multiply line widths by `p.thick` (1, up to 2 on a 240 px screen) and lay characters out with `grid()`, which makes cells larger on small canvases.
 2. Add `{ id }` to `LIST` in `web/bg.js` and the id to `BGS` in `src/main.rs`.
 3. Add `bg.<id>` to `web/i18n.js`.
 

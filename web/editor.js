@@ -34,6 +34,14 @@
   // Only what the face sets itself, for the settings.
   const ownLook = (f) => Object.fromEntries(["theme", "bg", "look"].filter((k) => f && f[k]).map((k) => [k, f[k]]));
   const onCooler = () => !!(face && face.id && cfg().layout === `face:${face.id}`);
+  // The editor's address for a face; a preview size (screen=240) stays in it.
+  function editorUrl(id) {
+    const q = new URLSearchParams();
+    if (id) q.set("face", id);
+    if (params.get("screen")) q.set("screen", params.get("screen"));
+    const s = q.toString();
+    return s ? `/editor?${s}` : "/editor";
+  }
 
   // ---------- data for the preview ----------
   // The cooler's own numbers when CAM sends them, otherwise sample ones that move a little.
@@ -66,15 +74,45 @@
   const groupOf = (id) => dialHost.querySelector(`[data-w="${id}"]`);
   function draw() {
     dial.configure({ ...cfg(), ...lookNow(), layout: "face", face: face || { widgets: [] } });
+    drawActual();
     tick();
   }
   function tick() {
     const d = data();
     dial.update(d);
+    if (actual) actual.update(d);
     byId("caption").textContent = t(d.live ? "ed.preview" : "ed.previewMock");
     byId("hello").hidden = !face || face.widgets.length > 0 || !byId("templates").hidden;
     if (!drag) drawOverlay();
   }
+
+  // The face on a Kraken screen smaller than the stage, as many pixels across as it has (as the
+  // LCD page last reported it; screen=240 shows another size): what reads here reads on the cooler.
+  const actualHost = byId("actual-dial");
+  let actual = null;
+  function screenPx() {
+    const forced = Number(params.get("screen")) || 0;
+    const s = forced ? { w: forced, h: forced } : state.config && state.config.screen;
+    return s ? Math.min(s.w, s.h) : 0;
+  }
+  function drawActual() {
+    const px = screenPx();
+    const show = K.sizeOf(px) !== "large";
+    byId("actual").hidden = !show;
+    if (!show) {
+      // a dial off the page stops drawing its background
+      if (actual) actualHost.replaceChildren();
+      actual = null;
+      return;
+    }
+    actualHost.style.width = `${px / devicePixelRatio}px`;
+    byId("actual-hint").textContent = t("ed.actualHint", { px });
+    const c = { ...cfg(), ...lookNow(), layout: "face", face: face || { widgets: [] }, screen: px };
+    if (actual) actual.configure(c);
+    else actual = K.create(actualHost, c);
+  }
+  // the browser's zoom changes how many pixels a CSS pixel is
+  addEventListener("resize", () => actual && drawActual());
 
   // Where a widget is on the dial, in its own 640×640 units.
   function boxOf(id) {
@@ -224,7 +262,7 @@
           face.id = saved.id;
           face.name = saved.name;
         }
-        if (face && face.id) history.replaceState(null, "", `/editor?face=${encodeURIComponent(face.id)}`);
+        if (face && face.id) history.replaceState(null, "", editorUrl(face.id));
         if (!saveTimer) setSaved("saved");
         await loadFaces();
       } catch (e) {
@@ -260,7 +298,7 @@
     redo = [];
     group = null;
     pushedLook = onCooler() ? JSON.stringify(ownLook(face)) : null;
-    if (face.id) history.replaceState(null, "", `/editor?face=${encodeURIComponent(face.id)}`);
+    if (face.id) history.replaceState(null, "", editorUrl(face.id));
     setSaved("saved");
     setTab("look");
     changedView();
@@ -363,7 +401,7 @@
     await loadFaces();
     if (faces.length) open(faces[0]);
     else {
-      history.replaceState(null, "", "/editor");
+      history.replaceState(null, "", editorUrl());
       changedView();
       showNew(true);
     }
@@ -1324,7 +1362,10 @@
           return location.reload();
         }
         serviceBuild = next.build;
-        const restyle = !state.config || ["theme", "bg", "look", "mascot", "units", "cost", "bars", "lang"].some((k) => state.config[k] !== next.config[k]);
+        const restyle =
+          !state.config ||
+          ["theme", "bg", "look", "mascot", "units", "cost", "bars", "lang"].some((k) => state.config[k] !== next.config[k]) ||
+          JSON.stringify(state.config.screen) !== JSON.stringify(next.config.screen);
         state = next;
         if (I.resolve(state.config.lang) !== builtLang) {
           I.use(state.config.lang);

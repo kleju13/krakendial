@@ -4,11 +4,11 @@
 
 [Polski](README.pl.md)
 
-An open-source dial for the NZXT Kraken Elite LCD (640×640), shown through the Web Integration mode of NZXT CAM. It shows:
+An open-source dial for the LCD of NZXT Kraken coolers, shown through the Web Integration mode of NZXT CAM or by [camless](https://github.com/kleju13/camless). It shows:
 
 - CPU, GPU and liquid temperatures, CPU and GPU load and power, RAM and the time;
 - optionally, your Claude (5h, 7d) and Codex (7d) usage limits with a pace marker, and what they cost, from a usage source you run yourself;
-- 22 ready faces in the gallery, from watch dials and a speedometer to a VFD clock and a CRT terminal;
+- 23 ready faces in the gallery, from watch dials and a speedometer to a VFD clock and a CRT terminal;
 - your own faces, built in the editor from values, gauges and lamps, needles, seven-segment digits, clock hands, text, pictures and mascots.
 
 The dial and the settings are in English or Polish.
@@ -25,9 +25,25 @@ A small Rust service (`krakendial.exe`, no window but an icon in the tray, about
 - Settings can be changed only from its own pages. Other sites open in your browser can't change them, and requests addressed to any other host name are refused.
 - It connects only to the usage source you enter, and to GitHub once at each start to look for a new release. No telemetry.
 
+## Screens
+
+The dial is drawn for the screen it is on, at the size CAM or camless reports:
+
+| Screen | Krakens |
+| --- | --- |
+| 640×640 | Kraken Elite 2023 and 2024 |
+| 320×320 | Kraken Z3 |
+| 240×240 | Kraken 2023 |
+
+The Kraken Plus 2024 gets the size it reports. Under camless, the Z3's screen shows only its own display, so KrakenDial reaches it only through CAM.
+
+Below 480 px the small print grows, so it stays readable, and the built-in layouts leave out a few details to make room for it, such as the reset times under the limits. The smaller the screen, the more they leave out. The terminal-style layouts carry the most text and read best on a 640 px screen. Faces are drawn as made. The settings preview everything at the cooler's size, and the face editor shows the face at its real size too.
+
+Only the 640 px Kraken Elite 2024 has run KrakenDial so far. The smaller screens were checked in a browser drawn at their size, not on a cooler.
+
 ## Install
 
-Windows with NZXT CAM and a Kraken Elite. In PowerShell:
+Windows with NZXT CAM (or camless) and a Kraken with an LCD. In PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/kleju13/krakendial/main/scripts/install.ps1 | iex
@@ -37,7 +53,7 @@ This downloads the latest [release](https://github.com/kleju13/krakendial/releas
 
 From a clone with [Rust](https://rustup.rs) installed, `.\scripts\install.ps1` builds it instead of downloading. `.\scripts\uninstall.ps1` stops it and removes the autostart and the Start menu entry; `-Purge` also deletes settings, faces and media. [ffmpeg](https://ffmpeg.org) is optional; it shrinks your own videos to 640×640.
 
-In NZXT CAM: **Lighting** → the Kraken's **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`.
+In NZXT CAM: **Lighting** → the Kraken's **Mode** → **Web Integration** → **Custom Mode** → **Edit**, URL `http://127.0.0.1:30640/`. In camless: the LCD's web mode with the same URL (see [its README](https://github.com/kleju13/camless#readme)).
 
 ## Tray icon
 
@@ -59,7 +75,7 @@ CAM's **Configure** button, or `http://127.0.0.1:30640/` in a browser, opens the
   - Round dials: Cockpit, Chronograph, Columns, Clock, One number, Limits only, Hardware only.
   - Rotation (limits and hardware in turns) and Adaptive (hardware while the GPU is busy). These two and Limits only need a usage source.
   - Terminal-style: Terminal, htop, btop, neofetch, fastfetch, pfetch, macchina, cpufetch. The fetch layouts have a mascot (Kraken, Crab, Ghost, Cat or Robot) that blinks, looks around and walks a little.
-- **Gallery:** 22 ready faces in five groups: clocks (Classic, Roman, Diver, Pilot, Alarm clock, VFD, Orbit), gauges (Speedometer, Twin needles, Activity rings, LED ring and more), retro and terminal, minimal, and two for AI limits that show up once there is a usage source. A gallery face brings its own theme and background; picking it puts them on, and you can change them afterwards. **Edit a copy** opens it in the editor as a face of your own.
+- **Gallery:** 23 ready faces in five groups: clocks (Classic, Roman, Diver, Pilot, Alarm clock, VFD, Orbit), gauges (Speedometer, Twin needles, Activity rings, LED ring and more), retro and terminal, minimal, and two for AI limits that show up once there is a usage source. A gallery face brings its own theme and background; picking it puts them on, and you can change them afterwards. **Edit a copy** opens it in the editor as a face of your own.
 - **Theme:** 22 themes, among them Nord, Tokyo Night, Catppuccin, Dracula, Solarized, Gruvbox and Synthwave.
 - **Background:** 18 drawn animations, from liquid and aurora to `donut.c`, fire, Game of Life and pipes. They speed up with GPU load.
 - **Own backgrounds:** a video, GIF or picture of your own. It can be drawn tinted to the theme, as it is, or as ASCII characters.
@@ -103,6 +119,8 @@ Each layout shows the limits that are switched on and that the source sends, and
 - `http://127.0.0.1:30640/lcd?mock` is the bare dial with made-up hardware readings.
 
   `layout`, `theme`, `bg`, `units`, `look`, `mascot`, `bars`, `cost`, `limits`, `fps` and `lang` force a variant, e.g. `/lcd?mock&layout=neofetch&theme=tokyo&mascot=ghost&lang=pl`. A face goes as `layout=face:<id>`, a gallery face as `layout=gallery:<id>`. `limits=claude5h,codex7d` picks limits, `limits=none` switches them all off.
+
+  Without CAM or camless, the dial is drawn for a screen the size of the window. `screen=240` draws it for a 240 px screen in a window of any size. `/settings?screen=240` and `/editor?screen=240` preview the dial at that size.
 - Start the exe with `KRAKENDIAL_WEB=<repo>\web` to serve the web files from disk, without rebuilding. Open pages reload themselves when the service restarts.
 - `cargo test` runs the service tests. `node tests/web.js` builds every layout, gallery face and widget in both languages on a fake DOM.
 - Logs, settings, faces and media are in `%LOCALAPPDATA%\krakendial`.

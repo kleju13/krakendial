@@ -168,17 +168,23 @@ if (gallery.length < 12) fail(`only ${gallery.length} gallery faces`);
 
 // ---------- layouts, gallery, blocks, widgets ----------
 
+// the screens of the Krakens camless knows: the Elite's (and unknown), the Z3's, the Kraken 2023's;
+// each dial moves to the next size halfway, as when a page learns the size late
+const SCREENS = [undefined, 320, 240];
 for (const lang of languages) {
   for (const l of K.LAYOUTS) {
     const sets = [["left", "last24h", limits], ["used", "off", unset], ["left", "month", {}], ["used", "today", claude], ["left", "last7d", limits, ["codex7d"]], ["left", "off", limits, "none"]];
-    for (const [units, cost, lim, on] of sets) {
-      const d = K.create(div(), { layout: l.id, theme: "ice", bg: "none", animate: false, units, cost, lang, limits: on });
-      d.update({ now, hw, limits: lim, costs, interval: 60e3 });
-      d.update({ now, hw: K.emptyHw(), limits: lim, costs: null, interval: 60e3 });
-      d.configure({ layout: l.id, theme: "deep", bg: "none", units, cost: cost === "off" ? "today" : "off", lang, limits: on ? undefined : ["claude7d"] });
-      for (let i = 1; i < 10; i++) d.update({ now: now + i * 7000, hw, limits: lim, costs, interval: 60e3, mode: i > 5 ? "game" : "work" });
-      if (d.layout !== l.id) fail(`layout ${l.id} came out as ${d.layout}`);
-      built++;
+    for (const [si, screen] of SCREENS.entries()) {
+      for (const [units, cost, lim, on] of sets) {
+        const d = K.create(div(), { layout: l.id, theme: "ice", bg: "none", animate: false, units, cost, lang, limits: on, screen });
+        d.update({ now, hw, limits: lim, costs, interval: 60e3 });
+        d.update({ now, hw: K.emptyHw(), limits: lim, costs: null, interval: 60e3 });
+        const next = SCREENS[(si + 1) % SCREENS.length];
+        d.configure({ layout: l.id, theme: "deep", bg: "none", units, cost: cost === "off" ? "today" : "off", lang, limits: on ? undefined : ["claude7d"], screen: next });
+        for (let i = 1; i < 10; i++) d.update({ now: now + i * 7000, hw, limits: lim, costs, interval: 60e3, mode: i > 5 ? "game" : "work" });
+        if (d.layout !== l.id) fail(`layout ${l.id} came out as ${d.layout}`);
+        built++;
+      }
     }
   }
   // ids from older versions
@@ -227,6 +233,39 @@ for (const lang of languages) {
       built++;
     }
   }
+}
+
+// ---------- screen sizes ----------
+
+for (const [px, want] of [[640, "large"], [480, "large"], [479, "mid"], [320, "mid"], [300, "mid"], [299, "small"], [240, "small"], [0, "large"], [undefined, "large"], ["x", "large"]])
+  if (K.sizeOf(px) !== want) fail(`sizeOf(${px}) is ${K.sizeOf(px)}, not ${want}`);
+// the built-in layouts take the small screen's class, which dial.css enlarges the small print by;
+// faces are drawn as made
+const classes = (n) => [n.attrs.class || "", n.className || "", ...n.children.map(classes)].join(" ");
+for (const [layout, face] of [["cockpit"], ["htop"], ["gallery:speedo", F.normalize(gallery.find((g) => g.face.id === "speedo").face)]]) {
+  for (const [screen, cls] of [[640, null], [320, "is-mid"], [240, "is-small"]]) {
+    const box = div();
+    K.create(box, { layout, face, theme: "ice", bg: "none", animate: false, lang: "en", screen }).update({ now, hw, limits, costs, interval: 60e3 });
+    const c = classes(box);
+    const got = /\bis-(mid|small)\b/.exec(c);
+    if (face ? got : (got && got[0]) !== cls) fail(`${layout} at ${screen} px has ${got ? got[0] : "no size class"}`);
+  }
+}
+// a background is never drawn finer than the screen, and every one draws at the smallest size
+{
+  const canvas = new Node("canvas");
+  const back = KrakenBg.backdrop(canvas, div());
+  back.set("donut", false);
+  const full = canvas.width;
+  back.screen(240);
+  if (canvas.width !== 240) fail(`background at 240 px drawn at ${canvas.width}`);
+  back.screen(0);
+  if (canvas.width !== full) fail(`background back at ${canvas.width}, not ${full}`);
+  back.screen(1000);
+  if (canvas.width !== full) fail(`background on a large screen at ${canvas.width}, not ${full}`);
+  back.screen(240);
+  for (const { id } of KrakenBg.LIST) back.set(id, false);
+  if (canvas.width !== 16) fail(`no background at 240 px drawn at ${canvas.width}`);
 }
 
 // ---------- what the built-in layouts show ----------

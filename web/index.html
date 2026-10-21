@@ -43,6 +43,20 @@
   // camless=on|off
   if (params.get("camless")) forced.camless = params.get("camless") === "on";
 
+  // The screen: CAM and camless say how big it is, in pixels (null until they do); a page
+  // without them is drawn at the size of the window. screen=240 draws it for a screen that size,
+  // e.g. in a browser.
+  const forcedScreen = Number(params.get("screen")) || 0;
+  const told = () => {
+    const v1 = window.nzxt && window.nzxt.v1;
+    return v1 && v1.width > 0 && v1.height > 0 ? { w: Math.round(v1.width), h: Math.round(v1.height), shape: v1.shape === "square" ? "square" : "circle" } : null;
+  };
+  const screenPx = () => {
+    const s = told();
+    return forcedScreen || (s ? Math.min(s.w, s.h) : Math.min(innerWidth, innerHeight));
+  };
+  addEventListener("resize", () => render());
+
   // Adaptive switching: game after 20 s of a busy GPU, back to work after 60 s of calm.
   const GAME_LOAD = 0.6, GAME_AFTER = 20, CALM_LOAD = 0.35, CALM_AFTER = 60;
   const PEAK_WINDOW = 10 * 60e3;
@@ -58,7 +72,7 @@
   let hw = KrakenDial.emptyHw();
   let mode = "work", hot = 0, calm = 0;
   const peaks = { cpu: [], gpu: [] };
-  const dial = KrakenDial.create(document.getElementById("dial"), forced);
+  const dial = KrakenDial.create(document.getElementById("dial"), { ...forced, screen: screenPx() });
 
   const DISCRETE = /nvidia|geforce|rtx|gtx|radeon rx|arc a|arc b/i;
   function pickGpu(gpus) {
@@ -103,7 +117,7 @@
   function render() {
     if (!polled) return;
     const cfg = { ...(state.config || {}), ...forced };
-    dial.configure({ ...cfg, face: forced.layout ? forcedFace : state.face });
+    dial.configure({ ...cfg, face: forced.layout ? forcedFace : state.face, screen: screenPx() });
     dial.camless(cfg.camless === true && !mock);
     dial.update({ now: Date.now(), hw, limits: state.limits, costs: state.costs, interval: state.interval, mode });
   }
@@ -120,10 +134,11 @@
     render();
   }
 
-  // Mirror what the cooler shows to the Configure page.
+  // Mirror what the cooler shows to the Configure page, with the size of its screen, which the
+  // settings and the editor preview the dial at.
   function share() {
     if (!window.__hw || mock) return;
-    fetch("/api/hw", { method: "POST", body: JSON.stringify({ ...hw, mode }) }).catch(() => {});
+    fetch("/api/hw", { method: "POST", body: JSON.stringify({ ...hw, mode, screen: told() }) }).catch(() => {});
   }
 
   if (mock) {
