@@ -20,6 +20,14 @@
   const cfg = () => ({ theme: "ice", bg: "liquid", fps: 10, units: "left", look: "plain", mascot: "kraken", cost: "last24h", bars: "load", lang: "auto", ...(state.config || {}) });
   const widgetById = (id) => (face ? face.widgets.find((w) => w.id === id) : null);
   const typeName = (type) => t(`w.${type}`);
+  // The editor's address for a face; a preview size (screen=240) stays in it.
+  function editorUrl(id) {
+    const q = new URLSearchParams();
+    if (id) q.set("face", id);
+    if (params.get("screen")) q.set("screen", params.get("screen"));
+    const s = q.toString();
+    return s ? `/editor?${s}` : "/editor";
+  }
 
   // ---------- data for the preview ----------
   // The cooler's own numbers when CAM sends them, otherwise sample ones that move a little.
@@ -200,7 +208,7 @@
           face.id = saved.id;
           face.name = saved.name;
         }
-        if (face && face.id) history.replaceState(null, "", `/editor?face=${encodeURIComponent(face.id)}`);
+        if (face && face.id) history.replaceState(null, "", editorUrl(face.id));
         if (!saveTimer) setSaved("saved");
         await loadFaces();
       } catch (e) {
@@ -229,7 +237,7 @@
     undo = [];
     redo = [];
     group = null;
-    if (face.id) history.replaceState(null, "", `/editor?face=${encodeURIComponent(face.id)}`);
+    if (face.id) history.replaceState(null, "", editorUrl(face.id));
     setSaved("saved");
     changedView();
   }
@@ -320,7 +328,7 @@
     await loadFaces();
     if (faces.length) open(faces[0]);
     else {
-      history.replaceState(null, "", "/editor");
+      history.replaceState(null, "", editorUrl());
       changedView();
       showTemplates(true);
     }
