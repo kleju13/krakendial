@@ -2,7 +2,7 @@
 
 # KrakenDial
 
-[English](README.md)
+[English](README.md) · [Strona projektu](https://kleju.dev/camless.html?lang=pl)
 
 Otwartoźródłowa tarcza na LCD chłodzeń NZXT Kraken, wyświetlana przez tryb Web Integration w NZXT CAM albo przez [camless](https://github.com/kleju13/camless). Pokazuje:
 
