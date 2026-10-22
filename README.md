@@ -2,7 +2,7 @@
 
 # KrakenDial
 
-[Polski](README.pl.md)
+[Polski](README.pl.md) · [Project page](https://kleju.dev/camless.html?lang=en)
 
 An open-source dial for the LCD of NZXT Kraken coolers, shown through the Web Integration mode of NZXT CAM or by [camless](https://github.com/kleju13/camless). It shows:
 
